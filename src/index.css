@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: 'Pretendard', sans-serif;
+  background: #FAF6F1;
+}
+
+* {
+  box-sizing: border-box;
+}
