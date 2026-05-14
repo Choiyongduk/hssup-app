@@ -130,7 +130,7 @@ export default function HSSUPApp() {
   const fullMenu = isAdmin ? adminMenu : studentMenu;
  
   return (
-    <div className="min-h-screen flex items-center justify-center py-6 px-4" style={{ background: '#0A0A0A' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: COLORS.cream }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
@@ -147,22 +147,16 @@ export default function HSSUPApp() {
         .animate-slide-up { animation: slideUp 0.3s ease-out; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .animate-spin { animation: spin 1s linear infinite; }
+        @media (min-width: 481px) {
+          .app-container {
+            max-width: 480px;
+            margin: 0 auto;
+            box-shadow: 0 0 40px rgba(0,0,0,0.08);
+          }
+        }
       `}</style>
- 
-      <div className="relative" style={{
-        width: '390px', height: '844px', maxHeight: 'calc(100vh - 48px)',
-        borderRadius: '54px', padding: '12px',
-        background: 'linear-gradient(145deg, #1a1a1a 0%, #2a2a2a 100%)',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
-      }}>
-        <div className="relative w-full h-full overflow-hidden flex flex-col" style={{ borderRadius: '42px', background: COLORS.cream }}>
-          <div className="shrink-0 px-7 pt-3 pb-1 flex items-center justify-between font-body text-xs font-semibold" style={{ color: COLORS.ink }}>
-            <span>9:41</span>
-            <div className="flex items-center gap-1.5">
-              <Signal size={13} /><Wifi size={13} /><Battery size={15} />
-            </div>
-          </div>
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-7 rounded-full z-50" style={{ background: '#1a1a1a' }}></div>
+
+      <div className="app-container relative w-full overflow-hidden flex flex-col" style={{ background: COLORS.cream, minHeight: '100vh' }}>
  
           {loading ? <LoadingScreen /> :
            !session || !profile ? <AuthScreen /> : (
@@ -185,7 +179,6 @@ export default function HSSUPApp() {
               )}
             </>
           )}
-        </div>
       </div>
     </div>
   );
