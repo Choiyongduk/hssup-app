@@ -27,6 +27,46 @@ const getInitial = (name) => {
   return trimmed.charAt(0).toUpperCase();
 };
 
+// 이미지 업로드 헬퍼 함수
+const uploadCaseImage = async (file, userId) => {
+  // 파일 이름 생성 (timestamp + random)
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+  const filePath = `${userId}/${fileName}`;
+
+  // Supabase Storage에 업로드
+  const { error: uploadError } = await supabase.storage
+    .from('case-images')
+    .upload(filePath, file);
+
+  if (uploadError) {
+    console.error('Upload error:', uploadError);
+    throw uploadError;
+  }
+
+  // Public URL 가져오기
+  const { data } = supabase.storage
+    .from('case-images')
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+};
+
+// 이미지 삭제 헬퍼 함수
+const deleteCaseImage = async (imageUrl) => {
+  // URL에서 파일 경로 추출
+  const url = new URL(imageUrl);
+  const pathParts = url.pathname.split('/case-images/');
+  if (pathParts.length < 2) return;
+  const filePath = pathParts[1];
+
+  const { error } = await supabase.storage
+    .from('case-images')
+    .remove([filePath]);
+
+  if (error) console.error('Delete error:', error);
+};
+
 const COLORS = {
   primary: '#FF5C1F', deep: '#D94614', peach: '#FFE8DD',
   cream: '#FAF6F1', ink: '#1A1A1A', stone: '#6B6661',
@@ -122,6 +162,7 @@ export default function HSSUPApp() {
     ]},
     { section: 'CONTENT', items: [
       { id: 'admin-notice', label: '공지 관리', icon: Bell },
+      { id: 'admin-cases', label: '케이스 관리', icon: Camera },
     ]},
     { section: 'MY', items: [
       { id: 'mypage', label: '마이페이지', icon: User },
@@ -476,6 +517,7 @@ function PageRouter({ currentPage, setCurrentPage, user, handleLogout, isAdmin }
     if (currentPage === 'admin-notice') return <AdminNotice user={user} />;
     if (currentPage === 'admin-students') return <AdminStudents />;
     if (currentPage === 'admin-qna') return <AdminQna user={user} />;
+    if (currentPage === 'admin-cases') return <AdminCases />;
     if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
   }
   if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} />;
@@ -703,26 +745,351 @@ function CoursePage() {
 }
  
 function BestCasePage() {
+  const [cases, setCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('전체');
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('cases')
+      .select('*, profiles(name, avatar_color, course)')
+      .eq('is_best', true)
+      .order('created_at', { ascending: false });
+    setCases(data || []);
+    setLoading(false);
+  };
+
+  const filtered = filter === '전체' ? cases : cases.filter(c => c.category === filter);
+  const categories = ['전체', '눈썹', '아이라인', '입술', '속눈썹', '헤어라인'];
+
   return (
     <>
       <PageIntro ko="베스트 케이스" en="Best Case" desc="동료들의 작품에서 영감을 얻으세요" />
-      <div className="px-5 text-center py-10">
-        <p className="font-body text-sm" style={{ color: COLORS.stone }}>아직 베스트 케이스가 없습니다</p>
-        <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>관리자가 우수 케이스를 선정하면 표시됩니다</p>
+
+      {/* 카테고리 필터 */}
+      <div className="px-5 mb-4">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilter(cat)}
+              className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold"
+              style={{
+                background: filter === cat ? COLORS.ink : COLORS.white,
+                color: filter === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === cat ? COLORS.ink : COLORS.light}`
+              }}>
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 space-y-4">
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <Award size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {filter === '전체' ? '아직 베스트 케이스가 없습니다' : `${filter} 카테고리에 베스트가 없습니다`}
+            </p>
+            <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>관리자가 우수 케이스를 선정하면 표시됩니다</p>
+          </div>
+        ) : (
+          filtered.map(c => (
+            <div key={c.id} className="rounded-3xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+              {/* 이미지 */}
+              {c.image_urls?.length > 0 && (
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <img src={c.image_urls[0]} alt={c.title} className="w-full h-full object-cover" />
+                  {c.image_urls.length > 1 && (
+                    <div className="absolute bottom-3 right-3 px-2 py-1 rounded-full font-mono text-[10px] font-bold flex items-center gap-1"
+                      style={{ background: 'rgba(26,26,26,0.7)', color: COLORS.white }}>
+                      <ImageIcon size={10} />{c.image_urls.length}
+                    </div>
+                  )}
+                  <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.white, color: COLORS.ink }}>{c.category}</span>
+                  <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white }}>
+                    ★ BEST
+                  </span>
+                </div>
+              )}
+
+              {/* 정보 */}
+              <div className="p-5">
+                <h4 className="font-heading text-base mb-2" style={{ color: COLORS.ink }}>{c.title}</h4>
+
+                {/* 작성자 정보 */}
+                <div className="flex items-center gap-2 mb-3">
+                  <Avatar user={c.profiles} size="xs" />
+                  <div>
+                    <p className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{c.profiles?.name || '익명'}</p>
+                    <p className="font-mono text-[9px]" style={{ color: COLORS.stone }}>{c.profiles?.course}</p>
+                  </div>
+                </div>
+
+                {c.memo && (
+                  <p className="font-body text-xs leading-relaxed pt-3" style={{ color: COLORS.stone, borderTop: `1px solid ${COLORS.light}` }}>{c.memo}</p>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </>
   );
 }
  
 function MyCasePage({ user }) {
+  const [cases, setCases] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({
+    title: '',
+    category: '눈썹',
+    memo: '',
+    imageFiles: [],
+    imagePreviews: []
+  });
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('cases')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    setCases(data || []);
+    setLoading(false);
+  };
+
+  // 이미지 파일 선택 처리
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    // 최대 5장 제한
+    const totalFiles = form.imageFiles.length + files.length;
+    if (totalFiles > 5) {
+      alert('이미지는 최대 5장까지 업로드 가능합니다');
+      return;
+    }
+
+    // 미리보기 생성
+    const newPreviews = files.map(file => URL.createObjectURL(file));
+    setForm({
+      ...form,
+      imageFiles: [...form.imageFiles, ...files],
+      imagePreviews: [...form.imagePreviews, ...newPreviews]
+    });
+  };
+
+  // 미리보기 이미지 제거
+  const removePreview = (index) => {
+    const newFiles = form.imageFiles.filter((_, i) => i !== index);
+    const newPreviews = form.imagePreviews.filter((_, i) => i !== index);
+    URL.revokeObjectURL(form.imagePreviews[index]);
+    setForm({ ...form, imageFiles: newFiles, imagePreviews: newPreviews });
+  };
+
+  // 케이스 등록
+  const submit = async () => {
+    if (!form.title.trim()) return alert('제목을 입력해주세요');
+    if (form.imageFiles.length === 0) return alert('이미지를 1장 이상 업로드해주세요');
+
+    setUploading(true);
+    try {
+      // 모든 이미지 업로드
+      const imageUrls = await Promise.all(
+        form.imageFiles.map(file => uploadCaseImage(file, user.id))
+      );
+
+      // DB에 케이스 정보 저장
+      const { error } = await supabase.from('cases').insert({
+        user_id: user.id,
+        title: form.title,
+        category: form.category,
+        memo: form.memo,
+        image_urls: imageUrls
+      });
+
+      if (error) throw error;
+
+      // 폼 초기화
+      form.imagePreviews.forEach(url => URL.revokeObjectURL(url));
+      setForm({ title: '', category: '눈썹', memo: '', imageFiles: [], imagePreviews: [] });
+      setShowForm(false);
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert('업로드 실패: ' + err.message);
+    }
+    setUploading(false);
+  };
+
+  // 케이스 삭제
+  const removeCase = async (caseItem) => {
+    if (!confirm('이 케이스를 삭제하시겠습니까?\n사진도 함께 삭제됩니다.')) return;
+
+    // 1. Storage에서 이미지들 삭제
+    if (caseItem.image_urls?.length) {
+      await Promise.all(caseItem.image_urls.map(url => deleteCaseImage(url)));
+    }
+    // 2. DB에서 케이스 삭제
+    await supabase.from('cases').delete().eq('id', caseItem.id);
+    await load();
+  };
+
   return (
     <>
       <PageIntro ko="포트폴리오" en="My Portfolio" desc="나만의 시술 기록을 남기세요" />
-      <div className="px-5">
-        <button className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white }}>
-          <Plus size={16} strokeWidth={2.5} />새 케이스 추가
-        </button>
-        <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>아직 등록된 케이스가 없습니다</p>
+      <div className="px-5 space-y-3">
+
+        {/* 새 케이스 추가 버튼 */}
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white }}>
+            <Plus size={16} strokeWidth={2.5} />새 케이스 추가
+          </button>
+        )}
+
+        {/* 새 케이스 작성 폼 */}
+        {showForm && (
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>새 시술 케이스</h3>
+              <button onClick={() => {
+                form.imagePreviews.forEach(url => URL.revokeObjectURL(url));
+                setForm({ title: '', category: '눈썹', memo: '', imageFiles: [], imagePreviews: [] });
+                setShowForm(false);
+              }}>
+                <X size={18} style={{ color: COLORS.stone }} />
+              </button>
+            </div>
+
+            {/* 카테고리 선택 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>카테고리</label>
+              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                <option>눈썹</option><option>아이라인</option><option>입술</option><option>속눈썹</option><option>헤어라인</option>
+              </select>
+            </div>
+
+            {/* 제목 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>제목</label>
+              <input type="text" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
+                placeholder="예: 엠보 브로우 - 첫 모델"
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+
+            {/* 이미지 업로드 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>
+                사진 ({form.imageFiles.length}/5)
+              </label>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {/* 업로드된 이미지 미리보기 */}
+                {form.imagePreviews.map((preview, idx) => (
+                  <div key={idx} className="relative aspect-square rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
+                    <img src={preview} alt={`미리보기 ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button onClick={() => removePreview(idx)}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{ background: 'rgba(26,26,26,0.7)' }}>
+                      <X size={12} style={{ color: COLORS.white }} />
+                    </button>
+                  </div>
+                ))}
+
+                {/* 추가 버튼 */}
+                {form.imageFiles.length < 5 && (
+                  <label className="aspect-square rounded-xl flex flex-col items-center justify-center cursor-pointer"
+                    style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
+                    <Upload size={20} style={{ color: COLORS.stone }} />
+                    <span className="font-mono text-[9px] mt-1" style={{ color: COLORS.stone }}>업로드</span>
+                    <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
+                  </label>
+                )}
+              </div>
+              <p className="font-mono text-[10px] mt-1.5" style={{ color: COLORS.stone }}>※ 최대 5장, 각 5MB 이하</p>
+            </div>
+
+            {/* 메모 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>메모</label>
+              <textarea value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
+                placeholder="시술 과정, 컬러, 느낀점 등을 적어보세요" rows={3}
+                className="w-full font-body text-xs font-medium p-2 mt-1 outline-none resize-none rounded" style={{ background: COLORS.cream, color: COLORS.ink }} />
+            </div>
+
+            {/* 등록 버튼 */}
+            <button onClick={submit} disabled={uploading}
+              className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: COLORS.ink, color: COLORS.white }}>
+              {uploading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  업로드 중...
+                </>
+              ) : '등록하기'}
+            </button>
+          </div>
+        )}
+
+        {/* 케이스 목록 */}
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : cases.length === 0 ? (
+          <div className="text-center py-10">
+            <Camera size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>아직 등록된 케이스가 없습니다</p>
+            <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>첫 시술 케이스를 기록해보세요!</p>
+          </div>
+        ) : (
+          cases.map(c => (
+            <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+              {/* 이미지 영역 */}
+              {c.image_urls?.length > 0 && (
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <img src={c.image_urls[0]} alt={c.title} className="w-full h-full object-cover" />
+                  {c.image_urls.length > 1 && (
+                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded-full font-mono text-[10px] font-bold"
+                      style={{ background: 'rgba(26,26,26,0.7)', color: COLORS.white }}>
+                      +{c.image_urls.length - 1}
+                    </div>
+                  )}
+                  <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.white, color: COLORS.ink }}>{c.category}</span>
+                  {c.is_best && (
+                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>★ BEST</span>
+                  )}
+                </div>
+              )}
+
+              {/* 정보 */}
+              <div className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-heading text-base" style={{ color: COLORS.ink }}>{c.title}</h4>
+                    <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>{new Date(c.created_at).toLocaleDateString('ko-KR')}</p>
+                  </div>
+                  <button onClick={() => removeCase(c)} className="p-1.5 rounded-full" style={{ background: COLORS.cream }}>
+                    <Trash2 size={12} style={{ color: COLORS.deep }} />
+                  </button>
+                </div>
+                {c.memo && <p className="font-body text-xs mt-2 leading-relaxed" style={{ color: COLORS.stone }}>{c.memo}</p>}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </>
   );
@@ -1358,6 +1725,110 @@ function AdminStudents() {
   );
 }
  
+function AdminCases() {
+  const [cases, setCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('전체');
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('cases')
+      .select('*, profiles(name, avatar_color, course)')
+      .order('created_at', { ascending: false });
+    setCases(data || []);
+    setLoading(false);
+  };
+
+  const toggleBest = async (caseItem) => {
+    const newValue = !caseItem.is_best;
+    await supabase
+      .from('cases')
+      .update({ is_best: newValue, best_badge: newValue ? 'TOP PICK' : null })
+      .eq('id', caseItem.id);
+    await load();
+  };
+
+  const filtered = filter === '전체' ? cases : filter === '베스트' ? cases.filter(c => c.is_best) : cases.filter(c => c.category === filter);
+  const filters = ['전체', '베스트', '눈썹', '아이라인', '입술', '속눈썹', '헤어라인'];
+
+  return (
+    <>
+      <PageIntro ko="케이스 관리" en="Cases Admin" />
+
+      <div className="px-5 mb-4">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {filters.map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold"
+              style={{
+                background: filter === f ? COLORS.ink : COLORS.white,
+                color: filter === f ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === f ? COLORS.ink : COLORS.light}`
+              }}>
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 space-y-3">
+        <div className="rounded-2xl p-3 text-center" style={{ background: COLORS.primary }}>
+          <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>현재 베스트</p>
+          <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>{cases.filter(c => c.is_best).length}개</p>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>케이스가 없습니다</p>
+        ) : (
+          filtered.map(c => (
+            <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+              {c.image_urls?.length > 0 && (
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <img src={c.image_urls[0]} alt={c.title} className="w-full h-full object-cover" />
+                  <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.white, color: COLORS.ink }}>{c.category}</span>
+                  {c.is_best && (
+                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>★ BEST</span>
+                  )}
+                </div>
+              )}
+              <div className="p-4">
+                <h4 className="font-heading text-base" style={{ color: COLORS.ink }}>{c.title}</h4>
+                <div className="flex items-center gap-2 mt-2">
+                  <Avatar user={c.profiles} size="xs" />
+                  <p className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{c.profiles?.name || '익명'}</p>
+                  <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>· {new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
+                </div>
+                {c.memo && <p className="font-body text-xs mt-2 leading-relaxed" style={{ color: COLORS.stone }}>{c.memo}</p>}
+
+                <button onClick={() => toggleBest(c)}
+                  className="w-full mt-3 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
+                  style={{
+                    background: c.is_best ? COLORS.cream : COLORS.primary,
+                    color: c.is_best ? COLORS.deep : COLORS.white,
+                    border: c.is_best ? `1px solid ${COLORS.light}` : 'none'
+                  }}>
+                  {c.is_best ? (
+                    <>베스트 해제</>
+                  ) : (
+                    <>★ 베스트로 지정</>
+                  )}
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
 function AdminQna({ user }) {
   const [questions, setQuestions] = useState([]);
   const [selected, setSelected] = useState(null);
