@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import {
-  Home, Bell, BookOpen, Award, MessageCircle, FolderOpen, Sparkles,
+  Home, Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles,
   ShoppingBag, PlayCircle, Users, Calendar, Video, FileCheck, Gift,
   User, LogOut, Menu, X, Search, Heart, ChevronRight, Clock,
   Check, Plus, Send, Eye, Lock, Mail, Edit3, Download, Play, Upload,
@@ -67,6 +67,91 @@ const deleteCaseImage = async (imageUrl) => {
   if (error) console.error('Delete error:', error);
 };
 
+// ============================================
+// 푸시 알림 관련 함수
+// ============================================
+
+// Base64 URL → Uint8Array 변환 (VAPID 키 형식)
+const urlBase64ToUint8Array = (base64String) => {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return new Uint8Array([...rawData].map(c => c.charCodeAt(0)));
+};
+
+// 알림 구독
+const subscribeToNotifications = async (userId) => {
+  try {
+    // 1. 권한 요청
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      throw new Error('알림 권한이 거부되었습니다');
+    }
+
+    // 2. Service Worker 등록 확인
+    const registration = await navigator.serviceWorker.ready;
+
+    // 3. 푸시 구독
+    const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+    });
+
+    // 4. Supabase에 구독 정보 저장
+    const subscriptionJSON = subscription.toJSON();
+    const { error } = await supabase.from('push_subscriptions').upsert({
+      user_id: userId,
+      endpoint: subscriptionJSON.endpoint,
+      p256dh_key: subscriptionJSON.keys.p256dh,
+      auth_key: subscriptionJSON.keys.auth,
+      user_agent: navigator.userAgent,
+    }, { onConflict: 'user_id,endpoint' });
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error('구독 실패:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+// 알림 구독 해제
+const unsubscribeFromNotifications = async (userId) => {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    
+    if (subscription) {
+      await subscription.unsubscribe();
+      // DB에서도 제거
+      await supabase.from('push_subscriptions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('endpoint', subscription.endpoint);
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('구독 해제 실패:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+// 현재 알림 상태 확인
+const checkNotificationStatus = async () => {
+  if (!('Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  if (Notification.permission === 'default') return 'default';
+  
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    return subscription ? 'subscribed' : 'unsubscribed';
+  } catch {
+    return 'error';
+  }
+};
+
 const COLORS = {
   primary: '#FF5C1F', deep: '#D94614', peach: '#FFE8DD',
   cream: '#FAF6F1', ink: '#1A1A1A', stone: '#6B6661',
@@ -79,7 +164,68 @@ export default function HSSUPApp() {
   const [profile, setProfile] = useState(null);
   const [currentPage, setCurrentPage] = useState('home');
   const [drawerOpen, setDrawerOpen] = useState(false);
- 
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showSplash, setShowSplash] = useState(() => {
+    // standalone 모드(설치된 앱)에서만 스플래시 표시
+    const standalone = window.matchMedia('(display-mode: standalone)').matches 
+                    || window.navigator.standalone === true;
+    return standalone;
+  });
+
+  // PWA 설치 가능 여부 감지
+  useEffect(() => {
+    // iOS 감지
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    setIsIOS(isIOSDevice);
+
+    // 이미 설치되어 standalone 모드로 실행 중인지 확인
+    const standalone = window.matchMedia('(display-mode: standalone)').matches 
+                    || window.navigator.standalone === true;
+    setIsStandalone(standalone);
+
+    // 설치 배너 닫은 적 있는지 확인
+    const dismissed = localStorage.getItem('hssup_install_dismissed');
+    const dismissedTime = dismissed ? parseInt(dismissed) : 0;
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    const shouldShow = !standalone && (Date.now() - dismissedTime > sevenDays);
+
+    // Android/PC Chrome: beforeinstallprompt 이벤트
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      if (shouldShow) setShowInstallBanner(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+
+    // iOS는 별도 안내 (Safari에서는 자동 프롬프트 없음)
+    if (isIOSDevice && !standalone && shouldShow) {
+      setShowInstallBanner(true);
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') {
+        console.log('PWA 설치 성공!');
+      }
+      setInstallPrompt(null);
+      setShowInstallBanner(false);
+    }
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem('hssup_install_dismissed', Date.now().toString());
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -221,6 +367,18 @@ export default function HSSUPApp() {
             </>
           )}
       </div>
+
+      {/* PWA 설치 배너 */}
+      {showInstallBanner && (
+        <InstallBanner
+          isIOS={isIOS}
+          onInstall={handleInstall}
+          onClose={dismissInstallBanner}
+        />
+      )}
+
+      {/* 스플래시 화면 (설치된 앱 첫 진입 시) */}
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
     </div>
   );
 }
@@ -263,6 +421,80 @@ function Avatar({ user, size = 'md', onClick }) {
       >
         {initial}
       </span>
+    </div>
+  );
+}
+
+function SplashScreen({ onFinish }) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onFinish();
+    }, 1800); // 1.8초 후 사라짐
+    return () => clearTimeout(timer);
+  }, [onFinish]);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{
+        background: `url('/splash.jpg') center center / cover no-repeat`,
+        animation: 'fadeOut 0.4s ease-in 1.4s forwards',
+      }}>
+      <style>{`
+        @keyframes fadeOut {
+          to { opacity: 0; }
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .splash-content {
+          animation: fadeInUp 0.6s ease-out;
+        }
+      `}</style>
+
+      </div>
+  );
+}
+
+function InstallBanner({ isIOS, onInstall, onClose }) {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-[100] p-4 animate-slide-up">
+      <div className="max-w-[480px] mx-auto rounded-2xl p-4 shadow-2xl relative overflow-hidden"
+        style={{ background: COLORS.ink }}>
+        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full"
+          style={{ background: `radial-gradient(circle, ${COLORS.primary}50, transparent 70%)` }}></div>
+
+        <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center"
+          style={{ background: 'rgba(255,255,255,0.1)' }}>
+          <X size={14} style={{ color: COLORS.cream }} />
+        </button>
+
+        <div className="relative flex items-start gap-3">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+            style={{ background: COLORS.primary }}>
+            <span className="font-display font-bold text-2xl" style={{ color: COLORS.white }}>H.</span>
+          </div>
+
+          <div className="flex-1 min-w-0 pr-6">
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Install App</p>
+            <h3 className="font-heading text-sm mt-1" style={{ color: COLORS.white }}>HSSUP을 앱처럼 사용하세요</h3>
+            <p className="font-body text-[11px] mt-1 leading-relaxed" style={{ color: COLORS.cream, opacity: 0.7 }}>
+              {isIOS
+                ? '하단 공유 버튼 → "홈 화면에 추가"'
+                : '홈 화면에 추가하면 더 빠르고 편리해요'}
+            </p>
+
+            {!isIOS && (
+              <button onClick={onInstall}
+                className="mt-3 font-heading text-xs px-4 py-2.5 rounded-full flex items-center gap-1.5"
+                style={{ background: COLORS.primary, color: COLORS.white }}>
+                <Download size={12} strokeWidth={2.5} />
+                지금 설치하기
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1459,6 +1691,34 @@ function MyPage({ user, handleLogout }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [currentColor, setCurrentColor] = useState(user.avatar_color || 'orange');
   const [saving, setSaving] = useState(false);
+  const [notifStatus, setNotifStatus] = useState('checking');
+  const [notifLoading, setNotifLoading] = useState(false);
+
+  useEffect(() => {
+    checkNotificationStatus().then(setNotifStatus);
+  }, []);
+
+  const handleEnableNotifications = async () => {
+    setNotifLoading(true);
+    const result = await subscribeToNotifications(user.id);
+    if (result.success) {
+      setNotifStatus('subscribed');
+      alert('✨ 알림이 설정되었습니다!\n공지, Q&A 답변 등을 실시간으로 받아보세요.');
+    } else {
+      alert('알림 설정에 실패했습니다.\n' + result.error);
+    }
+    setNotifLoading(false);
+  };
+
+  const handleDisableNotifications = async () => {
+    if (!confirm('알림을 끄시겠습니까?')) return;
+    setNotifLoading(true);
+    const result = await unsubscribeFromNotifications(user.id);
+    if (result.success) {
+      setNotifStatus('unsubscribed');
+    }
+    setNotifLoading(false);
+  };
 
   const changeColor = async (newColor) => {
     setSaving(true);
@@ -1531,6 +1791,51 @@ function MyPage({ user, handleLogout }) {
             </p>
           </section>
         )}
+
+        {/* 알림 설정 */}
+        <section className="rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Notifications</p>
+              <h3 className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>푸시 알림</h3>
+              <p className="font-body text-xs mt-1 leading-relaxed" style={{ color: COLORS.stone }}>
+                {notifStatus === 'subscribed' && '✨ 공지, 답변을 실시간으로 받습니다'}
+                {notifStatus === 'unsubscribed' && '알림을 켜면 공지를 놓치지 않아요'}
+                {notifStatus === 'default' && '알림을 켜면 공지를 놓치지 않아요'}
+                {notifStatus === 'denied' && '⚠️ 브라우저 설정에서 알림을 허용해주세요'}
+                {notifStatus === 'unsupported' && '이 기기는 알림을 지원하지 않습니다'}
+                {notifStatus === 'checking' && '확인 중...'}
+              </p>
+            </div>
+            <div className="ml-3 flex items-center">
+              {notifStatus === 'checking' && <Loader2 size={16} className="animate-spin" style={{ color: COLORS.stone }} />}
+              
+              {(notifStatus === 'default' || notifStatus === 'unsubscribed') && (
+                <button onClick={handleEnableNotifications} disabled={notifLoading}
+                  className="font-heading text-xs px-4 py-2 rounded-full flex items-center gap-1.5 disabled:opacity-60"
+                  style={{ background: COLORS.primary, color: COLORS.white }}>
+                  {notifLoading ? <Loader2 size={12} className="animate-spin" /> : <Bell size={12} strokeWidth={2.5} />}
+                  알림 켜기
+                </button>
+              )}
+              
+              {notifStatus === 'subscribed' && (
+                <button onClick={handleDisableNotifications} disabled={notifLoading}
+                  className="font-heading text-xs px-4 py-2 rounded-full flex items-center gap-1.5 disabled:opacity-60"
+                  style={{ background: COLORS.cream, color: COLORS.deep, border: `1px solid ${COLORS.light}` }}>
+                  {notifLoading ? <Loader2 size={12} className="animate-spin" /> : <BellOff size={12} strokeWidth={2.5} />}
+                  끄기
+                </button>
+              )}
+              
+              {notifStatus === 'denied' && (
+                <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full" style={{ background: COLORS.cream, color: COLORS.deep }}>
+                  차단됨
+                </span>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* 계정 정보 */}
         <section className="rounded-2xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
@@ -1620,36 +1925,90 @@ function AdminDashboard({ setCurrentPage }) {
     </div>
   );
 }
- 
+
 function AdminNotice({ user }) {
   const [notices, setNotices] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: '', content: '', tag: '안내', urgent: false });
+  const [form, setForm] = useState({ title: '', content: '', tag: '안내', urgent: false, sendPush: true });
   const [loading, setLoading] = useState(false);
- 
-  useEffect(() => { load(); }, []);
- 
+  const [subscriberCount, setSubscriberCount] = useState(0);
+
+  useEffect(() => { 
+    load(); 
+    loadSubscriberCount();
+  }, []);
+
   const load = async () => {
     const { data } = await supabase.from('notices').select('*').order('created_at', { ascending: false });
     setNotices(data || []);
   };
- 
+
+  const loadSubscriberCount = async () => {
+    const { count } = await supabase
+      .from('push_subscriptions')
+      .select('*', { count: 'exact', head: true });
+    setSubscriberCount(count || 0);
+  };
+
   const submit = async () => {
     if (!form.title.trim()) return;
     setLoading(true);
-    await supabase.from('notices').insert({ ...form, author_id: user.id });
-    setForm({ title: '', content: '', tag: '안내', urgent: false });
-    setShowForm(false);
-    await load();
+
+    try {
+      const { error: insertError } = await supabase.from('notices').insert({
+        title: form.title,
+        content: form.content,
+        tag: form.tag,
+        urgent: form.urgent,
+        author_id: user.id
+      });
+      if (insertError) throw insertError;
+
+      if (form.sendPush && subscriberCount > 0) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              title: `${form.urgent ? '🔴 ' : ''}[${form.tag}] ${form.title}`,
+              body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
+              url: '/',
+            }),
+          }
+        );
+        const result = await response.json();
+        console.log('알림 전송 결과:', result);
+        if (result.sent > 0) {
+          alert(`✅ 공지 등록 완료!\n📢 ${result.sent}명에게 알림 전송됨`);
+        } else {
+          alert('공지 등록 완료! (알림 전송 실패 또는 구독자 없음)');
+        }
+      } else {
+        alert('공지 등록 완료!');
+      }
+
+      setForm({ title: '', content: '', tag: '안내', urgent: false, sendPush: true });
+      setShowForm(false);
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert('등록 실패: ' + err.message);
+    }
     setLoading(false);
   };
- 
+
   const remove = async (id) => {
     if (!confirm('정말 삭제하시겠습니까?')) return;
     await supabase.from('notices').delete().eq('id', id);
     await load();
   };
- 
+
   return (
     <>
       <PageIntro ko="공지 관리" en="Notice Admin" />
@@ -1671,6 +2030,24 @@ function AdminNotice({ user }) {
               <input type="checkbox" checked={form.urgent} onChange={e => setForm({...form, urgent: e.target.checked})} />
               긴급 공지로 표시
             </label>
+
+            <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: COLORS.cream }}>
+              <label className="flex items-center gap-2 cursor-pointer flex-1">
+                <input type="checkbox" checked={form.sendPush}
+                  onChange={e => setForm({...form, sendPush: e.target.checked})}
+                  className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                <div>
+                  <p className="font-heading text-xs flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                    <Bell size={11} strokeWidth={2.5} />
+                    푸시 알림 전송
+                  </p>
+                  <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
+                    {subscriberCount > 0 ? `${subscriberCount}명의 구독자에게 알림 발송` : '아직 구독자가 없습니다'}
+                  </p>
+                </div>
+              </label>
+            </div>
+
             <button onClick={submit} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.ink, color: COLORS.white }}>
               {loading && <Loader2 size={12} className="animate-spin" />}발행
             </button>
@@ -1693,7 +2070,7 @@ function AdminNotice({ user }) {
     </>
   );
 }
- 
+
 function AdminStudents() {
   const [students, setStudents] = useState([]);
   useEffect(() => {
