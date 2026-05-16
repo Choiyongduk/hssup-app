@@ -748,7 +748,6 @@ function AuthScreen() {
         <div className="relative" style={{ color: COLORS.ink }}>
           <p className="font-body text-[10px] font-semibold tracking-[0.3em] uppercase" style={{ color: COLORS.primary }}>Beauty Academy</p>
           <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '60px', marginTop: '12px', filter: 'drop-shadow(0 0 24px rgba(255, 92, 31, 0.5))' }} />
-          <p className="font-serif-italic text-2xl mt-4" style={{ color: COLORS.stone }}>Where craft meets <br />artistry.</p>
         </div>
       </div>
  
