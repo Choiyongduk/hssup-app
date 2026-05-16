@@ -204,6 +204,8 @@ export default function HSSUPApp() {
 
   const [selectedLecture, setSelectedLecture] = useState(null);
 
+  const [selectedCourse, setSelectedCourse] = useState(null);
+
   const [selectedProduct, setSelectedProduct] = useState(null);
     
   // PWA 설치 가능 여부 감지
@@ -278,6 +280,18 @@ export default function HSSUPApp() {
  
     return () => subscription.unsubscribe();
   }, []);
+
+  // 토스 결제 응답 URL 처리 (성공/실패 자동 라우팅)
+  useEffect(() => {
+    if (!profile) return;
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    if (paymentStatus === 'success') {
+      setCurrentPage('payment-success');
+    } else if (paymentStatus === 'fail') {
+      setCurrentPage('payment-fail');
+    }
+  }, [profile]);
  
   const loadProfile = async (userId) => {
     setLoading(true);
@@ -337,7 +351,7 @@ export default function HSSUPApp() {
   { id: 'home', label: '홈', icon: Home },
   { id: 'course', label: '강의', icon: BookOpen },
   { id: 'market', label: '재료샵', icon: ShoppingBag },
-  { id: 'community', label: '커뮤니티', icon: Users },
+  { id: 'freeboard', label: '게시판', icon: Users },
   { id: 'mypage', label: 'MY', icon: User },
   ];
   const adminTabs = [
@@ -354,7 +368,6 @@ export default function HSSUPApp() {
       { id: 'home', label: '홈', icon: Home },
       { id: 'course', label: '클래스', icon: BookOpen },
       { id: 'online', label: '온라인 강의', icon: PlayCircle },
-      { id: 'attendance', label: '출석·진도', icon: Calendar },
     ]},
     { section: 'PRACTICE', items: [
       { id: 'mycase', label: '내 포트폴리오', icon: Camera },
@@ -364,7 +377,8 @@ export default function HSSUPApp() {
     { section: 'CONNECT', items: [
       { id: 'notice', label: '공지', icon: Bell },
       { id: 'qna', label: 'Q&A', icon: MessageCircle },
-      { id: 'community', label: '커뮤니티', icon: Users },
+      { id: 'reviews', label: '수강후기', icon: Heart },
+      { id: 'freeboard', label: '자유게시판', icon: Users },
     ]},
     { section: 'RESOURCE', items: [
       { id: 'library', label: '자료실', icon: FolderOpen },
@@ -383,6 +397,8 @@ export default function HSSUPApp() {
       { id: 'admin-cases', label: '케이스 관리', icon: Camera },
       { id: 'admin-lectures', label: '강의 관리', icon: PlayCircle },
       { id: 'admin-products', label: '재료샵 관리', icon: ShoppingBag },
+      { id: 'admin-library', label: '자료실 관리', icon: FolderOpen },
+      { id: 'admin-courses', label: '클래스 관리', icon: BookOpen },
     ]},
     { section: 'LEARN', items: [
       { id: 'home', label: '홈', icon: Home },
@@ -398,7 +414,8 @@ export default function HSSUPApp() {
     { section: 'CONNECT', items: [
       { id: 'notice', label: '공지', icon: Bell },
       { id: 'qna', label: 'Q&A', icon: MessageCircle },
-      { id: 'community', label: '커뮤니티', icon: Users },
+      { id: 'reviews', label: '수강후기', icon: Heart },
+      { id: 'freeboard', label: '자유게시판', icon: Users },
     ]},
     { section: 'RESOURCE', items: [
       { id: 'library', label: '자료실', icon: FolderOpen },
@@ -462,6 +479,7 @@ export default function HSSUPApp() {
                     selectedQna={selectedQna} setSelectedQna={setSelectedQna}
                     selectedPost={selectedPost} setSelectedPost={setSelectedPost}
                     selectedLecture={selectedLecture} setSelectedLecture={setSelectedLecture}
+                    selectedCourse={selectedCourse} setSelectedCourse={setSelectedCourse}
                     selectedProduct={selectedProduct} setSelectedProduct={setSelectedProduct}
                     user={profile} handleLogout={handleLogout} isAdmin={isAdmin} />
                 </div>
@@ -953,7 +971,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedProduct, setSelectedProduct, user, handleLogout, isAdmin }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, user, handleLogout, isAdmin }) {
   if (isAdmin) {
     if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} />;
     if (currentPage === 'admin-notice') return <AdminNotice user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
@@ -962,24 +980,30 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'admin-cases') return <AdminCases />;
     if (currentPage === 'admin-lectures') return <AdminLectures user={user} />;
     if (currentPage === 'admin-products') return <AdminProducts user={user} />;
+    if (currentPage === 'admin-library') return <AdminLibrary user={user} />;
+    if (currentPage === 'admin-courses') return <AdminCourses user={user} />;
     if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
   }
   if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} />;
   if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} />;
   if (currentPage === 'post-detail') return <PostDetailPage post={selectedPost} user={user} />;
   if (currentPage === 'lecture-detail') return <LectureDetailPage lecture={selectedLecture} user={user} />;
-  if (currentPage === 'product-detail') return <ProductDetailPage product={selectedProduct} user={user} />;
+  if (currentPage === 'payment') return <PaymentPage course={selectedCourse} product={selectedProduct} user={user} setCurrentPage={setCurrentPage} />;
+  if (currentPage === 'payment-success') return <PaymentSuccessPage user={user} setCurrentPage={setCurrentPage} />;
+  if (currentPage === 'payment-fail') return <PaymentFailPage setCurrentPage={setCurrentPage} />;
+  if (currentPage === 'product-detail') return <ProductDetailPage product={selectedProduct} user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'notice') return <NoticePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
-  if (currentPage === 'course') return <CoursePage />;
+  if (currentPage === 'course') return <CoursePage user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} />;
   if (currentPage === 'best') return <BestCasePage />;
   if (currentPage === 'mycase') return <MyCasePage user={user} />;
   if (currentPage === 'qna') return <QnaPage user={user} setCurrentPage={setCurrentPage} setSelectedQna={setSelectedQna} />;
   if (currentPage === 'library') return <LibraryPage />;
   if (currentPage === 'market') return <MarketPage setCurrentPage={setCurrentPage} setSelectedProduct={setSelectedProduct} />;
   if (currentPage === 'online') return <OnlineLecturePage setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
-  if (currentPage === 'community') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} />;
-  if (currentPage === 'attendance') return <AttendancePage user={user} />;
+  if (currentPage === 'community') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="자유" pageTitle="자유게시판" pageEn="Free Board" pageDesc="자유롭게 이야기 나눠보세요" />;
+  if (currentPage === 'reviews') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="후기" pageTitle="수강후기" pageEn="Reviews" pageDesc="동료들의 수강 후기를 만나보세요" />;
+  if (currentPage === 'freeboard') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="자유" pageTitle="자유게시판" pageEn="Free Board" pageDesc="자유롭게 이야기 나눠보세요" />;
   if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} />;
 }
@@ -1231,7 +1255,7 @@ function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   const mainGrid = [
     { id: 'online',    label: 'ONLINE CLASS', ko: '온라인 강의', icon: PlayCircle },
     { id: 'qna',       label: 'Q&A',          ko: '질문 답변',   icon: MessageCircle },
-    { id: 'community', label: 'COMMUNITY',    ko: '커뮤니티',    icon: Users },
+    { id: 'freeboard', label: 'BOARD',        ko: '자유게시판',  icon: Users },
     { id: 'market',    label: 'STORE',        ko: '재료샵',      icon: ShoppingBag },
   ];
 
@@ -1411,49 +1435,164 @@ function NoticePage({ user, setCurrentPage, setSelectedNotice }) {
   );
 }
  
-function CoursePage() {
-  const courses = [
-    { level: 'Basic', title: '눈썹', en: 'Eyebrow Basic', duration: '6w', price: 1800000, desc: '엠보·콤보 기초 입문' },
-    { level: 'Master', title: '눈썹', en: 'Eyebrow Master', duration: '10w', price: 3200000, desc: '콤보·머신까지 전문가 과정' },
-    { level: 'Lip', title: '입술', en: 'Lip Tattoo', duration: '8w', price: 2800000, desc: '풀립부터 입술라인까지', hot: true },
-    { level: 'Eye', title: '아이라인', en: 'Eye Line', duration: '6w', price: 2200000, desc: '내·외·점막 아이라인' },
-    { level: 'All', title: '올인원', en: 'All-in-One Master', duration: '24w', price: 8500000, desc: '모든 반영구를 한번에', featured: true },
-  ];
+function CoursePage({ user, setCurrentPage, setSelectedCourse }) {
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from('courses').select('*').eq('is_active', true).order('order_index', { ascending: true })
+      .then(({ data }) => { setCourses(data || []); setLoading(false); });
+  }, []);
+
   return (
     <>
       <PageIntro ko="클래스" en="Class" desc="당신의 시그니처를 만들어보세요" />
       <div className="px-5 space-y-3">
-        {courses.map((c, i) => (
-          <div key={i} className="rounded-3xl p-5 relative overflow-hidden" style={{
-            background: c.featured ? COLORS.ink : COLORS.card,
-            border: c.featured ? 'none' : `1px solid ${COLORS.light}`
-          }}>
-            {c.featured && <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: `radial-gradient(circle, ${COLORS.primary}60, transparent 70%)` }}></div>}
-            <div className="relative">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="font-mono text-[10px] font-bold tracking-[0.2em] uppercase" style={{ color: COLORS.primary }}>{c.level}{c.hot && ' · HOT'}</p>
-                  <h3 className="font-display text-3xl mt-1.5 tracking-tighter" style={{ color: c.featured ? COLORS.white : COLORS.ink }}>{c.title}</h3>
-                  <p className="font-serif-italic text-sm mt-0.5" style={{ color: c.featured ? COLORS.cream : COLORS.stone, opacity: 0.7 }}>{c.en}</p>
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : courses.length === 0 ? (
+          <div className="text-center py-10">
+            <BookOpen size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>아직 등록된 클래스가 없습니다</p>
+          </div>
+        ) : courses.map(c => {
+          const features = c.features ? c.features.split('\n').filter(f => f.trim()) : [];
+          const discount = c.original_price && c.show_price && c.original_price > c.price
+            ? Math.round(((c.original_price - c.price) / c.original_price) * 100)
+            : 0;
+
+          return (
+            <div key={c.id} className="rounded-3xl overflow-hidden relative" style={{
+              background: c.is_featured ? COLORS.cardElev : COLORS.card,
+              border: `1px solid ${c.is_featured ? 'rgba(255, 92, 31, 0.4)' : COLORS.light}`,
+              boxShadow: c.is_featured ? '0 0 40px rgba(255, 92, 31, 0.3), inset 0 0 30px rgba(255, 92, 31, 0.06)' : 'none'
+            }}>
+              {c.image_url && (
+                <div className="aspect-video relative overflow-hidden">
+                  <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+                  <div className="absolute top-3 left-3 flex gap-1.5">
+                    {c.badge && (
+                      <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
+                        background: c.badge === 'BEST' ? COLORS.ink : c.badge === 'NEW' ? COLORS.primary : COLORS.peach,
+                        color: c.badge === 'SALE' ? COLORS.deep : (c.badge === 'BEST' ? COLORS.primary : COLORS.white),
+                        boxShadow: c.badge === 'NEW' ? '0 0 16px rgba(255, 92, 31, 0.5)' : 'none'
+                      }}>{c.badge}</span>
+                    )}
+                    {c.hot && (
+                      <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
+                        background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.5)'
+                      }}>🔥 HOT</span>
+                    )}
+                    {c.is_featured && (
+                      <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
+                        background: 'rgba(0,0,0,0.6)', color: COLORS.primary, backdropFilter: 'blur(8px)'
+                      }}>⭐ FEATURED</span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-mono text-[10px] font-bold tracking-widest" style={{ color: c.featured ? COLORS.primary : COLORS.stone }}>DURATION</p>
-                  <p className="font-display text-2xl tracking-tight" style={{ color: c.featured ? COLORS.white : COLORS.ink }}>{c.duration}</p>
+              )}
+
+              {c.is_featured && (
+                <>
+                  <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,92,31,0.25), transparent 70%)` }}></div>
+                  <div className="absolute -bottom-20 -left-20 w-60 h-60 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,92,31,0.15), transparent 70%)` }}></div>
+                </>
+              )}
+
+              <div className="p-5 relative">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                      <p className="font-mono text-[10px] font-bold tracking-[0.2em] uppercase" style={{ color: COLORS.primary }}>{c.level}</p>
+                      {!c.image_url && c.hot && (
+                        <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>🔥 HOT</span>
+                      )}
+                      {!c.image_url && c.badge && (
+                        <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{
+                          background: c.badge === 'BEST' ? COLORS.ink : c.badge === 'NEW' ? COLORS.primary : COLORS.peach,
+                          color: c.badge === 'BEST' ? COLORS.primary : (c.badge === 'SALE' ? COLORS.deep : COLORS.white),
+                        }}>{c.badge}</span>
+                      )}
+                      {!c.image_url && c.is_featured && (
+                        <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,92,31,0.15)', color: COLORS.primary }}>⭐ FEATURED</span>
+                      )}
+                    </div>
+                    <h3 className="font-display text-3xl mt-1.5 tracking-tighter leading-none" style={{ color: COLORS.ink }}>{c.title}</h3>
+                    {c.en_title && <p className="font-serif-italic text-sm mt-0.5" style={{ color: COLORS.stone, opacity: 0.7 }}>{c.en_title}</p>}
+                  </div>
+                  {c.duration && (
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="font-mono text-[10px] font-bold tracking-widest" style={{ color: COLORS.primary }}>DURATION</p>
+                      <p className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{c.duration}</p>
+                    </div>
+                  )}
                 </div>
-              </div>
-              <p className="font-body text-xs font-medium" style={{ color: c.featured ? COLORS.cream : COLORS.stone, opacity: c.featured ? 0.8 : 1 }}>{c.desc}</p>
-              <div className="flex items-center justify-between mt-5 pt-4" style={{ borderTop: `1px solid ${c.featured ? 'rgba(255,255,255,0.15)' : COLORS.light}` }}>
-                <div>
-                  <p className="font-mono text-[9px] font-bold tracking-widest" style={{ color: c.featured ? COLORS.primary : COLORS.stone }}>PRICE</p>
-                  <p className="font-display text-xl tracking-tight" style={{ color: c.featured ? COLORS.white : COLORS.ink }}>₩{(c.price / 10000).toFixed(0)}<span className="font-body text-xs font-medium">만</span></p>
+
+                {c.description && (
+                  <p className="font-body text-sm font-medium leading-relaxed" style={{ color: COLORS.stone }}>{c.description}</p>
+                )}
+
+                {features.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {features.map((f, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: COLORS.primary, boxShadow: '0 0 8px rgba(255, 92, 31, 0.4)' }}>
+                          <Check size={10} strokeWidth={3} style={{ color: COLORS.white }} />
+                        </div>
+                        <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.ink }}>{f}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-end justify-between mt-5 pt-4" style={{ borderTop: `1px solid ${c.is_featured ? 'rgba(255,92,31,0.2)' : COLORS.light}` }}>
+                  <div>
+                    <p className="font-mono text-[9px] font-bold tracking-widest" style={{ color: COLORS.primary }}>
+                      {c.show_price ? 'PRICE' : 'INQUIRY'}
+                    </p>
+                    {c.show_price ? (
+                      <>
+                        {discount > 0 && (
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="font-mono text-[10px] line-through" style={{ color: COLORS.stone }}>
+                              ₩{(c.original_price / 10000).toFixed(0)}만
+                            </p>
+                            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.4)' }}>
+                              {discount}% OFF
+                            </span>
+                          </div>
+                        )}
+                        <p className="font-display text-xl tracking-tight" style={{ color: COLORS.ink }}>
+                          ₩{(c.price / 10000).toFixed(0)}<span className="font-body text-xs font-medium">만</span>
+                        </p>
+                      </>
+                    ) : (
+                      <p className="font-display text-xl tracking-tight" style={{ color: COLORS.ink }}>문의하기</p>
+                    )}
+                  </div>
+                  <button onClick={() => {
+                    if (!c.show_price) {
+                      alert('📞 자세한 안내를 위해 원장님께 문의해주세요!');
+                      return;
+                    }
+                    setSelectedCourse(c);
+                    setCurrentPage('payment');
+                  }}
+                    className="font-heading text-xs px-5 py-2.5 rounded-full flex items-center gap-1.5"
+                    style={{
+                      background: COLORS.primary,
+                      color: COLORS.white,
+                      boxShadow: '0 0 20px rgba(255, 92, 31, 0.5)'
+                    }}>
+                    {c.show_price ? '신청하기' : '문의하기'} <ArrowUpRight size={12} />
+                  </button>
                 </div>
-                <button className="font-heading text-xs px-4 py-2.5 rounded-full flex items-center gap-1.5" style={{ background: c.featured ? COLORS.primary : COLORS.ink, color: COLORS.white }}>
-                  신청하기 <ArrowUpRight size={12} />
-                </button>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
@@ -1973,31 +2112,81 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
  
 function LibraryPage() {
   const [files, setFiles] = useState([]);
+  const [filter, setFilter] = useState('전체');
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     supabase.from('library_files').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => setFiles(data || []));
+      .then(({ data }) => { setFiles(data || []); setLoading(false); });
   }, []);
+
+  const categories = ['전체', '시술 가이드', '색소 차트', '매뉴얼', '템플릿', '기타'];
+  const filtered = filter === '전체' ? files : files.filter(f => f.category === filter);
+
+  const handleDownload = (file) => {
+    if (!file.file_url) {
+      alert('파일을 찾을 수 없습니다');
+      return;
+    }
+    window.open(file.file_url, '_blank');
+  };
+
   return (
     <>
       <PageIntro ko="자료실" en="Library" desc="언제든 다운로드 받으세요" />
+
+      {/* 카테고리 탭 */}
+      <div className="px-5 mb-4">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilter(cat)}
+              className={`shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold transition-transform active:scale-95 ${filter === cat ? 'glow-soft' : ''}`}
+              style={{
+                background: filter === cat ? COLORS.primary : COLORS.card,
+                color: filter === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
+              }}>
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="px-5">
-        {files.length === 0 ? (
-          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>등록된 자료가 없습니다</p>
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <FolderOpen size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {filter === '전체' ? '등록된 자료가 없습니다' : `${filter} 카테고리 자료가 없습니다`}
+            </p>
+          </div>
         ) : (
           <div className="space-y-2">
-            {files.map(f => (
-              <div key={f.id} className="rounded-2xl p-4 flex items-center gap-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl" style={{ background: COLORS.peach }}>
+            {filtered.map(f => (
+              <button key={f.id} onClick={() => handleDownload(f)}
+                className="w-full rounded-2xl p-4 flex items-center gap-3 text-left transition-transform active:scale-[0.98]"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
                   <FolderOpen size={20} style={{ color: COLORS.primary }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>{f.name}</p>
-                  <p className="font-mono text-[10px] font-medium mt-0.5" style={{ color: COLORS.stone }}>{f.file_type} · {f.file_size}</p>
+                  <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>
+                    {f.category || '기타'}
+                  </p>
+                  <p className="font-heading text-xs mt-0.5 truncate" style={{ color: COLORS.ink }}>{f.name}</p>
+                  {f.description && (
+                    <p className="font-body text-[11px] mt-1 line-clamp-1" style={{ color: COLORS.stone }}>{f.description}</p>
+                  )}
+                  <p className="font-mono text-[10px] font-medium mt-1" style={{ color: COLORS.stone }}>{f.file_type} · {f.file_size}</p>
                 </div>
-                <button className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
-                  <Download size={14} style={{ color: COLORS.ink }} />
-                </button>
-              </div>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+                  <Download size={14} style={{ color: COLORS.white }} />
+                </div>
+              </button>
             ))}
           </div>
         )}
@@ -2433,7 +2622,7 @@ function PostDetailPage({ post, user }) {
 // =============================================================
 // 🛍️ ProductDetailPage - 상품 상세 (이미지 + 설명 + 좋아요/댓글)
 // =============================================================
-function ProductDetailPage({ product, user }) {
+function ProductDetailPage({ product, user, setCurrentPage }) {
   if (!product) {
     return (
       <div className="px-5 py-10 text-center">
@@ -2539,8 +2728,10 @@ function ProductDetailPage({ product, user }) {
         maxWidth: '480px',
         margin: '0 auto'
       }}>
-        <button
-          onClick={() => alert('💳 결제 시스템(토스페이먼츠) 도입 후 바로 구매 가능합니다!\n지금은 원장님께 직접 문의해주세요 😊')}
+        <button onClick={() => {
+                if (product.stock === 0) { alert('품절된 상품입니다.'); return; }
+                setCurrentPage('payment');
+              }}
           disabled={product.stock === 0}
           className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-50"
           style={{
@@ -2549,43 +2740,370 @@ function ProductDetailPage({ product, user }) {
             boxShadow: product.stock === 0 ? 'none' : '0 0 24px rgba(255, 92, 31, 0.5)'
           }}>
           <ShoppingCart size={16} strokeWidth={2.5} />
-          {product.stock === 0 ? '품절' : '구매 문의하기'}
+          {product.stock === 0 ? '품절' : '구매하기'}
         </button>
       </div>
     </div>
   );
 }
 
-function CommunityPage({ user, setCurrentPage, setSelectedPost }) {
+// =============================================================
+// 💳 PaymentPage - 결제 페이지 (토스 결제창 호출)
+// =============================================================
+function PaymentPage({ course, product, user, setCurrentPage }) {
+  const [loading, setLoading] = useState(false);
+
+  // course 또는 product 중 하나가 와야 함
+  const isProduct = !!product;
+  const item = course || product;
+
+  if (!item) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <p className="font-body text-sm" style={{ color: COLORS.stone }}>결제 정보를 찾을 수 없습니다.</p>
+        <button onClick={() => setCurrentPage('home')} className="mt-4 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white }}>
+          홈으로
+        </button>
+      </div>
+    );
+  }
+
+  const itemName = isProduct ? product.name : course.title;
+  const itemSubtitle = isProduct ? product.brand : course.en_title;
+  const itemBadge = isProduct ? product.category : course.level;
+  const itemImage = item.image_url;
+  const itemDesc = item.description;
+  const itemPrice = item.price;
+  const itemOriginalPrice = item.original_price;
+
+  const handlePayment = async () => {
+    setLoading(true);
+    try {
+      const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
+      // DB에 주문 정보 저장 (course 또는 product)
+      const orderData = {
+        order_id: orderId,
+        user_id: user.id,
+        course_id: isProduct ? null : course.id,
+        product_id: isProduct ? product.id : null,
+        course_title: itemName,
+        item_type: isProduct ? 'product' : 'course',
+        amount: itemPrice,
+        status: 'pending',
+        buyer_name: user.name,
+        buyer_phone: user.phone,
+        buyer_email: user.email,
+      };
+
+      const { error: insertError } = await supabase.from('orders').insert(orderData);
+      if (insertError) throw insertError;
+
+      // 토스 SDK
+      const { loadTossPayments } = await import('@tosspayments/payment-sdk');
+      const tossPayments = await loadTossPayments('test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq');
+
+      const phoneOnly = user.phone?.replace(/[^0-9]/g, '') || '';
+      const validPhone = (phoneOnly.length === 10 || phoneOnly.length === 11) ? phoneOnly : undefined;
+
+      const paymentParams = {
+        amount: itemPrice,
+        orderId: orderId,
+        orderName: itemName,
+        customerName: user.name || '고객',
+        customerEmail: user.email,
+        successUrl: `${window.location.origin}?payment=success`,
+        failUrl: `${window.location.origin}?payment=fail`,
+      };
+      if (validPhone) paymentParams.customerMobilePhone = validPhone;
+
+      await tossPayments.requestPayment('카드', paymentParams);
+    } catch (err) {
+      console.error('결제 시작 에러:', err);
+      if (err.code === 'USER_CANCEL') {
+        // 사용자가 결제 취소 → 이전 페이지로 자동 이동
+        setCurrentPage(isProduct ? 'market' : 'course');
+      } else {
+        alert('결제 시작 실패: ' + (err.message || err));
+      }
+      setLoading(false);
+    }
+  };
+
+  const discount = (itemOriginalPrice && itemOriginalPrice > itemPrice)
+    ? Math.round((1 - itemPrice / itemOriginalPrice) * 100)
+    : 0;
+
+  return (
+    <div className="pb-6">
+      <PageIntro ko="결제하기" en="Payment" desc="안전한 결제를 진행해주세요" />
+
+      <div className="px-5 space-y-3">
+        {/* 상품/클래스 정보 */}
+        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          {itemImage && (
+            <div className="aspect-video">
+              <img src={itemImage} alt={itemName} className="w-full h-full object-cover" />
+            </div>
+          )}
+          <div className="p-4">
+            {itemBadge && <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>{itemBadge}</p>}
+            <h3 className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{itemName}</h3>
+            {itemSubtitle && <p className="font-serif-italic text-sm mt-1" style={{ color: COLORS.stone }}>{itemSubtitle}</p>}
+            {itemDesc && <p className="font-body text-xs mt-2" style={{ color: COLORS.stone }}>{itemDesc}</p>}
+          </div>
+        </div>
+
+        {/* 구매자 정보 */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>━━ 구매자 정보</p>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>NAME</span>
+              <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{user.name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>EMAIL</span>
+              <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{user.email}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>PHONE</span>
+              <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{user.phone || '미등록'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 결제 금액 */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.cardElev }}>
+          {discount > 0 && (
+            <div className="flex justify-between items-center mb-1">
+              <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>정가</span>
+              <span className="font-body text-xs line-through" style={{ color: COLORS.muted }}>{itemOriginalPrice.toLocaleString()}원</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center mb-2">
+            <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{isProduct ? '판매가' : '수강료'}</span>
+            <div className="flex items-center gap-1.5">
+              {discount > 0 && (
+                <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>{discount}% OFF</span>
+              )}
+              <span className="font-body text-sm" style={{ color: COLORS.ink }}>{itemPrice.toLocaleString()}원</span>
+            </div>
+          </div>
+          <div className="flex justify-between items-baseline pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+            <span className="font-mono text-[12px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>TOTAL</span>
+            <span className="font-display text-3xl tracking-tight" style={{ color: COLORS.ink }}>
+              ₩{itemPrice.toLocaleString()}
+            </span>
+          </div>
+        </div>
+
+        {/* 결제 안내 */}
+        <div className="rounded-xl p-3" style={{ background: COLORS.peach }}>
+          <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.deep }}>
+            💳 <strong>토스페이먼츠로 안전 결제</strong><br />
+            카드 / 계좌이체 / 간편결제 / 무통장 입금 가능
+          </p>
+        </div>
+
+        {/* 결제 버튼 */}
+        <button onClick={handlePayment} disabled={loading}
+          className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)' }}>
+          {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} strokeWidth={2.5} />}
+          {loading ? '결제창 호출 중...' : `${itemPrice.toLocaleString()}원 결제하기`}
+        </button>
+
+        <p className="font-mono text-[10px] text-center mt-2" style={{ color: COLORS.stone }}>
+          ⚠️ 테스트 모드: 실제 결제되지 않습니다
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// ✅ PaymentSuccessPage - 결제 성공 페이지 (Edge Function 검증)
+// =============================================================
+function PaymentSuccessPage({ user, setCurrentPage }) {
+  const [verifying, setVerifying] = useState(true);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => { verify(); }, []);
+
+  const verify = async () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const paymentKey = params.get('paymentKey');
+      const orderId = params.get('orderId');
+      const amount = parseInt(params.get('amount'));
+
+      if (!paymentKey || !orderId || !amount) {
+        setError('결제 정보가 누락되었습니다');
+        setVerifying(false);
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-payment`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ paymentKey, orderId, amount }),
+        }
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || '결제 검증 실패');
+      } else {
+        setResult(data);
+        window.history.replaceState({}, '', '/');
+      }
+    } catch (err) {
+      console.error('결제 검증 에러:', err);
+      setError(err.message || '결제 검증 중 오류 발생');
+    }
+    setVerifying(false);
+  };
+
+  if (verifying) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center py-20">
+        <Loader2 size={32} className="animate-spin mb-4" style={{ color: COLORS.primary }} />
+        <p className="font-heading text-base" style={{ color: COLORS.ink }}>결제 검증 중...</p>
+        <p className="font-body text-xs mt-2" style={{ color: COLORS.stone }}>잠시만 기다려주세요</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="pb-6">
+        <div className="px-5 pt-10 pb-6 text-center">
+          <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4" style={{ background: 'rgba(255,92,31,0.1)', border: `2px solid ${COLORS.primary}` }}>
+            <X size={32} style={{ color: COLORS.primary }} strokeWidth={3} />
+          </div>
+          <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>결제 검증 실패</h2>
+          <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>{error}</p>
+          <button onClick={() => { window.history.replaceState({}, '', '/'); setCurrentPage('course'); }} className="mt-6 font-heading text-sm px-6 py-3 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255,92,31,0.5)' }}>
+            클래스 목록으로
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pb-6">
+      <div className="px-5 pt-10 pb-6 text-center">
+        <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4 glow-primary" style={{ background: COLORS.primary }}>
+          <Check size={36} style={{ color: COLORS.white }} strokeWidth={3} />
+        </div>
+        <h2 className="font-display text-3xl tracking-tight glow-text" style={{ color: COLORS.primary }}>결제 완료!</h2>
+        <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>수강 신청이 완료되었습니다</p>
+      </div>
+
+      <div className="px-5">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>━━ 결제 정보</p>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>주문번호</span>
+              <span className="font-mono text-[10px]" style={{ color: COLORS.ink }}>{result?.order?.orderId?.substring(0, 16)}...</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>결제수단</span>
+              <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{result?.order?.method || '카드'}</span>
+            </div>
+            <div className="flex justify-between pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+              <span className="font-mono text-[12px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>TOTAL</span>
+              <span className="font-display text-xl tracking-tight" style={{ color: COLORS.ink }}>
+                ₩{result?.order?.amount?.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {result?.order?.receiptUrl && (
+            <a href={result.order.receiptUrl} target="_blank" rel="noopener noreferrer"
+              className="w-full mt-4 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
+              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              <Download size={12} />영수증 보기
+            </a>
+          )}
+        </div>
+
+        <button onClick={() => { window.history.replaceState({}, '', '/'); setCurrentPage('home'); }} className="w-full mt-3 font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+          홈으로 가기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// ❌ PaymentFailPage - 결제 실패/취소 페이지
+// =============================================================
+function PaymentFailPage({ setCurrentPage }) {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const message = params.get('message');
+
+  return (
+    <div className="pb-6">
+      <div className="px-5 pt-10 pb-6 text-center">
+        <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4" style={{ background: 'rgba(255,92,31,0.1)', border: `2px solid ${COLORS.primary}` }}>
+          <X size={32} style={{ color: COLORS.primary }} strokeWidth={3} />
+        </div>
+        <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>결제가 취소되었습니다</h2>
+        <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>{message || '다시 시도해주세요'}</p>
+        {code && <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>오류 코드: {code}</p>}
+      </div>
+
+      <div className="px-5">
+        <button onClick={() => { window.history.replaceState({}, '', '/'); setCurrentPage('course'); }} className="w-full font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+          클래스 다시 보기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, pageTitle, pageEn, pageDesc }) {
   const [posts, setPosts] = useState([]);
   const [newPost, setNewPost] = useState('');
   const [loading, setLoading] = useState(false);
   const isAdmin = user?.role === 'admin';
- 
-  useEffect(() => { load(); }, []);
- 
+
+  useEffect(() => { load(); }, [fixedCategory]);
+
   const load = async () => {
-    // 게시글 가져오기
-    const { data: postsData } = await supabase
-      .from('community_posts')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
+    let query = supabase.from('community_posts').select('*').order('created_at', { ascending: false });
+    if (fixedCategory) {
+      query = query.eq('category', fixedCategory);
+    }
+    const { data: postsData } = await query;
+
     if (!postsData || postsData.length === 0) {
       setPosts([]);
       return;
     }
-    
-    // 작성자 프로필 가져오기
+
     const userIds = [...new Set(postsData.map(p => p.user_id).filter(Boolean))];
     const { data: profilesData } = await supabase
       .from('profiles')
       .select('id, name, avatar_color, role')
       .in('id', userIds);
-    
+
     const profileMap = {};
     (profilesData || []).forEach(p => { profileMap[p.id] = p; });
-    
+
     const enriched = postsData.map(p => ({ ...p, profile: profileMap[p.user_id] || { name: '익명' } }));
     setPosts(enriched);
   };
@@ -2600,9 +3118,18 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost }) {
   const submit = async () => {
     if (!newPost.trim()) return;
     setLoading(true);
-    await supabase.from('community_posts').insert({ content: newPost, user_id: user.id });
-    setNewPost('');
-    await load();
+    const { error } = await supabase.from('community_posts').insert({
+      content: newPost,
+      user_id: user.id,
+      category: fixedCategory || '자유'
+    });
+    if (error) {
+      console.error('글 작성 에러:', error);
+      alert('글 작성 실패: ' + error.message);
+    } else {
+      setNewPost('');
+      await load();
+    }
     setLoading(false);
   };
 
@@ -2610,15 +3137,25 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost }) {
     setSelectedPost(p);
     setCurrentPage('post-detail');
   };
- 
+
+  const placeholder = fixedCategory === '후기'
+    ? '수강 후기를 공유해보세요'
+    : '무슨 생각을 하고 계세요?';
+
+  const emptyMsg = fixedCategory === '후기'
+    ? '첫 후기를 남겨보세요!'
+    : '첫 게시글을 남겨보세요!';
+
   return (
     <>
-      <PageIntro ko="커뮤니티" en="Community" desc="동료들과 이야기 나눠보세요" />
+      <PageIntro ko={pageTitle || "커뮤니티"} en={pageEn || "Community"} desc={pageDesc || "동료들과 이야기 나눠보세요"} />
       <div className="px-5 space-y-3">
         {/* 글 작성 */}
         <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="무슨 생각을 하고 계세요?" rows={2}
-            className="w-full font-body text-xs font-medium p-2 outline-none resize-none rounded" style={{ color: COLORS.ink }} />
+          <textarea value={newPost} onChange={e => setNewPost(e.target.value)}
+            placeholder={placeholder} rows={2}
+            className="w-full font-body text-xs font-medium p-2 outline-none resize-none rounded"
+            style={{ background: COLORS.cream, color: COLORS.ink }} />
           <button onClick={submit} disabled={loading} className="float-right mt-1 font-heading text-[11px] px-4 py-2 rounded-full flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
             {loading ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}Post
           </button>
@@ -2627,7 +3164,10 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost }) {
 
         {/* 게시글 목록 */}
         {posts.length === 0 ? (
-          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>첫 게시글을 남겨보세요!</p>
+          <div className="text-center py-10">
+            <Users size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>{emptyMsg}</p>
+          </div>
         ) : posts.map(p => (
           <div key={p.id} onClick={() => openDetail(p)}
             className="rounded-2xl p-4 cursor-pointer transition-transform active:scale-[0.99]"
@@ -3976,6 +4516,623 @@ function AdminProducts({ user }) {
                 </button>
               </div>
             </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function AdminCourses({ user }) {
+  const [courses, setCourses] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({
+    title: '', en_title: '', level: 'BASIC', duration: '', price: '', original_price: '',
+    show_price: true, description: '', features: '', badge: '',
+    is_active: true, is_featured: false, hot: false, order_index: 0,
+    image_url: '', imageFile: null, imagePreview: null,
+  });
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    const { data } = await supabase.from('courses').select('*').order('order_index', { ascending: true });
+    setCourses(data || []);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({ ...form, imageFile: file, imagePreview: URL.createObjectURL(file) });
+  };
+
+  const removePreview = () => {
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({ ...form, imageFile: null, imagePreview: null });
+  };
+
+  const uploadCourseImage = async (file) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const { error } = await supabase.storage.from('course-images').upload(fileName, file);
+    if (error) throw error;
+    const { data } = supabase.storage.from('course-images').getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
+  const deleteCourseImage = async (imageUrl) => {
+    if (!imageUrl) return;
+    try {
+      const url = new URL(imageUrl);
+      const pathParts = url.pathname.split('/course-images/');
+      if (pathParts.length < 2) return;
+      await supabase.storage.from('course-images').remove([pathParts[1]]);
+    } catch (e) {
+      console.error('이미지 삭제 에러:', e);
+    }
+  };
+
+  const resetForm = () => {
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({
+      title: '', en_title: '', level: 'BASIC', duration: '', price: '', original_price: '',
+      show_price: true, description: '', features: '', badge: '',
+      is_active: true, is_featured: false, hot: false, order_index: 0,
+      image_url: '', imageFile: null, imagePreview: null,
+    });
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const startEdit = (course) => {
+    setForm({
+      title: course.title || '',
+      en_title: course.en_title || '',
+      level: course.level || 'BASIC',
+      duration: course.duration || '',
+      price: course.price || '',
+      original_price: course.original_price || '',
+      show_price: course.show_price !== false,
+      description: course.description || '',
+      features: course.features || '',
+      badge: course.badge || '',
+      is_active: course.is_active !== false,
+      is_featured: course.is_featured || false,
+      hot: course.hot || false,
+      order_index: course.order_index || 0,
+      image_url: course.image_url || '',
+      imageFile: null,
+      imagePreview: null,
+    });
+    setEditingId(course.id);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const submit = async () => {
+    if (!form.title.trim()) return alert('클래스명을 입력해주세요');
+    setLoading(true);
+    try {
+      let imageUrl = form.image_url;
+      if (form.imageFile) {
+        setUploading(true);
+        if (editingId && form.image_url) await deleteCourseImage(form.image_url);
+        imageUrl = await uploadCourseImage(form.imageFile);
+        setUploading(false);
+      }
+      const courseData = {
+        title: form.title, en_title: form.en_title, level: form.level, duration: form.duration,
+        price: parseInt(form.price) || 0,
+        original_price: form.original_price ? parseInt(form.original_price) : null,
+        show_price: form.show_price, description: form.description, features: form.features,
+        badge: form.badge || null, is_active: form.is_active, is_featured: form.is_featured,
+        hot: form.hot, order_index: parseInt(form.order_index) || 0, image_url: imageUrl,
+      };
+      if (editingId) {
+        const { error } = await supabase.from('courses').update(courseData).eq('id', editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('courses').insert(courseData);
+        if (error) throw error;
+      }
+      resetForm();
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert('저장 실패: ' + err.message);
+    }
+    setLoading(false);
+    setUploading(false);
+  };
+
+  const remove = async (course) => {
+    if (!confirm('이 클래스를 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.')) return;
+    if (course.image_url) await deleteCourseImage(course.image_url);
+    await supabase.from('courses').delete().eq('id', course.id);
+    await load();
+  };
+
+  const toggleActive = async (course) => {
+    await supabase.from('courses').update({ is_active: !course.is_active }).eq('id', course.id);
+    await load();
+  };
+
+  const togglePrice = async (course) => {
+    await supabase.from('courses').update({ show_price: !course.show_price }).eq('id', course.id);
+    await load();
+  };
+
+  return (
+    <>
+      <PageIntro ko="클래스 관리" en="Courses Admin" />
+      <div className="px-5 space-y-3">
+        {/* 통계 */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl p-3" style={{ background: COLORS.primary }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>운영 중</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>{courses.filter(c => c.is_active).length}</p>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>비활성</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{courses.filter(c => !c.is_active).length}</p>
+          </div>
+        </div>
+
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+            <Plus size={14} strokeWidth={2.5} />새 클래스 등록
+          </button>
+        )}
+
+        {/* 등록/수정 폼 */}
+        {showForm && (
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>{editingId ? '클래스 수정' : '새 클래스 등록'}</h3>
+              <button onClick={resetForm}><X size={18} style={{ color: COLORS.stone }} /></button>
+            </div>
+
+            {/* 이미지 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>클래스 이미지 (선택)</label>
+              <div className="mt-2">
+                {form.imagePreview ? (
+                  <div className="relative aspect-video w-full rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
+                    <img src={form.imagePreview} alt="미리보기" className="w-full h-full object-cover" />
+                    <button onClick={removePreview} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={14} style={{ color: COLORS.white }} />
+                    </button>
+                  </div>
+                ) : form.image_url ? (
+                  <div className="relative aspect-video w-full rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
+                    <img src={form.image_url} alt="기존 이미지" className="w-full h-full object-cover" />
+                    <label className="absolute inset-0 flex items-center justify-center cursor-pointer" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                      <span className="font-heading text-xs" style={{ color: COLORS.white }}>이미지 변경</span>
+                      <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="aspect-video w-full rounded-xl flex flex-col items-center justify-center cursor-pointer" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
+                    <Upload size={24} style={{ color: COLORS.stone }} />
+                    <span className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>이미지 업로드 (16:9 권장)</span>
+                    <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>클래스명 *</label>
+              <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})}
+                placeholder="예: 눈썹 마스터 클래스"
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>영문명</label>
+                <input type="text" value={form.en_title} onChange={e => setForm({...form, en_title: e.target.value})}
+                  placeholder="Eyebrow Master"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>레벨</label>
+                <input type="text" value={form.level} onChange={e => setForm({...form, level: e.target.value})}
+                  placeholder="MASTER"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>기간</label>
+                <input type="text" value={form.duration} onChange={e => setForm({...form, duration: e.target.value})}
+                  placeholder="10주"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>정렬 순서</label>
+                <input type="number" value={form.order_index} onChange={e => setForm({...form, order_index: e.target.value})}
+                  placeholder="1"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>판매가</label>
+                <input type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})}
+                  placeholder="3200000"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>원가 (할인용)</label>
+                <input type="number" value={form.original_price} onChange={e => setForm({...form, original_price: e.target.value})}
+                  placeholder="3500000"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>배지</label>
+              <select value={form.badge} onChange={e => setForm({...form, badge: e.target.value})}
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                <option value="">없음</option><option>BEST</option><option>NEW</option><option>SALE</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>설명</label>
+              <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})}
+                placeholder="클래스 한 줄 설명" rows={2}
+                className="w-full font-body text-xs font-medium p-2 mt-1 outline-none resize-none rounded"
+                style={{ background: COLORS.cream, color: COLORS.ink }} />
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>특징 (줄바꿈으로 구분)</label>
+              <textarea value={form.features} onChange={e => setForm({...form, features: e.target.value})}
+                placeholder="1:1 케어&#10;실습 모델 5명&#10;수료 후 평생 AS" rows={3}
+                className="w-full font-body text-xs font-medium p-2 mt-1 outline-none resize-none rounded"
+                style={{ background: COLORS.cream, color: COLORS.ink }} />
+            </div>
+
+            {/* 토글 옵션들 */}
+            <div className="space-y-2 pt-2">
+              <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: COLORS.cream }}>
+                <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})}
+                  className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                <span>✨ 운영 활성화 (학생에게 표시)</span>
+              </label>
+              <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: COLORS.cream }}>
+                <input type="checkbox" checked={form.show_price} onChange={e => setForm({...form, show_price: e.target.checked})}
+                  className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                <span>💰 가격 공개 (체크 해제 시 "문의" 표시)</span>
+              </label>
+              <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: COLORS.cream }}>
+                <input type="checkbox" checked={form.is_featured} onChange={e => setForm({...form, is_featured: e.target.checked})}
+                  className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                <span>⭐ 특별 강조 (검정 배경 + 글로우)</span>
+              </label>
+              <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: COLORS.cream }}>
+                <input type="checkbox" checked={form.hot} onChange={e => setForm({...form, hot: e.target.checked})}
+                  className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                <span>🔥 HOT 라벨 표시</span>
+              </label>
+            </div>
+
+            <button onClick={submit} disabled={loading || uploading}
+              className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
+              {uploading ? '이미지 업로드 중...' : editingId ? '수정 저장' : '등록하기'}
+            </button>
+          </div>
+        )}
+
+        {/* 목록 */}
+        {courses.length === 0 ? (
+          <div className="text-center py-10">
+            <BookOpen size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>등록된 클래스가 없습니다</p>
+          </div>
+        ) : courses.map(c => (
+          <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: c.is_active ? 1 : 0.55 }}>
+            {c.image_url && (
+              <div className="aspect-video relative overflow-hidden">
+                <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="p-3">
+              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                <span className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>{c.level}</span>
+                {c.hot && <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>🔥</span>}
+                {c.is_featured && <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.ink, color: COLORS.primary }}>⭐</span>}
+                {!c.show_price && <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>가격숨김</span>}
+              </div>
+              <h4 className="font-heading text-sm" style={{ color: COLORS.ink }}>{c.title}</h4>
+              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
+                {c.duration} · {c.show_price ? `₩${(c.price / 10000).toFixed(0)}만` : '문의'}
+              </p>
+              {c.description && <p className="font-body text-xs mt-1.5 line-clamp-1" style={{ color: COLORS.stone }}>{c.description}</p>}
+
+              <div className="flex gap-1 mt-3">
+                <button onClick={() => toggleActive(c)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full"
+                  style={{ background: c.is_active ? COLORS.cream : COLORS.primary, color: c.is_active ? COLORS.stone : COLORS.white }}>
+                  {c.is_active ? '비활성' : '활성'}
+                </button>
+                <button onClick={() => togglePrice(c)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full"
+                  style={{ background: c.show_price ? COLORS.cream : COLORS.ink, color: c.show_price ? COLORS.stone : COLORS.primary }}>
+                  {c.show_price ? '가격숨김' : '가격공개'}
+                </button>
+                <button onClick={() => startEdit(c)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full flex items-center justify-center gap-1"
+                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  <Edit3 size={10} />수정
+                </button>
+                <button onClick={() => remove(c)} className="px-2 py-1.5 rounded-full flex items-center justify-center" style={{ background: COLORS.cream }}>
+                  <Trash2 size={10} style={{ color: COLORS.deep }} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function AdminLibrary({ user }) {
+  const [files, setFiles] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [filter, setFilter] = useState('전체');
+  const [form, setForm] = useState({
+    name: '', category: '시술 가이드', description: '',
+    file: null, file_type: '', file_size: '',
+  });
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    const { data } = await supabase
+      .from('library_files')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setFiles(data || []);
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setForm({
+      ...form,
+      file,
+      name: form.name || file.name.replace(/\.[^/.]+$/, ''),
+      file_type: file.name.split('.').pop().toUpperCase(),
+      file_size: formatFileSize(file.size),
+    });
+  };
+
+  const uploadLibraryFile = async (file) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const { error } = await supabase.storage
+      .from('library-files')
+      .upload(fileName, file);
+    if (error) throw error;
+    const { data } = supabase.storage.from('library-files').getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
+  const deleteLibraryFile = async (fileUrl) => {
+    if (!fileUrl) return;
+    try {
+      const url = new URL(fileUrl);
+      const pathParts = url.pathname.split('/library-files/');
+      if (pathParts.length < 2) return;
+      await supabase.storage.from('library-files').remove([pathParts[1]]);
+    } catch (e) {
+      console.error('파일 삭제 에러:', e);
+    }
+  };
+
+  const resetForm = () => {
+    setForm({
+      name: '', category: '시술 가이드', description: '',
+      file: null, file_type: '', file_size: '',
+    });
+    setShowForm(false);
+  };
+
+  const submit = async () => {
+    if (!form.name.trim()) return alert('자료명을 입력해주세요');
+    if (!form.file) return alert('파일을 선택해주세요');
+
+    setLoading(true);
+    setUploading(true);
+    try {
+      const fileUrl = await uploadLibraryFile(form.file);
+      const { error } = await supabase.from('library_files').insert({
+        name: form.name,
+        category: form.category,
+        description: form.description,
+        file_url: fileUrl,
+        file_type: form.file_type,
+        file_size: form.file_size,
+      });
+      if (error) throw error;
+      resetForm();
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert('업로드 실패: ' + err.message);
+    }
+    setLoading(false);
+    setUploading(false);
+  };
+
+  const remove = async (file) => {
+    if (!confirm('이 자료를 삭제하시겠습니까?\n파일도 함께 삭제됩니다.')) return;
+    if (file.file_url) await deleteLibraryFile(file.file_url);
+    await supabase.from('library_files').delete().eq('id', file.id);
+    await load();
+  };
+
+  const categories = ['전체', '시술 가이드', '색소 차트', '매뉴얼', '템플릿', '기타'];
+  const filtered = filter === '전체' ? files : files.filter(f => f.category === filter);
+
+  return (
+    <>
+      <PageIntro ko="자료실 관리" en="Library Admin" />
+      <div className="px-5 space-y-3">
+        {/* 통계 카드 */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl p-3" style={{ background: COLORS.primary }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>전체 자료</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>{files.length}</p>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>카테고리</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{categories.length - 1}</p>
+          </div>
+        </div>
+
+        {/* 새 자료 업로드 버튼 */}
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+            <Plus size={14} strokeWidth={2.5} />새 자료 업로드
+          </button>
+        )}
+
+        {/* 업로드 폼 */}
+        {showForm && (
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>새 자료 업로드</h3>
+              <button onClick={resetForm}>
+                <X size={18} style={{ color: COLORS.stone }} />
+              </button>
+            </div>
+
+            {/* 파일 선택 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>파일 *</label>
+              {form.file ? (
+                <div className="mt-2 flex items-center gap-3 p-3 rounded-xl" style={{ background: COLORS.cream }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: COLORS.peach }}>
+                    <FolderOpen size={18} style={{ color: COLORS.primary }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>{form.file.name}</p>
+                    <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{form.file_type} · {form.file_size}</p>
+                  </div>
+                  <button onClick={() => setForm({ ...form, file: null, file_type: '', file_size: '' })}
+                    className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
+                    <X size={12} style={{ color: COLORS.white }} />
+                  </button>
+                </div>
+              ) : (
+                <label className="mt-2 rounded-xl flex flex-col items-center justify-center cursor-pointer py-8" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
+                  <Upload size={24} style={{ color: COLORS.stone }} />
+                  <span className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>파일 선택 (모든 형식)</span>
+                  <input type="file" onChange={handleFileSelect} className="hidden" />
+                </label>
+              )}
+            </div>
+
+            {/* 자료명 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>자료명 *</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})}
+                placeholder="예: 엠보 브로우 시술 가이드"
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+
+            {/* 카테고리 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>카테고리</label>
+              <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                <option>시술 가이드</option><option>색소 차트</option><option>매뉴얼</option><option>템플릿</option><option>기타</option>
+              </select>
+            </div>
+
+            {/* 설명 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>설명</label>
+              <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})}
+                placeholder="자료에 대한 간단한 설명" rows={2}
+                className="w-full font-body text-xs font-medium p-2 mt-1 outline-none resize-none rounded"
+                style={{ background: COLORS.cream, color: COLORS.ink }} />
+            </div>
+
+            <button onClick={submit} disabled={loading || uploading}
+              className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
+              {uploading ? '업로드 중...' : '등록하기'}
+            </button>
+          </div>
+        )}
+
+        {/* 카테고리 필터 */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 py-1">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilter(cat)}
+              className="shrink-0 px-3 py-1.5 rounded-full font-body text-xs font-semibold"
+              style={{
+                background: filter === cat ? COLORS.primary : COLORS.card,
+                color: filter === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
+              }}>
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* 자료 목록 */}
+        {filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <FolderOpen size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {filter === '전체' ? '등록된 자료가 없습니다' : `${filter} 카테고리 자료가 없습니다`}
+            </p>
+          </div>
+        ) : filtered.map(f => (
+          <div key={f.id} className="rounded-2xl p-3 flex items-center gap-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl" style={{ background: COLORS.peach }}>
+              <FolderOpen size={20} style={{ color: COLORS.primary }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>{f.category || '기타'}</p>
+              <p className="font-heading text-xs mt-0.5 truncate" style={{ color: COLORS.ink }}>{f.name}</p>
+              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{f.file_type} · {f.file_size}</p>
+            </div>
+            <button onClick={() => remove(f)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.cream }}>
+              <Trash2 size={12} style={{ color: COLORS.deep }} />
+            </button>
           </div>
         ))}
       </div>
