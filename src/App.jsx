@@ -203,7 +203,9 @@ export default function HSSUPApp() {
   const [selectedPost, setSelectedPost] = useState(null);
 
   const [selectedLecture, setSelectedLecture] = useState(null);
-  
+
+  const [selectedProduct, setSelectedProduct] = useState(null);
+    
   // PWA 설치 가능 여부 감지
   useEffect(() => {
     // iOS 감지
@@ -380,6 +382,7 @@ export default function HSSUPApp() {
       { id: 'admin-notice', label: '공지 관리', icon: Bell },
       { id: 'admin-cases', label: '케이스 관리', icon: Camera },
       { id: 'admin-lectures', label: '강의 관리', icon: PlayCircle },
+      { id: 'admin-products', label: '재료샵 관리', icon: ShoppingBag },
     ]},
     { section: 'LEARN', items: [
       { id: 'home', label: '홈', icon: Home },
@@ -459,6 +462,7 @@ export default function HSSUPApp() {
                     selectedQna={selectedQna} setSelectedQna={setSelectedQna}
                     selectedPost={selectedPost} setSelectedPost={setSelectedPost}
                     selectedLecture={selectedLecture} setSelectedLecture={setSelectedLecture}
+                    selectedProduct={selectedProduct} setSelectedProduct={setSelectedProduct}
                     user={profile} handleLogout={handleLogout} isAdmin={isAdmin} />
                 </div>
               </main>
@@ -949,7 +953,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, user, handleLogout, isAdmin }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedProduct, setSelectedProduct, user, handleLogout, isAdmin }) {
   if (isAdmin) {
     if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} />;
     if (currentPage === 'admin-notice') return <AdminNotice user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
@@ -957,12 +961,14 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'admin-qna') return <AdminQna user={user} />;
     if (currentPage === 'admin-cases') return <AdminCases />;
     if (currentPage === 'admin-lectures') return <AdminLectures user={user} />;
+    if (currentPage === 'admin-products') return <AdminProducts user={user} />;
     if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
   }
   if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} />;
   if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} />;
   if (currentPage === 'post-detail') return <PostDetailPage post={selectedPost} user={user} />;
   if (currentPage === 'lecture-detail') return <LectureDetailPage lecture={selectedLecture} user={user} />;
+  if (currentPage === 'product-detail') return <ProductDetailPage product={selectedProduct} user={user} />;
   if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'notice') return <NoticePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'course') return <CoursePage />;
@@ -970,7 +976,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'mycase') return <MyCasePage user={user} />;
   if (currentPage === 'qna') return <QnaPage user={user} setCurrentPage={setCurrentPage} setSelectedQna={setSelectedQna} />;
   if (currentPage === 'library') return <LibraryPage />;
-  if (currentPage === 'market') return <MarketPage />;
+  if (currentPage === 'market') return <MarketPage setCurrentPage={setCurrentPage} setSelectedProduct={setSelectedProduct} />;
   if (currentPage === 'online') return <OnlineLecturePage setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
   if (currentPage === 'community') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} />;
   if (currentPage === 'attendance') return <AttendancePage user={user} />;
@@ -2000,42 +2006,108 @@ function LibraryPage() {
   );
 }
  
-function MarketPage() {
+function MarketPage({ setCurrentPage, setSelectedProduct }) {
   const [products, setProducts] = useState([]);
+  const [filter, setFilter] = useState('전체');
+  const [loading, setLoading] = useState(true);
+
+  const openDetail = (p) => {
+    setSelectedProduct(p);
+    setCurrentPage('product-detail');
+  };
+
   useEffect(() => {
     supabase.from('products').select('*').eq('is_active', true).order('created_at', { ascending: false })
-      .then(({ data }) => setProducts(data || []));
+      .then(({ data }) => { setProducts(data || []); setLoading(false); });
   }, []);
+
+  const categories = ['전체', '색소', '니들/머신', '마취제', '도구', '기타'];
+  const filtered = filter === '전체' ? products : products.filter(p => p.category === filter);
+
   return (
     <>
       <PageIntro ko="재료샵" en="Market" desc="수강생 전용 가격으로 만나보세요" />
-      <div className="px-5">
-        <div className="grid grid-cols-2 gap-3">
-          {products.map(p => (
-            <div key={p.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-              <div className="relative aspect-square flex items-center justify-center" style={{ background: COLORS.cream }}>
-                <span className="text-5xl" style={{ color: COLORS.primary }}>{p.emoji}</span>
-                {p.colors && p.colors.length > 0 && (
-                  <div className="absolute bottom-2 flex gap-1">
-                    {p.colors.map((c, j) => <div key={j} className="w-4 h-4 rounded-full" style={{ background: c, border: `1.5px solid ${COLORS.white}` }}></div>)}
-                  </div>
-                )}
-                {p.badge && (
-                  <span className="absolute top-2 left-2 font-mono text-[8px] font-bold tracking-widest px-1.5 py-0.5 rounded" style={{
-                    background: p.badge === 'BEST' ? COLORS.ink : p.badge === 'NEW' ? COLORS.primary : COLORS.peach,
-                    color: p.badge === 'SALE' ? COLORS.deep : COLORS.white
-                  }}>{p.badge}</span>
-                )}
-              </div>
-              <div className="p-3">
-                <p className="font-mono text-[8px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>{p.brand}</p>
-                <h4 className="font-body text-[11px] font-semibold mt-1 leading-tight line-clamp-2 min-h-[2.5em]" style={{ color: COLORS.ink }}>{p.name}</h4>
-                {p.original_price > p.price && <p className="font-mono text-[9px] line-through mt-1" style={{ color: COLORS.stone }}>{p.original_price.toLocaleString()}원</p>}
-                <p className="font-display text-base mt-0.5 tracking-tight" style={{ color: COLORS.ink }}>{p.price.toLocaleString()}<span className="font-body text-[10px] font-medium" style={{ color: COLORS.stone }}>원</span></p>
-              </div>
-            </div>
+
+      {/* 카테고리 탭 */}
+      <div className="px-5 mb-4">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilter(cat)}
+              className={`shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold transition-transform active:scale-95 ${filter === cat ? 'glow-soft' : ''}`}
+              style={{
+                background: filter === cat ? COLORS.primary : COLORS.card,
+                color: filter === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
+              }}>
+              {cat}
+            </button>
           ))}
         </div>
+      </div>
+
+      <div className="px-5">
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <ShoppingBag size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {filter === '전체' ? '아직 등록된 상품이 없습니다' : `${filter} 카테고리 상품이 없습니다`}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {filtered.map(p => (
+              <button key={p.id} onClick={() => openDetail(p)} className="rounded-2xl overflow-hidden transition-transform active:scale-[0.98] text-left" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                {/* 이미지 영역 */}
+                <div className="relative aspect-square overflow-hidden" style={{ background: COLORS.cream }}>
+                  {p.image_url ? (
+                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-5xl" style={{ color: COLORS.primary }}>{p.emoji || '🛍️'}</span>
+                    </div>
+                  )}
+                  {/* 배지 */}
+                  {p.badge && (
+                    <span className="absolute top-2 left-2 font-mono text-[8px] font-bold tracking-widest px-1.5 py-0.5 rounded" style={{
+                      background: p.badge === 'BEST' ? COLORS.ink : p.badge === 'NEW' ? COLORS.primary : COLORS.peach,
+                      color: p.badge === 'SALE' ? COLORS.deep : COLORS.white,
+                      boxShadow: p.badge === 'NEW' ? '0 0 12px rgba(255, 92, 31, 0.5)' : 'none'
+                    }}>{p.badge}</span>
+                  )}
+                  {/* 재고 부족 알림 */}
+                  {p.stock !== undefined && p.stock <= 5 && p.stock > 0 && (
+                    <span className="absolute top-2 right-2 font-mono text-[8px] font-bold tracking-widest px-1.5 py-0.5 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>
+                      {p.stock}개 남음
+                    </span>
+                  )}
+                  {/* 품절 오버레이 */}
+                  {p.stock === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                      <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                        품절
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {/* 정보 */}
+                <div className="p-3">
+                  <p className="font-mono text-[8px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>{p.brand || '-'}</p>
+                  <h4 className="font-body text-[11px] font-semibold mt-1 leading-tight line-clamp-2 min-h-[2.5em]" style={{ color: COLORS.ink }}>{p.name}</h4>
+                  {p.original_price && p.original_price > p.price && (
+                    <p className="font-mono text-[9px] line-through mt-1" style={{ color: COLORS.stone }}>{p.original_price.toLocaleString()}원</p>
+                  )}
+                  <p className="font-display text-base mt-0.5 tracking-tight" style={{ color: COLORS.ink }}>
+                    {p.price?.toLocaleString()}<span className="font-body text-[10px] font-medium" style={{ color: COLORS.stone }}>원</span>
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );
@@ -2353,6 +2425,132 @@ function PostDetailPage({ post, user }) {
           {/* 댓글 */}
           <CommentSection targetType="community_post" targetId={post.id} user={user} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// 🛍️ ProductDetailPage - 상품 상세 (이미지 + 설명 + 좋아요/댓글)
+// =============================================================
+function ProductDetailPage({ product, user }) {
+  if (!product) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <p className="font-body text-sm" style={{ color: COLORS.stone }}>상품을 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  const discount = product.original_price && product.original_price > product.price
+    ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
+    : 0;
+
+  return (
+    <div className="pb-32">
+      {/* 큰 이미지 */}
+      <div className="relative aspect-square w-full overflow-hidden" style={{ background: COLORS.cream }}>
+        {product.image_url ? (
+          <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-9xl" style={{ color: COLORS.primary }}>{product.emoji || '🛍️'}</span>
+          </div>
+        )}
+        {product.badge && (
+          <span className="absolute top-4 left-4 font-mono text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded" style={{
+            background: product.badge === 'BEST' ? COLORS.ink : product.badge === 'NEW' ? COLORS.primary : COLORS.peach,
+            color: product.badge === 'SALE' ? COLORS.deep : COLORS.white,
+            boxShadow: product.badge === 'NEW' ? '0 0 20px rgba(255, 92, 31, 0.5)' : 'none'
+          }}>{product.badge}</span>
+        )}
+        {product.stock === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+            <span className="font-mono text-sm font-bold tracking-widest uppercase px-5 py-2.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              품절
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* 정보 */}
+      <div className="px-5 pt-5">
+        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+          <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>
+            {product.category || '기타'}
+          </span>
+          {product.brand && (
+            <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+              {product.brand}
+            </span>
+          )}
+        </div>
+        <h1 className="font-display text-2xl tracking-tight leading-tight" style={{ color: COLORS.ink }}>{product.name}</h1>
+
+        {/* 가격 */}
+        <div className="mt-4">
+          {product.original_price && product.original_price > product.price && (
+            <div className="flex items-center gap-2">
+              <p className="font-mono text-sm line-through" style={{ color: COLORS.stone }}>
+                {product.original_price.toLocaleString()}원
+              </p>
+              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255, 92, 31, 0.4)' }}>
+                {discount}% OFF
+              </span>
+            </div>
+          )}
+          <p className="font-display text-3xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>
+            {product.price?.toLocaleString()}<span className="font-body text-base font-medium" style={{ color: COLORS.stone }}>원</span>
+          </p>
+        </div>
+
+        {/* 재고 정보 */}
+        <div className="flex items-center gap-2 mt-3">
+          <div className="w-2 h-2 rounded-full" style={{ background: product.stock > 5 ? '#22C55E' : product.stock > 0 ? COLORS.primary : COLORS.stone }}></div>
+          <p className="font-mono text-xs" style={{ color: COLORS.stone }}>
+            {product.stock > 5 ? '재고 충분' : product.stock > 0 ? `${product.stock}개 남음 (서두르세요!)` : '품절'}
+          </p>
+        </div>
+      </div>
+
+      {/* 설명 */}
+      {product.description && (
+        <div className="px-5 mt-5">
+          <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>━━ Description</p>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>{product.description}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 좋아요 + 댓글 */}
+      <div className="px-5 mt-3">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <LikeButton targetType="product" targetId={product.id} userId={user.id} size={16} />
+          <CommentSection targetType="product" targetId={product.id} user={user} />
+        </div>
+      </div>
+
+      {/* 하단 구매 버튼 (고정) */}
+      <div className="fixed bottom-20 left-0 right-0 px-5 py-3" style={{
+        background: 'rgba(10, 10, 10, 0.85)',
+        backdropFilter: 'blur(20px)',
+        borderTop: `1px solid ${COLORS.light}`,
+        maxWidth: '480px',
+        margin: '0 auto'
+      }}>
+        <button
+          onClick={() => alert('💳 결제 시스템(토스페이먼츠) 도입 후 바로 구매 가능합니다!\n지금은 원장님께 직접 문의해주세요 😊')}
+          disabled={product.stock === 0}
+          className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+          style={{
+            background: product.stock === 0 ? COLORS.cardElev : COLORS.primary,
+            color: COLORS.white,
+            boxShadow: product.stock === 0 ? 'none' : '0 0 24px rgba(255, 92, 31, 0.5)'
+          }}>
+          <ShoppingCart size={16} strokeWidth={2.5} />
+          {product.stock === 0 ? '품절' : '구매 문의하기'}
+        </button>
       </div>
     </div>
   );
@@ -3381,6 +3579,400 @@ function AdminLectures({ user }) {
                   className="px-3 py-2 rounded-full flex items-center justify-center"
                   style={{ background: COLORS.cream }}>
                   <Trash2 size={12} style={{ color: COLORS.deep }} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function AdminProducts({ user }) {
+  const [products, setProducts] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [filter, setFilter] = useState('전체');
+  const [form, setForm] = useState({
+    name: '', brand: '', category: '색소', price: '', original_price: '',
+    stock: 0, badge: '', description: '', image_url: '', is_active: true,
+    imageFile: null, imagePreview: null,
+  });
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    const { data } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setProducts(data || []);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({
+      ...form,
+      imageFile: file,
+      imagePreview: URL.createObjectURL(file)
+    });
+  };
+
+  const removePreview = () => {
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({ ...form, imageFile: null, imagePreview: null });
+  };
+
+  const uploadProductImage = async (file) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const { error: uploadError } = await supabase.storage
+      .from('product-images')
+      .upload(fileName, file);
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
+  const deleteProductImage = async (imageUrl) => {
+    if (!imageUrl) return;
+    try {
+      const url = new URL(imageUrl);
+      const pathParts = url.pathname.split('/product-images/');
+      if (pathParts.length < 2) return;
+      await supabase.storage.from('product-images').remove([pathParts[1]]);
+    } catch (e) {
+      console.error('이미지 삭제 에러:', e);
+    }
+  };
+
+  const resetForm = () => {
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({
+      name: '', brand: '', category: '색소', price: '', original_price: '',
+      stock: 0, badge: '', description: '', image_url: '', is_active: true,
+      imageFile: null, imagePreview: null,
+    });
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const startEdit = (product) => {
+    setForm({
+      name: product.name || '',
+      brand: product.brand || '',
+      category: product.category || '색소',
+      price: product.price || '',
+      original_price: product.original_price || '',
+      stock: product.stock || 0,
+      badge: product.badge || '',
+      description: product.description || '',
+      image_url: product.image_url || '',
+      is_active: product.is_active !== false,
+      imageFile: null,
+      imagePreview: null,
+    });
+    setEditingId(product.id);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const submit = async () => {
+    if (!form.name.trim()) return alert('상품명을 입력해주세요');
+    if (!form.price) return alert('판매가를 입력해주세요');
+
+    setLoading(true);
+    try {
+      let imageUrl = form.image_url;
+
+      if (form.imageFile) {
+        setUploading(true);
+        if (editingId && form.image_url) {
+          await deleteProductImage(form.image_url);
+        }
+        imageUrl = await uploadProductImage(form.imageFile);
+        setUploading(false);
+      }
+
+      const productData = {
+        name: form.name,
+        brand: form.brand,
+        category: form.category,
+        price: parseInt(form.price) || 0,
+        original_price: form.original_price ? parseInt(form.original_price) : null,
+        stock: parseInt(form.stock) || 0,
+        badge: form.badge || null,
+        description: form.description,
+        image_url: imageUrl,
+        is_active: form.is_active,
+      };
+
+      if (editingId) {
+        const { error } = await supabase.from('products').update(productData).eq('id', editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('products').insert(productData);
+        if (error) throw error;
+      }
+      resetForm();
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert('저장 실패: ' + err.message);
+    }
+    setLoading(false);
+    setUploading(false);
+  };
+
+  const remove = async (product) => {
+    if (!confirm('이 상품을 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.')) return;
+    if (product.image_url) await deleteProductImage(product.image_url);
+    await supabase.from('products').delete().eq('id', product.id);
+    await load();
+  };
+
+  const toggleActive = async (product) => {
+    await supabase
+      .from('products')
+      .update({ is_active: !product.is_active })
+      .eq('id', product.id);
+    await load();
+  };
+
+  const categories = ['전체', '색소', '니들/머신', '마취제', '도구', '기타'];
+  const filtered = filter === '전체' ? products : products.filter(p => p.category === filter);
+
+  return (
+    <>
+      <PageIntro ko="재료샵 관리" en="Products Admin" />
+      <div className="px-5 space-y-3">
+        {/* 통계 카드 */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl p-3" style={{ background: COLORS.primary }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>판매 중</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>
+              {products.filter(p => p.is_active).length}
+            </p>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>비활성</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>
+              {products.filter(p => !p.is_active).length}
+            </p>
+          </div>
+        </div>
+
+        {/* + 새 상품 등록 버튼 */}
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+            <Plus size={14} strokeWidth={2.5} />새 상품 등록
+          </button>
+        )}
+
+        {/* 등록/수정 폼 */}
+        {showForm && (
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>
+                {editingId ? '상품 수정' : '새 상품 등록'}
+              </h3>
+              <button onClick={resetForm}>
+                <X size={18} style={{ color: COLORS.stone }} />
+              </button>
+            </div>
+
+            {/* 이미지 업로드 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>상품 이미지</label>
+              <div className="mt-2">
+                {form.imagePreview ? (
+                  <div className="relative aspect-square w-full max-w-[200px] rounded-xl overflow-hidden mx-auto" style={{ background: COLORS.cream }}>
+                    <img src={form.imagePreview} alt="미리보기" className="w-full h-full object-cover" />
+                    <button onClick={removePreview} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={14} style={{ color: COLORS.white }} />
+                    </button>
+                  </div>
+                ) : form.image_url ? (
+                  <div className="relative aspect-square w-full max-w-[200px] rounded-xl overflow-hidden mx-auto" style={{ background: COLORS.cream }}>
+                    <img src={form.image_url} alt="기존 이미지" className="w-full h-full object-cover" />
+                    <label className="absolute inset-0 flex items-center justify-center cursor-pointer" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                      <span className="font-heading text-xs" style={{ color: COLORS.white }}>이미지 변경</span>
+                      <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="aspect-square w-full max-w-[200px] rounded-xl flex flex-col items-center justify-center cursor-pointer mx-auto" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
+                    <Upload size={24} style={{ color: COLORS.stone }} />
+                    <span className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>이미지 업로드</span>
+                    <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* 상품명 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>상품명 *</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})}
+                placeholder="예: 마이크로피그먼트 누드 5ml"
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+
+            {/* 브랜드 + 카테고리 */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>브랜드</label>
+                <input type="text" value={form.brand} onChange={e => setForm({...form, brand: e.target.value})}
+                  placeholder="BIOTEK"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>카테고리</label>
+                <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                  <option>색소</option><option>니들/머신</option><option>마취제</option><option>도구</option><option>기타</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 판매가 + 원가 */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>판매가 *</label>
+                <input type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})}
+                  placeholder="65000"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>원가 (할인용)</label>
+                <input type="number" value={form.original_price} onChange={e => setForm({...form, original_price: e.target.value})}
+                  placeholder="80000"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+            </div>
+
+            {/* 재고 + 배지 */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>재고</label>
+                <input type="number" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})}
+                  placeholder="10"
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>배지</label>
+                <select value={form.badge} onChange={e => setForm({...form, badge: e.target.value})}
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                  <option value="">없음</option><option>BEST</option><option>NEW</option><option>SALE</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 설명 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>상품 설명</label>
+              <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})}
+                placeholder="제품 특징, 사용법 등" rows={3}
+                className="w-full font-body text-xs font-medium p-2 mt-1 outline-none resize-none rounded"
+                style={{ background: COLORS.cream, color: COLORS.ink }} />
+            </div>
+
+            {/* 활성 여부 */}
+            <label className="flex items-center gap-2 font-body text-xs cursor-pointer" style={{ color: COLORS.ink }}>
+              <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})}
+                className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+              <span>✨ 판매 활성화 (체크 해제하면 학생에게 안 보임)</span>
+            </label>
+
+            {/* 저장 버튼 */}
+            <button onClick={submit} disabled={loading || uploading}
+              className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
+              {uploading ? '이미지 업로드 중...' : editingId ? '수정 저장' : '등록하기'}
+            </button>
+          </div>
+        )}
+
+        {/* 카테고리 필터 */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 py-1">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilter(cat)}
+              className="shrink-0 px-3 py-1.5 rounded-full font-body text-xs font-semibold"
+              style={{
+                background: filter === cat ? COLORS.primary : COLORS.card,
+                color: filter === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
+              }}>
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* 상품 목록 */}
+        {filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <ShoppingBag size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {filter === '전체' ? '등록된 상품이 없습니다' : `${filter} 카테고리 상품이 없습니다`}
+            </p>
+          </div>
+        ) : filtered.map(p => (
+          <div key={p.id} className="rounded-2xl overflow-hidden flex" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: p.is_active ? 1 : 0.55 }}>
+            <div className="relative w-24 h-24 shrink-0">
+              {p.image_url ? (
+                <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center" style={{ background: COLORS.cream }}>
+                  <span className="text-3xl">{p.emoji || '🛍️'}</span>
+                </div>
+              )}
+              {p.badge && (
+                <span className="absolute top-1 left-1 font-mono text-[8px] font-bold tracking-widest px-1.5 py-0.5 rounded" style={{
+                  background: p.badge === 'BEST' ? COLORS.ink : p.badge === 'NEW' ? COLORS.primary : COLORS.peach,
+                  color: p.badge === 'SALE' ? COLORS.deep : COLORS.white
+                }}>{p.badge}</span>
+              )}
+            </div>
+            <div className="flex-1 p-3 min-w-0">
+              <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>
+                {p.brand || '-'} · {p.category || '기타'}
+              </p>
+              <h4 className="font-heading text-xs mt-1 line-clamp-2 leading-tight" style={{ color: COLORS.ink }}>{p.name}</h4>
+              <p className="font-display text-sm mt-1 tracking-tight" style={{ color: COLORS.ink }}>
+                {p.price?.toLocaleString()}<span className="font-body text-[10px]" style={{ color: COLORS.stone }}>원</span>
+                <span className="font-mono text-[10px] ml-2" style={{ color: COLORS.stone }}>재고 {p.stock || 0}</span>
+              </p>
+              <div className="flex gap-1 mt-2">
+                <button onClick={() => toggleActive(p)}
+                  className="flex-1 font-heading text-[10px] py-1.5 rounded-full"
+                  style={{
+                    background: p.is_active ? COLORS.cream : COLORS.primary,
+                    color: p.is_active ? COLORS.stone : COLORS.white,
+                  }}>
+                  {p.is_active ? '비활성' : '활성'}
+                </button>
+                <button onClick={() => startEdit(p)}
+                  className="flex-1 font-heading text-[10px] py-1.5 rounded-full flex items-center justify-center gap-1"
+                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  <Edit3 size={10} />수정
+                </button>
+                <button onClick={() => remove(p)}
+                  className="px-2 py-1.5 rounded-full flex items-center justify-center"
+                  style={{ background: COLORS.cream }}>
+                  <Trash2 size={10} style={{ color: COLORS.deep }} />
                 </button>
               </div>
             </div>
