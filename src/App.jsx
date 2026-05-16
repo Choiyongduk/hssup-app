@@ -153,9 +153,28 @@ const checkNotificationStatus = async () => {
 };
 
 const COLORS = {
-  primary: '#FF5C1F', deep: '#D94614', peach: '#FFE8DD',
-  cream: '#FAF6F1', ink: '#1A1A1A', stone: '#6B6661',
-  light: '#E8E4DE', white: '#FFFFFF',
+  // 시그니처 컬러
+  primary: '#FF5C1F',                        // 메인 오렌지
+  deep: '#FF7A47',                           // 밝은 오렌지 (강조)
+  primaryGlow: 'rgba(255, 92, 31, 0.35)',   // 글로우 효과용
+  peach: 'rgba(255, 92, 31, 0.15)',         // 오렌지 배경
+
+  // 다크 테마 베이스
+  cream: '#0A0A0A',                          // 메인 배경
+  card: '#161616',                           // 카드 배경
+  cardElev: '#1F1F1F',                       // 들어올린 카드
+
+  // 텍스트
+  ink: '#FFFFFF',                            // 메인 텍스트 (흰색!)
+  stone: '#A0A0A0',                          // 보조 텍스트
+  muted: '#6B6B6B',                          // 흐린 텍스트
+
+  // 경계선
+  light: 'rgba(255, 255, 255, 0.08)',       // 미묘한 경계선
+  border: 'rgba(255, 255, 255, 0.15)',      // 진한 경계선
+
+  // 진짜 흰색 (버튼 위 텍스트용)
+  white: '#FFFFFF',
 };
  
 export default function HSSUPApp() {
@@ -168,6 +187,7 @@ export default function HSSUPApp() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [showIOSGuide, setShowIOSGuide] = useState(false);
   const [showSplash, setShowSplash] = useState(() => {
     // standalone 모드(설치된 앱)에서만 스플래시 표시
     const standalone = window.matchMedia('(display-mode: standalone)').matches 
@@ -175,6 +195,15 @@ export default function HSSUPApp() {
     return standalone;
   });
 
+  // 📰 선택된 상세 항목 추적 (공지/Q&A/커뮤니티 상세보기용)
+  const [selectedNotice, setSelectedNotice] = useState(null);
+
+  const [selectedQna, setSelectedQna] = useState(null);
+
+  const [selectedPost, setSelectedPost] = useState(null);
+
+  const [selectedLecture, setSelectedLecture] = useState(null);
+  
   // PWA 설치 가능 여부 감지
   useEffect(() => {
     // iOS 감지
@@ -210,14 +239,20 @@ export default function HSSUPApp() {
   }, []);
 
   const handleInstall = async () => {
+    // iOS는 자동 설치 불가 → 가이드 모달 표시
+    if (isIOS) {
+      setShowIOSGuide(true);
+      return;
+    }
+    // Android/Chrome: 네이티브 설치 프롬프트
     if (installPrompt) {
       installPrompt.prompt();
       const { outcome } = await installPrompt.userChoice;
       if (outcome === 'accepted') {
         console.log('PWA 설치 성공!');
+        setShowInstallBanner(false);
       }
       setInstallPrompt(null);
-      setShowInstallBanner(false);
     }
   };
 
@@ -258,13 +293,50 @@ export default function HSSUPApp() {
   };
  
   const isAdmin = profile?.role === 'admin';
- 
+
+  // 🔝 탑 레벨 페이지 (뒤로가기 버튼 안 보임, 햄버거만)
+  const TOP_LEVEL_PAGES = isAdmin
+    ? ['dashboard', 'admin-students', 'admin-qna', 'admin-notice', 'mypage']
+    : ['home', 'course', 'market', 'community', 'mypage'];
+  const isSubPage = profile && !TOP_LEVEL_PAGES.includes(currentPage);
+
+  // 🔙 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 모바일/브라우저 뒤로가기 버튼 연동
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // 페이지가 바뀔 때마다 브라우저 히스토리에 자동 기록
+  useEffect(() => {
+    if (!profile) return; // 로그인 전에는 작동 안 함
+    window.history.pushState({ page: currentPage }, '', '');
+  }, [currentPage, profile]);
+
+  // 사용자가 뒤로가기 누르면 → 이전 페이지로 이동
+  useEffect(() => {
+    const handlePopState = (e) => {
+      // 드로어(햄버거 메뉴)가 열려있으면 → 드로어만 닫기
+      if (drawerOpen) {
+        setDrawerOpen(false);
+        window.history.pushState({ page: currentPage }, '', '');
+        return;
+      }
+      // 페이지 이동
+      if (e.state && e.state.page) {
+        setCurrentPage(e.state.page);
+      } else {
+        // 더 갈 곳이 없으면 홈/대시보드로
+        setCurrentPage(isAdmin ? 'dashboard' : 'home');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [drawerOpen, currentPage, isAdmin]);
+
   const studentTabs = [
-    { id: 'home', label: '홈', icon: Home },
-    { id: 'course', label: '클래스', icon: BookOpen },
-    { id: 'simulator', label: '시뮬', icon: Palette },
-    { id: 'community', label: '커뮤니티', icon: Users },
-    { id: 'mypage', label: 'MY', icon: User },
+  { id: 'home', label: '홈', icon: Home },
+  { id: 'course', label: '강의', icon: BookOpen },
+  { id: 'market', label: '재료샵', icon: ShoppingBag },
+  { id: 'community', label: '커뮤니티', icon: Users },
+  { id: 'mypage', label: 'MY', icon: User },
   ];
   const adminTabs = [
     { id: 'dashboard', label: '대시보드', icon: BarChart3 },
@@ -285,7 +357,7 @@ export default function HSSUPApp() {
     { section: 'PRACTICE', items: [
       { id: 'mycase', label: '내 포트폴리오', icon: Camera },
       { id: 'best', label: '베스트 케이스', icon: Award },
-      { id: 'simulator', label: '색소 시뮬레이터', icon: Palette },
+      
     ]},
     { section: 'CONNECT', items: [
       { id: 'notice', label: '공지', icon: Bell },
@@ -301,14 +373,33 @@ export default function HSSUPApp() {
     ]},
   ];
   const adminMenu = [
-    { section: 'OPERATE', items: [
+    { section: 'ADMIN', items: [
       { id: 'dashboard', label: '대시보드', icon: BarChart3 },
       { id: 'admin-students', label: '수강생', icon: UserCheck },
       { id: 'admin-qna', label: 'Q&A 답변', icon: MessageCircle },
-    ]},
-    { section: 'CONTENT', items: [
       { id: 'admin-notice', label: '공지 관리', icon: Bell },
       { id: 'admin-cases', label: '케이스 관리', icon: Camera },
+      { id: 'admin-lectures', label: '강의 관리', icon: PlayCircle },
+    ]},
+    { section: 'LEARN', items: [
+      { id: 'home', label: '홈', icon: Home },
+      { id: 'course', label: '클래스', icon: BookOpen },
+      { id: 'online', label: '온라인 강의', icon: PlayCircle },
+      { id: 'attendance', label: '출석·진도', icon: Calendar },
+    ]},
+    { section: 'PRACTICE', items: [
+      { id: 'mycase', label: '내 포트폴리오', icon: Camera },
+      { id: 'best', label: '베스트 케이스', icon: Award },
+      
+    ]},
+    { section: 'CONNECT', items: [
+      { id: 'notice', label: '공지', icon: Bell },
+      { id: 'qna', label: 'Q&A', icon: MessageCircle },
+      { id: 'community', label: '커뮤니티', icon: Users },
+    ]},
+    { section: 'RESOURCE', items: [
+      { id: 'library', label: '자료실', icon: FolderOpen },
+      { id: 'market', label: '재료샵', icon: ShoppingBag },
     ]},
     { section: 'MY', items: [
       { id: 'mypage', label: '마이페이지', icon: User },
@@ -330,6 +421,13 @@ export default function HSSUPApp() {
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+        .glow-text { text-shadow: 0 0 12px rgba(255, 92, 31, 0.75), 0 0 28px rgba(255, 92, 31, 0.3); }
+        .glow-primary { box-shadow: 0 0 24px rgba(255, 92, 31, 0.4), 0 0 6px rgba(255, 92, 31, 0.6); }
+        .glow-soft { box-shadow: 0 0 32px rgba(255, 92, 31, 0.2); }
+        .glow-dot { box-shadow: 0 0 14px rgba(255, 92, 31, 0.9), 0 0 6px rgba(255, 92, 31, 1); }
+        .glow-ring { box-shadow: 0 0 0 1px rgba(255, 92, 31, 0.4), 0 0 30px rgba(255, 92, 31, 0.25); }
+        @keyframes pulseGlow { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
+        .pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         .animate-slide-up { animation: slideUp 0.3s ease-out; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -343,7 +441,7 @@ export default function HSSUPApp() {
         }
       `}</style>
 
-      <div className="app-container relative w-full overflow-hidden flex flex-col" style={{ background: COLORS.cream, minHeight: '100vh' }}>
+<div className="app-container relative w-full overflow-hidden flex flex-col" style={{ background: COLORS.cream, height: '100dvh' }}>
  
           {loading ? <LoadingScreen /> :
            !session || !profile ? <AuthScreen /> : (
@@ -351,10 +449,17 @@ export default function HSSUPApp() {
               <AppHeader user={profile} isAdmin={isAdmin}
                 onMenuClick={() => setDrawerOpen(true)}
                 onLogoClick={() => setCurrentPage(isAdmin ? 'dashboard' : 'home')}
-                onProfileClick={() => setCurrentPage('mypage')} />
+                onProfileClick={() => setCurrentPage('mypage')}
+                showBackButton={isSubPage}
+                onBackClick={() => window.history.back()} />
               <main className="flex-1 overflow-y-auto scrollbar-hide pb-20">
                 <div className="animate-fade-in">
-                  <PageRouter currentPage={currentPage} setCurrentPage={setCurrentPage} user={profile} handleLogout={handleLogout} isAdmin={isAdmin} />
+                  <PageRouter currentPage={currentPage} setCurrentPage={setCurrentPage} 
+                    selectedNotice={selectedNotice} setSelectedNotice={setSelectedNotice}
+                    selectedQna={selectedQna} setSelectedQna={setSelectedQna}
+                    selectedPost={selectedPost} setSelectedPost={setSelectedPost}
+                    selectedLecture={selectedLecture} setSelectedLecture={setSelectedLecture}
+                    user={profile} handleLogout={handleLogout} isAdmin={isAdmin} />
                 </div>
               </main>
               <BottomTabBar tabs={tabs} currentPage={currentPage} setCurrentPage={setCurrentPage} />
@@ -375,6 +480,11 @@ export default function HSSUPApp() {
           onInstall={handleInstall}
           onClose={dismissInstallBanner}
         />
+      )}
+
+      {/* iOS 설치 가이드 모달 */}
+      {showIOSGuide && (
+        <IOSInstallGuide onClose={() => setShowIOSGuide(false)} />
       )}
 
       {/* 스플래시 화면 (설치된 앱 첫 진입 시) */}
@@ -459,41 +569,112 @@ function SplashScreen({ onFinish }) {
 function InstallBanner({ isIOS, onInstall, onClose }) {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[100] p-4 animate-slide-up">
-      <div className="max-w-[480px] mx-auto rounded-2xl p-4 shadow-2xl relative overflow-hidden"
-        style={{ background: COLORS.ink }}>
-        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full"
+      <button onClick={onInstall} className="w-full max-w-[480px] mx-auto rounded-2xl p-4 shadow-2xl relative overflow-hidden text-left transition-transform active:scale-[0.98] block"
+        style={{ background: COLORS.cardElev }}>
+        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none"
           style={{ background: `radial-gradient(circle, ${COLORS.primary}50, transparent 70%)` }}></div>
 
-        <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center"
-          style={{ background: 'rgba(255,255,255,0.1)' }}>
-          <X size={14} style={{ color: COLORS.cream }} />
-        </button>
+        <span onClick={(e) => { e.stopPropagation(); onClose(); }} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer z-10"
+          style={{ background: 'rgba(255,255,255,0.15)' }}>
+          <X size={14} style={{ color: COLORS.ink }} />
+        </span>
 
-        <div className="relative flex items-start gap-3">
+        <div className="relative flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
             style={{ background: COLORS.primary }}>
             <span className="font-display font-bold text-2xl" style={{ color: COLORS.white }}>H.</span>
           </div>
 
-          <div className="flex-1 min-w-0 pr-6">
+          <div className="flex-1 min-w-0 pr-7">
             <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Install App</p>
-            <h3 className="font-heading text-sm mt-1" style={{ color: COLORS.white }}>HSSUP을 앱처럼 사용하세요</h3>
-            <p className="font-body text-[11px] mt-1 leading-relaxed" style={{ color: COLORS.cream, opacity: 0.7 }}>
+            <h3 className="font-heading text-sm mt-1" style={{ color: COLORS.white }}>HSSUP 앱으로 설치하기</h3>
+            <p className="font-body text-[11px] mt-1 leading-relaxed" style={{ color: COLORS.ink, opacity: 0.75 }}>
               {isIOS
-                ? '하단 공유 버튼 → "홈 화면에 추가"'
-                : '홈 화면에 추가하면 더 빠르고 편리해요'}
+                ? '탭하면 설치 방법을 알려드려요'
+                : '탭하면 바로 홈 화면에 추가됩니다'}
             </p>
-
-            {!isIOS && (
-              <button onClick={onInstall}
-                className="mt-3 font-heading text-xs px-4 py-2.5 rounded-full flex items-center gap-1.5"
-                style={{ background: COLORS.primary, color: COLORS.white }}>
-                <Download size={12} strokeWidth={2.5} />
-                지금 설치하기
-              </button>
-            )}
           </div>
+
+          <ArrowUpRight size={20} strokeWidth={2.5} style={{ color: COLORS.primary }} className="shrink-0" />
         </div>
+      </button>
+    </div>
+  );
+}
+
+// =============================================================
+// 📱 IOSInstallGuide - iPhone 설치 가이드 모달
+// =============================================================
+function IOSInstallGuide({ onClose }) {
+  const steps = [
+    {
+      n: '1',
+      title: '공유 버튼 탭',
+      desc: 'Safari 하단의 공유 아이콘을 눌러주세요',
+      icon: '⬆️'
+    },
+    {
+      n: '2',
+      title: '"홈 화면에 추가" 선택',
+      desc: '메뉴를 아래로 스크롤해서 찾아주세요',
+      icon: '➕'
+    },
+    {
+      n: '3',
+      title: '"추가" 탭',
+      desc: '우측 상단의 "추가" 버튼을 눌러 완료!',
+      icon: '✨'
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-end justify-center p-4 animate-fade-in" onClick={onClose}
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-[420px] rounded-3xl p-6 animate-slide-up relative" style={{ background: COLORS.cream }}>
+        <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center"
+          style={{ background: COLORS.light }}>
+          <X size={16} style={{ color: COLORS.ink }} />
+        </button>
+
+        {/* 헤더 */}
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3"
+            style={{ background: COLORS.primary }}>
+            <span className="font-display font-bold text-3xl" style={{ color: COLORS.white }}>H.</span>
+          </div>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ iOS Install Guide</p>
+          <h2 className="font-display text-2xl mt-2 tracking-tight" style={{ color: COLORS.ink }}>홈 화면에 추가하기</h2>
+        </div>
+
+        {/* 단계별 안내 */}
+        <div className="space-y-3">
+          {steps.map(step => (
+            <div key={step.n} className="flex items-center gap-3 p-3 rounded-2xl" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-display font-bold text-lg"
+                style={{ background: COLORS.cardElev, color: COLORS.ink }}>
+                {step.n}
+              </div>
+              <div className="flex-1">
+                <p className="font-heading text-sm flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                  {step.title} <span>{step.icon}</span>
+                </p>
+                <p className="font-body text-xs mt-0.5" style={{ color: COLORS.stone }}>{step.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 안내 메시지 */}
+        <div className="mt-5 p-3 rounded-xl text-center" style={{ background: COLORS.peach }}>
+          <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.deep }}>
+            🍎 iPhone은 Apple 정책상 자동 설치가 불가능해서<br />수동으로 추가해주셔야 해요!
+          </p>
+        </div>
+
+        <button onClick={onClose} className="w-full mt-5 font-heading text-sm py-3.5 rounded-full"
+          style={{ background: COLORS.cardElev, color: COLORS.ink }}>
+          이해했어요!
+        </button>
       </div>
     </div>
   );
@@ -502,8 +683,7 @@ function InstallBanner({ isIOS, onInstall, onClose }) {
 function LoadingScreen() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center" style={{ background: COLORS.cream }}>
-      <h1 className="font-display text-5xl tracking-tighter" style={{ color: COLORS.ink }}>HSSUP<span style={{ color: COLORS.primary }}>.</span></h1>
-      <p className="font-mono text-[10px] font-bold tracking-[0.4em] uppercase mt-2" style={{ color: COLORS.stone }}>Beauty Academy</p>
+      <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '40px', filter: 'drop-shadow(0 0 16px rgba(255, 92, 31, 0.5))' }} />
       <Loader2 size={20} className="animate-spin mt-8" style={{ color: COLORS.primary }} />
     </div>
   );
@@ -544,18 +724,31 @@ function AuthScreen() {
  
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="relative h-[45%] flex flex-col justify-end p-7 overflow-hidden" style={{ background: COLORS.primary }}>
-        <div className="absolute top-12 right-0 opacity-10">
+      <div className="relative h-[45%] flex flex-col justify-end p-7 overflow-hidden" style={{ background: COLORS.cream }}>
+        {/* 오렌지 라디얼 글로우 (배경) */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <div className="w-[120%] h-[120%] rounded-full"
+            style={{
+              background: `radial-gradient(circle at 70% 50%, rgba(255,92,31,0.45) 0%, rgba(255,92,31,0.12) 30%, transparent 60%)`,
+              filter: 'blur(20px)'
+            }}></div>
+        </div>
+        {/* 동심원 데코 */}
+        <div className="absolute top-12 right-0 opacity-30">
           <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
-            <circle cx="100" cy="100" r="98" stroke={COLORS.white} strokeWidth="1" />
-            <circle cx="100" cy="100" r="70" stroke={COLORS.white} strokeWidth="1" />
-            <circle cx="100" cy="100" r="42" stroke={COLORS.white} strokeWidth="1" />
+            <circle cx="100" cy="100" r="98" stroke={COLORS.primary} strokeWidth="0.5" />
+            <circle cx="100" cy="100" r="70" stroke={COLORS.primary} strokeWidth="0.5" />
+            <circle cx="100" cy="100" r="42" stroke={COLORS.primary} strokeWidth="0.5" />
           </svg>
         </div>
-        <div style={{ color: COLORS.white }}>
-          <p className="font-body text-[10px] font-semibold tracking-[0.3em] uppercase opacity-80">Beauty Academy</p>
-          <h1 className="font-display text-[72px] leading-[0.85] mt-3 tracking-tighter">HSSUP<span style={{ fontSize: '60%' }}>.</span></h1>
-          <p className="font-serif-italic text-2xl mt-4 opacity-90">Where craft meets <br />artistry.</p>
+        {/* 미세한 가로선 (오렌지 라이트) */}
+        <div className="absolute top-1/3 left-0 right-0 h-px opacity-40"
+          style={{ background: `linear-gradient(90deg, transparent 0%, ${COLORS.primary} 50%, transparent 100%)` }}></div>
+
+        <div className="relative" style={{ color: COLORS.ink }}>
+          <p className="font-body text-[10px] font-semibold tracking-[0.3em] uppercase" style={{ color: COLORS.primary }}>Beauty Academy</p>
+          <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '60px', marginTop: '12px', filter: 'drop-shadow(0 0 24px rgba(255, 92, 31, 0.5))' }} />
+          <p className="font-serif-italic text-2xl mt-4" style={{ color: COLORS.stone }}>Where craft meets <br />artistry.</p>
         </div>
       </div>
  
@@ -584,7 +777,7 @@ function AuthScreen() {
             </div>
             {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
             <button onClick={handleLogin} disabled={loading} className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-              style={{ background: COLORS.ink, color: COLORS.cream, borderRadius: '999px' }}>
+              style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5), 0 0 8px rgba(255, 92, 31, 0.3)' }}>
               <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Enter HSSUP</span>
               <ArrowUpRight size={18} />
             </button>
@@ -651,7 +844,7 @@ function AuthScreen() {
 
             {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
             <button onClick={handleSignup} disabled={loading} className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-              style={{ background: COLORS.ink, color: COLORS.cream, borderRadius: '999px' }}>
+              style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5), 0 0 8px rgba(255, 92, 31, 0.3)' }}>
               <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Join HSSUP</span>
               <ArrowUpRight size={18} />
             </button>
@@ -662,12 +855,20 @@ function AuthScreen() {
   );
 }
  
-function AppHeader({ user, isAdmin, onMenuClick, onProfileClick, onLogoClick }) {
+function AppHeader({ user, isAdmin, onMenuClick, onProfileClick, onLogoClick, showBackButton, onBackClick }) {
   return (
     <header className="shrink-0 px-5 py-3.5 flex items-center justify-between" style={{ background: COLORS.cream, borderBottom: `1px solid ${COLORS.light}` }}>
-      <button onClick={onMenuClick} className="p-1"><Menu size={20} style={{ color: COLORS.ink }} strokeWidth={2.5} /></button>
-      <button onClick={onLogoClick} className="font-display text-xl tracking-tighter" style={{ color: COLORS.ink, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-        HSSUP<span style={{ color: COLORS.primary }}>.</span>
+      {showBackButton ? (
+        <button onClick={onBackClick} className="p-1 -ml-1 flex items-center" aria-label="뒤로가기">
+          <ChevronLeft size={24} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+        </button>
+      ) : (
+        <button onClick={onMenuClick} className="p-1" aria-label="메뉴">
+          <Menu size={20} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+        </button>
+      )}
+      <button onClick={onLogoClick} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '20px', filter: 'drop-shadow(0 0 8px rgba(255, 92, 31, 0.5))' }} />
       </button>
       <button onClick={onProfileClick} className="relative">
         <Avatar user={user} size="sm" />
@@ -680,7 +881,7 @@ function AppHeader({ user, isAdmin, onMenuClick, onProfileClick, onLogoClick }) 
 function BottomTabBar({ tabs, currentPage, setCurrentPage }) {
   return (
     <nav className="absolute bottom-0 left-0 right-0 shrink-0 grid grid-cols-5" style={{
-      background: 'rgba(250, 246, 241, 0.95)', backdropFilter: 'blur(20px)',
+      background: 'rgba(10, 10, 10, 0.85)', backdropFilter: 'blur(20px)',
       borderTop: `1px solid ${COLORS.light}`, paddingBottom: '20px'
     }}>
       {tabs.map(tab => {
@@ -688,7 +889,7 @@ function BottomTabBar({ tabs, currentPage, setCurrentPage }) {
         const isActive = currentPage === tab.id;
         return (
           <button key={tab.id} onClick={() => setCurrentPage(tab.id)} className="py-2.5 flex flex-col items-center gap-1 relative">
-            {isActive && <span className="absolute top-0 w-8 h-0.5 rounded-full" style={{ background: COLORS.primary }}></span>}
+            {isActive && <span className="absolute top-0 w-8 h-0.5 rounded-full glow-dot" style={{ background: COLORS.primary }}></span>}
             <Icon size={19} strokeWidth={isActive ? 2.5 : 1.8} style={{ color: isActive ? COLORS.ink : COLORS.stone }} />
             <span className="font-body text-[10px]" style={{ color: isActive ? COLORS.ink : COLORS.stone, fontWeight: isActive ? 700 : 500 }}>{tab.label}</span>
           </button>
@@ -705,15 +906,21 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
       <aside className="absolute left-0 top-0 h-full w-72 overflow-y-auto scrollbar-hide animate-slide-up" style={{
         background: COLORS.cream, boxShadow: '4px 0 24px rgba(0,0,0,0.15)'
       }}>
-        <div className="p-5 pt-12" style={{ background: COLORS.ink, color: COLORS.cream }}>
-          <div className="flex items-center gap-3">
+        <div className="relative p-5 pt-12 overflow-hidden" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
+          {/* 오렌지 라디얼 글로우 (배경 액센트) */}
+          <div className="absolute top-0 left-0 right-0 h-40 pointer-events-none"
+            style={{ background: `radial-gradient(ellipse at 25% 0%, rgba(255,92,31,0.3) 0%, transparent 60%)` }}></div>
+          {/* 미세한 가로선 (액센트) */}
+          <div className="absolute top-8 left-5 w-8 h-px" style={{ background: COLORS.primary, opacity: 0.6 }}></div>
+
+          <div className="relative flex items-center gap-3" style={{ color: COLORS.ink }}>
             <Avatar user={user} size="lg" />
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="font-heading text-sm">{user.name}</p>
-                {isAdmin && <span className="font-body text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>ADMIN</span>}
+                {isAdmin && <span className="font-body text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>ADMIN</span>}
               </div>
-              <p className="font-serif-italic text-xs opacity-70 mt-0.5">{user.course}</p>
+              <p className="font-serif-italic text-xs opacity-70 mt-0.5" style={{ color: COLORS.stone }}>{user.course}</p>
             </div>
           </div>
         </div>
@@ -743,26 +950,30 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, user, handleLogout, isAdmin }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, user, handleLogout, isAdmin }) {
   if (isAdmin) {
     if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} />;
-    if (currentPage === 'admin-notice') return <AdminNotice user={user} />;
+    if (currentPage === 'admin-notice') return <AdminNotice user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
     if (currentPage === 'admin-students') return <AdminStudents />;
     if (currentPage === 'admin-qna') return <AdminQna user={user} />;
     if (currentPage === 'admin-cases') return <AdminCases />;
+    if (currentPage === 'admin-lectures') return <AdminLectures user={user} />;
     if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
   }
-  if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} />;
-  if (currentPage === 'notice') return <NoticePage />;
+  if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} />;
+  if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} />;
+  if (currentPage === 'post-detail') return <PostDetailPage post={selectedPost} user={user} />;
+  if (currentPage === 'lecture-detail') return <LectureDetailPage lecture={selectedLecture} user={user} />;
+  if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
+  if (currentPage === 'notice') return <NoticePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'course') return <CoursePage />;
   if (currentPage === 'best') return <BestCasePage />;
   if (currentPage === 'mycase') return <MyCasePage user={user} />;
-  if (currentPage === 'qna') return <QnaPage user={user} />;
+  if (currentPage === 'qna') return <QnaPage user={user} setCurrentPage={setCurrentPage} setSelectedQna={setSelectedQna} />;
   if (currentPage === 'library') return <LibraryPage />;
   if (currentPage === 'market') return <MarketPage />;
-  if (currentPage === 'online') return <OnlineLecturePage />;
-  if (currentPage === 'simulator') return <SimulatorPage />;
-  if (currentPage === 'community') return <CommunityPage user={user} />;
+  if (currentPage === 'online') return <OnlineLecturePage setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
+  if (currentPage === 'community') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} />;
   if (currentPage === 'attendance') return <AttendancePage user={user} />;
   if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} />;
@@ -772,99 +983,312 @@ function PageIntro({ ko, en, desc }) {
   return (
     <div className="px-5 pt-5 pb-6">
       <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ {en}</p>
-      <h1 className="font-display text-4xl mt-3 tracking-tighter" style={{ color: COLORS.ink }}>{ko}<span style={{ color: COLORS.primary }}>.</span></h1>
+      <h1 className="font-display text-4xl mt-3 tracking-tighter" style={{ color: COLORS.ink }}>{ko}<span className="glow-text" style={{ color: COLORS.primary }}>.</span></h1>
       {desc && <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>{desc}</p>}
     </div>
   );
 }
- 
-function HomePage({ user, setCurrentPage }) {
+
+// =============================================================
+// ❤️ LikeButton 컴포넌트 (만능 좋아요 버튼)
+// =============================================================
+function LikeButton({ targetType, targetId, userId, size = 14 }) {
+  const [liked, setLiked] = useState(false);
+  const [count, setCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!targetId || !userId) return;
+    load();
+  }, [targetType, targetId, userId]);
+
+  const load = async () => {
+    // 전체 좋아요 수 카운트
+    const { count: totalCount } = await supabase
+      .from('likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('target_type', targetType)
+      .eq('target_id', targetId);
+    setCount(totalCount || 0);
+
+    // 내가 좋아요 눌렀는지 확인
+    const { data } = await supabase
+      .from('likes')
+      .select('id')
+      .eq('target_type', targetType)
+      .eq('target_id', targetId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    setLiked(!!data);
+  };
+
+  const toggle = async (e) => {
+    e.stopPropagation();
+    if (loading) return;
+    if (!userId) {
+      alert('로그인 정보가 없습니다');
+      return;
+    }
+    setLoading(true);
+
+    if (liked) {
+      // 좋아요 취소
+      const { error } = await supabase
+        .from('likes')
+        .delete()
+        .eq('target_type', targetType)
+        .eq('target_id', targetId)
+        .eq('user_id', userId);
+      if (error) {
+        console.error('좋아요 취소 에러:', error);
+        alert('좋아요 취소 실패: ' + error.message);
+      } else {
+        setLiked(false);
+        setCount(c => Math.max(0, c - 1));
+      }
+    } else {
+      // 좋아요 추가
+      const { error } = await supabase
+        .from('likes')
+        .insert({ target_type: targetType, target_id: targetId, user_id: userId });
+      if (error) {
+        console.error('좋아요 에러:', error);
+        alert('좋아요 실패: ' + error.message);
+      } else {
+        setLiked(true);
+        setCount(c => c + 1);
+      }
+    }
+    setLoading(false);
+  };
+
+  return (
+    <button onClick={toggle} disabled={loading}
+      className="flex items-center gap-1.5 font-mono text-[11px] font-semibold transition-transform active:scale-90">
+      <Heart size={size} fill={liked ? COLORS.primary : 'none'} strokeWidth={2.5}
+        style={{ color: liked ? COLORS.primary : COLORS.stone }} />
+      <span style={{ color: liked ? COLORS.primary : COLORS.stone }}>{count}</span>
+    </button>
+  );
+}
+
+// =============================================================
+// 💬 CommentSection 컴포넌트 (만능 댓글창)
+// =============================================================
+function CommentSection({ targetType, targetId, user }) {
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!targetId) return;
+    load();
+  }, [targetType, targetId]);
+
+  const load = async () => {
+    setLoading(true);
+    const { data: cData, error } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('target_type', targetType)
+      .eq('target_id', targetId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('댓글 로드 에러:', error);
+      setComments([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!cData || cData.length === 0) {
+      setComments([]);
+      setLoading(false);
+      return;
+    }
+
+    // 작성자 프로필 가져오기
+    const userIds = [...new Set(cData.map(c => c.user_id))];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, name, avatar_color, role')
+      .in('id', userIds);
+
+    const profileMap = {};
+    (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+    const enriched = cData.map(c => ({ ...c, profile: profileMap[c.user_id] || { name: '익명' } }));
+    setComments(enriched);
+    setLoading(false);
+  };
+
+  const submit = async () => {
+    if (!newComment.trim() || posting) return;
+    setPosting(true);
+    const { error } = await supabase.from('comments').insert({
+      target_type: targetType,
+      target_id: targetId,
+      user_id: user.id,
+      content: newComment.trim()
+    });
+    if (error) {
+      alert('댓글 작성 실패: ' + error.message);
+    } else {
+      setNewComment('');
+      await load();
+    }
+    setPosting(false);
+  };
+
+  const remove = async (commentId) => {
+    if (!confirm('댓글을 삭제하시겠습니까?')) return;
+    await supabase.from('comments').delete().eq('id', commentId);
+    await load();
+  };
+
+  const isAdmin = user?.role === 'admin';
+
+  return (
+    <section className="mt-5 pt-5" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+      <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-4" style={{ color: COLORS.primary }}>
+        ━━ Comments {comments.length > 0 && `(${comments.length})`}
+      </p>
+
+      {/* 댓글 작성 */}
+      <div className="flex gap-2 mb-5 items-center">
+        <Avatar user={user} size="sm" />
+        <div className="flex-1 flex gap-2">
+          <input type="text" value={newComment}
+            onChange={e => setNewComment(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submit()}
+            placeholder="댓글을 남겨보세요"
+            className="flex-1 font-body text-xs font-medium border-b py-2 bg-transparent outline-none"
+            style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+          <button onClick={submit} disabled={posting || !newComment.trim()}
+            className="px-3 rounded-full flex items-center disabled:opacity-40"
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+            {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+          </button>
+        </div>
+      </div>
+
+      {/* 댓글 목록 */}
+      {loading ? (
+        <div className="flex justify-center py-4">
+          <Loader2 size={16} className="animate-spin" style={{ color: COLORS.primary }} />
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="text-center font-body text-xs py-4" style={{ color: COLORS.stone }}>
+          첫 댓글을 남겨보세요!
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {comments.map(c => (
+            <div key={c.id} className="flex gap-2">
+              <Avatar user={c.profile} size="sm" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{c.profile.name}</p>
+                  {c.profile.role === 'admin' && (
+                    <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
+                  )}
+                  <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+                    {new Date(c.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  {(c.user_id === user.id || isAdmin) && (
+                    <button onClick={() => remove(c.id)} className="ml-auto p-0.5">
+                      <Trash2 size={11} style={{ color: COLORS.stone }} />
+                    </button>
+                  )}
+                </div>
+                <p className="font-body text-xs mt-1 leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>
+                  {c.content}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   const [notices, setNotices] = useState([]);
- 
+
   useEffect(() => {
     supabase.from('notices').select('*').order('created_at', { ascending: false }).limit(3)
       .then(({ data }) => setNotices(data || []));
   }, []);
- 
+
+  // 2x2 그리드 메인 메뉴
+  const mainGrid = [
+    { id: 'online',    label: 'ONLINE CLASS', ko: '온라인 강의', icon: PlayCircle },
+    { id: 'qna',       label: 'Q&A',          ko: '질문 답변',   icon: MessageCircle },
+    { id: 'community', label: 'COMMUNITY',    ko: '커뮤니티',    icon: Users },
+    { id: 'market',    label: 'STORE',        ko: '재료샵',      icon: ShoppingBag },
+  ];
+
   return (
     <div className="pb-6">
-      <section className="px-5 pt-6 pb-8">
+      {/* 환영 메시지 */}
+      <section className="px-5 pt-6 pb-6">
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Today</p>
         <h2 className="font-display text-[42px] leading-[1] mt-3 tracking-tighter" style={{ color: COLORS.ink }}>
           Hello,<br />
-          <span style={{ color: COLORS.primary }}>{user.name}</span>
+          <span style={{ color: COLORS.primary }} className="glow-text">{user.name}</span>
         </h2>
         <p className="font-serif-italic text-lg mt-3" style={{ color: COLORS.stone }}>Where craft meets artistry.</p>
       </section>
- 
-      <section className="px-5 mb-6">
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: '출석', value: user.attendance_rate || 87, unit: '%' },
-            { label: '진도', value: user.progress_rate || 58, unit: '%' },
-            { label: 'D-DAY', value: 42, unit: 'd' },
-          ].map((s, i) => (
-            <div key={i} className="p-4 rounded-2xl" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
-              <p className="font-mono text-[9px] font-bold tracking-widest" style={{ color: COLORS.stone }}>{s.label}</p>
-              <p className="font-display text-3xl mt-1 leading-none" style={{ color: COLORS.ink }}>
-                {s.value}<span className="font-body text-xs font-medium" style={{ color: COLORS.stone }}>{s.unit}</span>
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
- 
-      <section className="px-5 mb-6">
-        <button onClick={() => setCurrentPage('online')} className="w-full rounded-3xl p-6 text-left relative overflow-hidden" style={{ background: COLORS.primary }}>
-          <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.1)' }}></div>
+
+      {/* 히어로 카드 - 최신 강의 */}
+      <section className="px-5 mb-5">
+        <button onClick={() => setCurrentPage('online')} className="w-full rounded-3xl p-6 text-left relative overflow-hidden glow-primary" style={{ background: COLORS.primary }}>
+          <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
+          <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(0,0,0,0.15)' }}></div>
           <div className="relative" style={{ color: COLORS.white }}>
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">Lesson 14</p>
-            <h3 className="font-display text-2xl mt-2 leading-tight tracking-tight">콤보 브로우<br />디자인의 정수</h3>
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">━━ ONLINE CLASS</p>
+            <h3 className="font-display text-2xl mt-2 leading-tight tracking-tight">새로운 강의가<br />업데이트 되었습니다</h3>
             <div className="flex items-center justify-between mt-5">
-              <p className="font-body text-xs font-medium opacity-90">김원장 · 42분</p>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
-                <Play size={14} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
+              <p className="font-body text-xs font-medium opacity-90">03 / 10</p>
+              <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
+                <Play size={15} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
               </div>
             </div>
+            {/* 진도 바 */}
+            <div className="mt-4 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.25)' }}>
+              <div className="h-full rounded-full" style={{ width: '30%', background: COLORS.white }}></div>
+            </div>
           </div>
         </button>
       </section>
- 
-      <section className="mb-6">
-        <div className="flex items-baseline justify-between px-5 mb-4">
-          <div>
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Category</p>
-            <h3 className="font-heading text-xl mt-1.5" style={{ color: COLORS.ink }}>시술 분야</h3>
-          </div>
-        </div>
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-5 pb-1">
-          {[
-            { name: '눈썹', en: 'Eyebrow' }, { name: '아이라인', en: 'Eye Line' },
-            { name: '입술', en: 'Lip' }, { name: '속눈썹', en: 'Lash' }, { name: '헤어라인', en: 'Hairline' },
-          ].map((c, i) => (
-            <button key={c.name} className="shrink-0 rounded-2xl px-5 py-4 text-left" style={{
-              background: i === 0 ? COLORS.ink : COLORS.white,
-              border: `1px solid ${i === 0 ? COLORS.ink : COLORS.light}`, minWidth: '110px'
-            }}>
-              <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: i === 0 ? COLORS.primary : COLORS.stone }}>{c.en}</p>
-              <p className="font-heading text-base mt-1" style={{ color: i === 0 ? COLORS.white : COLORS.ink }}>{c.name}</p>
-            </button>
-          ))}
-        </div>
-      </section>
- 
+
+      {/* 2x2 메인 그리드 */}
       <section className="px-5 mb-6">
-        <button onClick={() => setCurrentPage('simulator')} className="w-full rounded-3xl p-5 text-left relative overflow-hidden" style={{ background: COLORS.ink }}>
-          <div className="absolute top-0 right-0 w-32 h-32" style={{ background: `radial-gradient(circle at top right, ${COLORS.primary}40, transparent 70%)` }}></div>
-          <div className="relative" style={{ color: COLORS.white }}>
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ New</p>
-            <h3 className="font-display text-2xl mt-2 tracking-tight">색소 시뮬레이터<span style={{ color: COLORS.primary }}>.</span></h3>
-            <p className="font-body text-xs font-medium mt-2 opacity-80">피부톤과 색소를 매칭해 발색을 미리 확인하세요</p>
-            <div className="inline-flex items-center gap-1.5 mt-4 font-body text-xs font-semibold" style={{ color: COLORS.primary }}>Try Now <ArrowUpRight size={14} /></div>
-          </div>
-        </button>
+        <div className="grid grid-cols-2 gap-3">
+          {mainGrid.map(item => {
+            const Icon = item.icon;
+            return (
+              <button key={item.id} onClick={() => setCurrentPage(item.id)}
+                className="aspect-square rounded-3xl p-5 flex flex-col justify-between transition-transform active:scale-95 text-left relative overflow-hidden"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                {/* 미묘한 오렌지 글로우 */}
+                <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,92,31,0.2), transparent 70%)` }}></div>
+                <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+                  <Icon size={22} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+                </div>
+                <div className="relative">
+                  <p className="font-display text-base tracking-tight" style={{ color: COLORS.ink }}>{item.label}</p>
+                  <p className="font-mono text-[10px] mt-0.5 tracking-widest" style={{ color: COLORS.stone }}>{item.ko}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </section>
- 
+
+      {/* 공지 미리보기 */}
       <section className="px-5">
         <div className="flex items-baseline justify-between mb-4">
           <div>
@@ -875,25 +1299,71 @@ function HomePage({ user, setCurrentPage }) {
             View all <ArrowRight size={12} />
           </button>
         </div>
-        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           {notices.length === 0 ? (
             <p className="font-body text-xs text-center py-8" style={{ color: COLORS.stone }}>공지가 없습니다</p>
           ) : notices.map((n, i) => (
-            <div key={n.id} className="flex items-center gap-3 p-4" style={{ borderBottom: i !== notices.length - 1 ? `1px solid ${COLORS.light}` : 'none' }}>
+            <button key={n.id} onClick={() => { setSelectedNotice(n); setCurrentPage('notice-detail'); }}
+              className="w-full text-left flex items-center gap-3 p-4 transition-transform active:scale-[0.98]"
+              style={{ borderBottom: i !== notices.length - 1 ? `1px solid ${COLORS.light}` : 'none' }}>
               <span className="font-mono text-[9px] font-bold tracking-widest px-2 py-1 rounded" style={{
                 background: n.urgent ? COLORS.primary : COLORS.peach,
                 color: n.urgent ? COLORS.white : COLORS.deep
               }}>{n.tag}</span>
               <p className="font-body text-xs font-medium flex-1 truncate" style={{ color: COLORS.ink }}>{n.title}</p>
-            </div>
+              <ChevronRight size={14} style={{ color: COLORS.stone }} />
+            </button>
           ))}
         </div>
       </section>
     </div>
   );
 }
- 
-function NoticePage() {
+
+// =============================================================
+// 📰 NoticeDetailPage - 공지 상세보기 (댓글 + 좋아요)
+// =============================================================
+function NoticeDetailPage({ notice, user }) {
+  if (!notice) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <p className="font-body text-sm" style={{ color: COLORS.stone }}>공지를 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pb-6">
+      <div className="px-5 pt-5 pb-4">
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Notice</p>
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
+            background: notice.urgent ? COLORS.primary : COLORS.peach,
+            color: notice.urgent ? COLORS.white : COLORS.deep
+          }}>{notice.tag}</span>
+          <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(notice.created_at).toLocaleDateString('ko-KR')}</span>
+        </div>
+        <h1 className="font-display text-2xl mt-3 tracking-tight leading-tight" style={{ color: COLORS.ink }}>{notice.title}</h1>
+      </div>
+
+      <div className="px-5">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+            {notice.content || '내용이 없습니다.'}
+          </p>
+
+          <div className="flex items-center justify-between mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+            <LikeButton targetType="notice" targetId={notice.id} userId={user.id} size={16} />
+          </div>
+
+          <CommentSection targetType="notice" targetId={notice.id} user={user} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NoticePage({ user, setCurrentPage, setSelectedNotice }) {
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
  
@@ -901,6 +1371,11 @@ function NoticePage() {
     supabase.from('notices').select('*').order('created_at', { ascending: false })
       .then(({ data }) => { setNotices(data || []); setLoading(false); });
   }, []);
+ 
+  const openDetail = (n) => {
+    setSelectedNotice(n);
+    setCurrentPage('notice-detail');
+  };
  
   if (loading) return <div className="flex justify-center p-10"><Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} /></div>;
  
@@ -911,7 +1386,7 @@ function NoticePage() {
         {notices.length === 0 ? (
           <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>등록된 공지가 없습니다</p>
         ) : notices.map(n => (
-          <div key={n.id} className="rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <button key={n.id} onClick={() => openDetail(n)} className="w-full text-left rounded-2xl p-4 transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between mb-2">
               <span className="font-mono text-[9px] font-bold tracking-widest px-2 py-1 rounded" style={{
                 background: n.urgent ? COLORS.primary : COLORS.peach,
@@ -920,8 +1395,11 @@ function NoticePage() {
               <span className="font-mono text-[10px] font-medium" style={{ color: COLORS.stone }}>{new Date(n.created_at).toLocaleDateString('ko-KR')}</span>
             </div>
             <p className="font-heading text-sm leading-snug" style={{ color: COLORS.ink }}>{n.title}</p>
-            {n.content && <p className="font-body text-xs mt-2 leading-relaxed" style={{ color: COLORS.stone }}>{n.content}</p>}
-          </div>
+            {n.content && <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2" style={{ color: COLORS.stone }}>{n.content}</p>}
+            <div className="flex items-center gap-1 mt-2 font-mono text-[10px]" style={{ color: COLORS.primary }}>
+              자세히 보기 <ChevronRight size={11} />
+            </div>
+          </button>
         ))}
       </div>
     </>
@@ -942,7 +1420,7 @@ function CoursePage() {
       <div className="px-5 space-y-3">
         {courses.map((c, i) => (
           <div key={i} className="rounded-3xl p-5 relative overflow-hidden" style={{
-            background: c.featured ? COLORS.ink : COLORS.white,
+            background: c.featured ? COLORS.ink : COLORS.card,
             border: c.featured ? 'none' : `1px solid ${COLORS.light}`
           }}>
             {c.featured && <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: `radial-gradient(circle, ${COLORS.primary}60, transparent 70%)` }}></div>}
@@ -1008,7 +1486,7 @@ function BestCasePage() {
             <button key={cat} onClick={() => setFilter(cat)}
               className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold"
               style={{
-                background: filter === cat ? COLORS.ink : COLORS.white,
+                background: filter === cat ? COLORS.ink : COLORS.card,
                 color: filter === cat ? COLORS.white : COLORS.ink,
                 border: `1px solid ${filter === cat ? COLORS.ink : COLORS.light}`
               }}>
@@ -1033,7 +1511,7 @@ function BestCasePage() {
           </div>
         ) : (
           filtered.map(c => (
-            <div key={c.id} className="rounded-3xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+            <div key={c.id} className="rounded-3xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
               {/* 이미지 */}
               {c.image_urls?.length > 0 && (
                 <div className="relative aspect-[4/3] overflow-hidden">
@@ -1044,8 +1522,8 @@ function BestCasePage() {
                       <ImageIcon size={10} />{c.image_urls.length}
                     </div>
                   )}
-                  <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.white, color: COLORS.ink }}>{c.category}</span>
-                  <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white }}>
+                  <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>{c.category}</span>
+                  <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
                     ★ BEST
                   </span>
                 </div>
@@ -1186,14 +1664,14 @@ function MyCasePage({ user }) {
 
         {/* 새 케이스 추가 버튼 */}
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white }}>
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
             <Plus size={16} strokeWidth={2.5} />새 케이스 추가
           </button>
         )}
 
         {/* 새 케이스 작성 폼 */}
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
               <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>새 시술 케이스</h3>
               <button onClick={() => {
@@ -1264,7 +1742,7 @@ function MyCasePage({ user }) {
             {/* 등록 버튼 */}
             <button onClick={submit} disabled={uploading}
               className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: COLORS.ink, color: COLORS.white }}>
+              style={{ background: COLORS.cardElev, color: COLORS.white }}>
               {uploading ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
@@ -1288,7 +1766,7 @@ function MyCasePage({ user }) {
           </div>
         ) : (
           cases.map(c => (
-            <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+            <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
               {/* 이미지 영역 */}
               {c.image_urls?.length > 0 && (
                 <div className="relative aspect-[4/3] overflow-hidden">
@@ -1299,9 +1777,9 @@ function MyCasePage({ user }) {
                       +{c.image_urls.length - 1}
                     </div>
                   )}
-                  <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.white, color: COLORS.ink }}>{c.category}</span>
+                  <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>{c.category}</span>
                   {c.is_best && (
-                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>★ BEST</span>
+                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>★ BEST</span>
                   )}
                 </div>
               )}
@@ -1326,8 +1804,91 @@ function MyCasePage({ user }) {
     </>
   );
 }
- 
-function QnaPage({ user }) {
+
+// =============================================================
+// 💬 QnaDetailPage - Q&A 상세보기 (답변 + 댓글 + 좋아요)
+// =============================================================
+function QnaDetailPage({ qna, user }) {
+  const [author, setAuthor] = useState(null);
+
+  useEffect(() => {
+    if (!qna?.user_id) return;
+    supabase.from('profiles').select('name, avatar_color, role').eq('id', qna.user_id).maybeSingle()
+      .then(({ data }) => setAuthor(data));
+  }, [qna?.user_id]);
+
+  if (!qna) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <p className="font-body text-sm" style={{ color: COLORS.stone }}>질문을 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pb-6">
+      {/* 헤더 */}
+      <div className="px-5 pt-5 pb-4">
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Q&A</p>
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
+            background: qna.status === 'answered' ? COLORS.ink : COLORS.peach,
+            color: qna.status === 'answered' ? COLORS.primary : COLORS.deep
+          }}>{qna.status === 'answered' ? '답변완료' : '답변대기'}</span>
+          <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cream, color: COLORS.stone }}>{qna.category}</span>
+        </div>
+        <h1 className="font-display text-2xl mt-3 tracking-tight leading-tight" style={{ color: COLORS.ink }}>{qna.title}</h1>
+        {author && (
+          <div className="flex items-center gap-2 mt-3">
+            <Avatar user={author} size="sm" />
+            <div>
+              <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{author.name}</p>
+              <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(qna.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric' })}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 질문 본문 */}
+      <div className="px-5">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+            {qna.content || '내용이 없습니다.'}
+          </p>
+        </div>
+      </div>
+
+      {/* 답변 (있을 때만) */}
+      {qna.answer && (
+        <div className="px-5 mt-3">
+          <div className="rounded-2xl p-5" style={{ background: COLORS.peach }}>
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+                <Shield size={10} strokeWidth={2.5} />관리자 답변
+              </span>
+              {qna.answered_at && (
+                <span className="font-mono text-[10px]" style={{ color: COLORS.deep }}>
+                  {new Date(qna.answered_at).toLocaleDateString('ko-KR')}
+                </span>
+              )}
+            </div>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>{qna.answer}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 좋아요 + 댓글 */}
+      <div className="px-5 mt-3">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <LikeButton targetType="qna" targetId={qna.id} userId={user.id} size={16} />
+          <CommentSection targetType="qna" targetId={qna.id} user={user} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QnaPage({ user, setCurrentPage, setSelectedQna }) {
   const [questions, setQuestions] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', category: '시술' });
@@ -1351,16 +1912,21 @@ function QnaPage({ user }) {
     await load();
     setLoading(false);
   };
+
+  const openDetail = (q) => {
+    setSelectedQna(q);
+    setCurrentPage('qna-detail');
+  };
  
   return (
     <>
       <PageIntro ko="Q&A" en="Questions" desc="궁금한 점을 물어보세요" />
       <div className="px-5 space-y-3">
-        <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white }}>
+        <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
           <Plus size={16} strokeWidth={2.5} />질문하기
         </button>
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}
               className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }}>
               <option>시술</option><option>재료</option><option>수업</option><option>창업</option>
@@ -1369,7 +1935,7 @@ function QnaPage({ user }) {
               placeholder="질문 제목" className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }} />
             <textarea value={form.content} onChange={e => setForm({...form, content: e.target.value})}
               placeholder="질문 내용" rows={4} className="w-full font-body text-xs font-medium p-2 outline-none resize-none rounded" style={{ background: COLORS.cream, color: COLORS.ink }} />
-            <button onClick={submit} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.ink, color: COLORS.white }}>
+            <button onClick={submit} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.white }}>
               {loading && <Loader2 size={12} className="animate-spin" />}등록
             </button>
           </div>
@@ -1377,7 +1943,7 @@ function QnaPage({ user }) {
         {questions.length === 0 ? (
           <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>등록된 질문이 없습니다</p>
         ) : questions.map(q => (
-          <div key={q.id} className="rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <button key={q.id} onClick={() => openDetail(q)} className="w-full text-left rounded-2xl p-4 transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center gap-1.5 mb-2">
               <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
                 background: q.status === 'answered' ? COLORS.ink : COLORS.peach,
@@ -1386,15 +1952,14 @@ function QnaPage({ user }) {
               <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cream, color: COLORS.stone }}>{q.category}</span>
             </div>
             <p className="font-heading text-sm leading-snug" style={{ color: COLORS.ink }}>{q.title}</p>
-            {q.content && <p className="font-body text-xs mt-1.5 leading-relaxed" style={{ color: COLORS.stone }}>{q.content}</p>}
-            <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>{new Date(q.created_at).toLocaleDateString('ko-KR')}</p>
-            {q.answer && (
-              <div className="mt-3 p-3 rounded-xl" style={{ background: COLORS.peach }}>
-                <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-1" style={{ color: COLORS.deep }}>답변</p>
-                <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.ink }}>{q.answer}</p>
+            {q.content && <p className="font-body text-xs mt-1.5 leading-relaxed line-clamp-2" style={{ color: COLORS.stone }}>{q.content}</p>}
+            <div className="flex items-center justify-between mt-2">
+              <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(q.created_at).toLocaleDateString('ko-KR')}</p>
+              <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.primary }}>
+                자세히 보기 <ChevronRight size={11} />
               </div>
-            )}
-          </div>
+            </div>
+          </button>
         ))}
       </div>
     </>
@@ -1416,7 +1981,7 @@ function LibraryPage() {
         ) : (
           <div className="space-y-2">
             {files.map(f => (
-              <div key={f.id} className="rounded-2xl p-4 flex items-center gap-3" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+              <div key={f.id} className="rounded-2xl p-4 flex items-center gap-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
                 <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl" style={{ background: COLORS.peach }}>
                   <FolderOpen size={20} style={{ color: COLORS.primary }} />
                 </div>
@@ -1424,8 +1989,8 @@ function LibraryPage() {
                   <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>{f.name}</p>
                   <p className="font-mono text-[10px] font-medium mt-0.5" style={{ color: COLORS.stone }}>{f.file_type} · {f.file_size}</p>
                 </div>
-                <button className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.ink }}>
-                  <Download size={14} style={{ color: COLORS.cream }} />
+                <button className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
+                  <Download size={14} style={{ color: COLORS.ink }} />
                 </button>
               </div>
             ))}
@@ -1448,7 +2013,7 @@ function MarketPage() {
       <div className="px-5">
         <div className="grid grid-cols-2 gap-3">
           {products.map(p => (
-            <div key={p.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+            <div key={p.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
               <div className="relative aspect-square flex items-center justify-center" style={{ background: COLORS.cream }}>
                 <span className="text-5xl" style={{ color: COLORS.primary }}>{p.emoji}</span>
                 {p.colors && p.colors.length > 0 && (
@@ -1477,41 +2042,181 @@ function MarketPage() {
   );
 }
  
-function OnlineLecturePage() {
+function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
   const [lectures, setLectures] = useState([]);
+  const [filter, setFilter] = useState('전체');
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     supabase.from('lectures').select('*').eq('is_published', true).order('created_at', { ascending: false })
-      .then(({ data }) => setLectures(data || []));
+      .then(({ data }) => { setLectures(data || []); setLoading(false); });
   }, []);
-  const gradients = [
-    'linear-gradient(135deg, #FF5C1F, #D94614)',
-    'linear-gradient(135deg, #FF9580, #FF5C1F)',
-    'linear-gradient(135deg, #FFE8DD, #FF9580)',
-    'linear-gradient(135deg, #1A1A1A, #FF5C1F)',
-  ];
+
+  const categories = ['전체', '기초', '심화', '테크닉'];
+  const filtered = filter === '전체' ? lectures : lectures.filter(l => l.category === filter);
+
+  const openDetail = (lecture) => {
+    setSelectedLecture(lecture);
+    setCurrentPage('lecture-detail');
+  };
+
   return (
     <>
       <PageIntro ko="온라인 강의" en="Lectures" desc="언제 어디서나 학습하세요" />
+
+      {/* 카테고리 탭 */}
+      <div className="px-5 mb-4">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilter(cat)}
+              className={`shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold transition-transform active:scale-95 ${filter === cat ? 'glow-soft' : ''}`}
+              style={{
+                background: filter === cat ? COLORS.primary : COLORS.card,
+                color: filter === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
+              }}>
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 강의 목록 */}
       <div className="px-5 space-y-3">
-        {lectures.map((l, i) => (
-          <div key={l.id} className="rounded-3xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
-            <div className="relative aspect-video" style={{ background: gradients[i % 4] }}>
-              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(26,26,26,0.15)' }}>
-                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
-                  <Play size={16} className="ml-0.5" fill={COLORS.primary} style={{ color: COLORS.primary }} />
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <PlayCircle size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {filter === '전체' ? '아직 등록된 강의가 없습니다' : `${filter} 카테고리 강의가 없습니다`}
+            </p>
+          </div>
+        ) : filtered.map(l => (
+          <button key={l.id} onClick={() => openDetail(l)}
+            className="w-full text-left rounded-3xl overflow-hidden transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="relative aspect-video">
+              {l.thumbnail_url ? (
+                <img src={l.thumbnail_url} alt={l.title} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full" style={{ background: COLORS.cardElev }}></div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.25)' }}>
+                <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)' }}>
+                  <Play size={20} fill={COLORS.white} style={{ color: COLORS.white }} className="ml-1" />
                 </div>
               </div>
-              <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest px-2 py-1 rounded" style={{ background: COLORS.white, color: COLORS.ink }}>{l.level}</span>
-              <span className="absolute bottom-3 right-3 font-mono text-[9px] font-bold px-2 py-1 rounded" style={{ background: 'rgba(26,26,26,0.85)', color: COLORS.cream }}>{l.duration}</span>
+              <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>
+                {l.category || '기초'}
+              </span>
+              {l.duration && (
+                <span className="absolute bottom-3 right-3 font-mono text-[10px] font-bold px-2 py-1 rounded" style={{ background: 'rgba(0,0,0,0.7)', color: COLORS.white }}>
+                  {l.duration}
+                </span>
+              )}
             </div>
             <div className="p-4">
               <h4 className="font-heading text-sm" style={{ color: COLORS.ink }}>{l.title}</h4>
-              <p className="font-serif-italic text-xs mt-1" style={{ color: COLORS.stone }}>{l.instructor}</p>
+              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>
+                {l.instructor} · {l.level || 'Basic'}
+              </p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </>
+  );
+}
+
+// =============================================================
+// 🎬 LectureDetailPage - 영상 강의 상세 (YouTube 임베드)
+// =============================================================
+function LectureDetailPage({ lecture, user }) {
+  if (!lecture) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <p className="font-body text-sm" style={{ color: COLORS.stone }}>강의를 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  const getYouTubeId = (url) => {
+    if (!url) return null;
+    const patterns = [
+      /youtube\.com\/watch\?v=([^&\s]+)/,
+      /youtu\.be\/([^?\s]+)/,
+      /youtube\.com\/embed\/([^?\s]+)/,
+      /youtube\.com\/shorts\/([^?\s]+)/,
+    ];
+    for (const p of patterns) {
+      const match = url.match(p);
+      if (match) return match[1];
+    }
+    return null;
+  };
+
+  const videoId = getYouTubeId(lecture.video_url);
+
+  return (
+    <div className="pb-6">
+      {/* YouTube 플레이어 */}
+      <div className="relative aspect-video w-full" style={{ background: '#000' }}>
+        {videoId ? (
+          <iframe
+            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+            title={lecture.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="w-full h-full"
+            style={{ border: 'none' }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <p className="font-body text-sm" style={{ color: COLORS.stone }}>영상 URL이 올바르지 않습니다</p>
+          </div>
+        )}
+      </div>
+
+      {/* 정보 */}
+      <div className="px-5 pt-5">
+        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+          <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>
+            {lecture.category || '기초'}
+          </span>
+          <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+            {lecture.level || 'Basic'}
+          </span>
+          {lecture.duration && (
+            <span className="font-mono text-[10px] flex items-center gap-1" style={{ color: COLORS.stone }}>
+              <Clock size={11} />{lecture.duration}
+            </span>
+          )}
+        </div>
+        <h1 className="font-display text-2xl tracking-tight leading-tight" style={{ color: COLORS.ink }}>{lecture.title}</h1>
+        <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>{lecture.instructor}</p>
+      </div>
+
+      {/* 설명 */}
+      {lecture.description && (
+        <div className="px-5 mt-4">
+          <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>━━ About</p>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>{lecture.description}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 좋아요 + 댓글 */}
+      <div className="px-5 mt-3">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <LikeButton targetType="lecture" targetId={lecture.id} userId={user.id} size={16} />
+          <CommentSection targetType="lecture" targetId={lecture.id} user={user} />
+        </div>
+      </div>
+    </div>
   );
 }
  
@@ -1539,7 +2244,7 @@ function SimulatorPage() {
     <>
       <PageIntro ko="색소 시뮬레이터" en="Simulator" desc="피부톤과 색소의 만남" />
       <div className="px-5 space-y-3">
-        <section className="rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+        <section className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>01 / Area</p>
           <h3 className="font-heading text-sm mt-1 mb-3" style={{ color: COLORS.ink }}>시술 부위</h3>
           <div className="grid grid-cols-3 gap-2">
@@ -1549,7 +2254,7 @@ function SimulatorPage() {
             ))}
           </div>
         </section>
-        <section className="rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+        <section className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>02 / Skin</p>
           <h3 className="font-heading text-sm mt-1 mb-3" style={{ color: COLORS.ink }}>피부톤</h3>
           <div className="grid grid-cols-5 gap-1.5">
@@ -1559,19 +2264,19 @@ function SimulatorPage() {
             ))}
           </div>
         </section>
-        <section className="rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+        <section className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>03 / Pigment</p>
           <h3 className="font-heading text-sm mt-1 mb-3" style={{ color: COLORS.ink }}>색소</h3>
           <div className="grid grid-cols-4 gap-1.5">
             {pigments.map(p => (
               <button key={p.value} onClick={() => setPigment(p.value)} className="aspect-square rounded-xl flex items-end justify-center pb-1"
                 style={{ background: p.value, border: pigment === p.value ? `3px solid ${COLORS.ink}` : `1px solid ${COLORS.light}`, transform: pigment === p.value ? 'scale(0.92)' : 'scale(1)' }}>
-                <span className="font-body text-[8px] font-bold" style={{ color: COLORS.white, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>{p.name}</span>
+                <span className="font-body text-[8px] font-bold" style={{ color: COLORS.card, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>{p.name}</span>
               </button>
             ))}
           </div>
         </section>
-        <section className="rounded-3xl p-5" style={{ background: COLORS.ink }}>
+        <section className="rounded-3xl p-5" style={{ background: COLORS.cardElev }}>
           <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Result</p>
           <h3 className="font-display text-2xl mt-1 mb-4 tracking-tight" style={{ color: COLORS.white }}>발색 예측</h3>
           <div className="aspect-video flex items-center justify-center rounded-2xl mb-4 overflow-hidden" style={{ background: skinTone }}>
@@ -1593,20 +2298,103 @@ function SimulatorPage() {
     </>
   );
 }
- 
-function CommunityPage({ user }) {
+
+// =============================================================
+// 💬 PostDetailPage - 커뮤니티 글 상세보기 (댓글 + 좋아요)
+// =============================================================
+function PostDetailPage({ post, user }) {
+  const [author, setAuthor] = useState(null);
+
+  useEffect(() => {
+    if (!post?.user_id) return;
+    supabase.from('profiles').select('name, avatar_color, role').eq('id', post.user_id).maybeSingle()
+      .then(({ data }) => setAuthor(data));
+  }, [post?.user_id]);
+
+  if (!post) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <p className="font-body text-sm" style={{ color: COLORS.stone }}>게시글을 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pb-6">
+      <div className="px-5 pt-5 pb-4">
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Community</p>
+      </div>
+
+      <div className="px-5">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          {/* 작성자 */}
+          <div className="flex items-center gap-3 mb-4">
+            <Avatar user={author || { name: '익명' }} size="md" />
+            <div className="flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{author?.name || '익명'}</p>
+                {author?.role === 'admin' && (
+                  <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
+                )}
+              </div>
+              <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(post.created_at).toLocaleString('ko-KR')}</p>
+            </div>
+          </div>
+
+          {/* 본문 */}
+          <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+            {post.content}
+          </p>
+
+          {/* 좋아요 */}
+          <div className="flex items-center justify-between mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+            <LikeButton targetType="community_post" targetId={post.id} userId={user.id} size={16} />
+          </div>
+
+          {/* 댓글 */}
+          <CommentSection targetType="community_post" targetId={post.id} user={user} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommunityPage({ user, setCurrentPage, setSelectedPost }) {
   const [posts, setPosts] = useState([]);
   const [newPost, setNewPost] = useState('');
   const [loading, setLoading] = useState(false);
+  const isAdmin = user?.role === 'admin';
  
   useEffect(() => { load(); }, []);
  
   const load = async () => {
-    const { data } = await supabase.from('community_posts').select('*, profiles(name, avatar)').order('created_at', { ascending: false });
-    setPosts(data || []);
+    // 게시글 가져오기
+    const { data: postsData } = await supabase
+      .from('community_posts')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (!postsData || postsData.length === 0) {
+      setPosts([]);
+      return;
+    }
+    
+    // 작성자 프로필 가져오기
+    const userIds = [...new Set(postsData.map(p => p.user_id).filter(Boolean))];
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, name, avatar_color, role')
+      .in('id', userIds);
+    
+    const profileMap = {};
+    (profilesData || []).forEach(p => { profileMap[p.id] = p; });
+    
+    const enriched = postsData.map(p => ({ ...p, profile: profileMap[p.user_id] || { name: '익명' } }));
+    setPosts(enriched);
   };
 
-  const remove = async (postId) => {
+  const remove = async (postId, e) => {
+    e?.stopPropagation();
     if (!confirm('이 게시글을 삭제하시겠습니까?')) return;
     await supabase.from('community_posts').delete().eq('id', postId);
     await load();
@@ -1620,39 +2408,59 @@ function CommunityPage({ user }) {
     await load();
     setLoading(false);
   };
+
+  const openDetail = (p) => {
+    setSelectedPost(p);
+    setCurrentPage('post-detail');
+  };
  
   return (
     <>
       <PageIntro ko="커뮤니티" en="Community" desc="동료들과 이야기 나눠보세요" />
       <div className="px-5 space-y-3">
-        <div className="rounded-2xl p-3" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+        {/* 글 작성 */}
+        <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="무슨 생각을 하고 계세요?" rows={2}
             className="w-full font-body text-xs font-medium p-2 outline-none resize-none rounded" style={{ color: COLORS.ink }} />
-          <button onClick={submit} disabled={loading} className="float-right mt-1 font-heading text-[11px] px-4 py-2 rounded-full flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white }}>
+          <button onClick={submit} disabled={loading} className="float-right mt-1 font-heading text-[11px] px-4 py-2 rounded-full flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
             {loading ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}Post
           </button>
           <div className="clear-both"></div>
         </div>
+
+        {/* 게시글 목록 */}
         {posts.length === 0 ? (
           <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>첫 게시글을 남겨보세요!</p>
         ) : posts.map(p => (
-          <div key={p.id} className="rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <div key={p.id} onClick={() => openDetail(p)}
+            className="rounded-2xl p-4 cursor-pointer transition-transform active:scale-[0.99]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center gap-2 mb-3">
-              <div className="text-xl">{p.profiles?.avatar || '🍊'}</div>
-              <div className="flex-1">
-                <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{p.profiles?.name || '익명'}</p>
+              <Avatar user={p.profile} size="sm" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{p.profile?.name || '익명'}</p>
+                  {p.profile?.role === 'admin' && (
+                    <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
+                  )}
+                </div>
                 <p className="font-mono text-[9px] font-medium" style={{ color: COLORS.stone }}>{new Date(p.created_at).toLocaleString('ko-KR')}</p>
               </div>
-              {p.user_id === user.id && (
-                <button onClick={() => remove(p.id)} className="p-1.5 rounded-full" style={{ background: COLORS.cream }}>
+              {(p.user_id === user.id || isAdmin) && (
+                <button onClick={(e) => remove(p.id, e)} className="p-1.5 rounded-full" style={{ background: COLORS.cream }}>
                   <Trash2 size={12} style={{ color: COLORS.deep }} />
                 </button>
               )}
             </div>
-            <p className="font-body text-xs font-medium leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>{p.content}</p>
-            <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-              <button className="flex items-center gap-1 font-mono text-[11px] font-semibold" style={{ color: COLORS.primary }}><Heart size={12} />{p.likes || 0}</button>
-              <button className="flex items-center gap-1 font-mono text-[11px] font-semibold" style={{ color: COLORS.stone }}><MessageCircle size={12} />{p.comments_count || 0}</button>
+            <p className="font-body text-xs font-medium leading-relaxed whitespace-pre-line line-clamp-4" style={{ color: COLORS.ink }}>{p.content}</p>
+            <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+              <div onClick={(e) => e.stopPropagation()}>
+                <LikeButton targetType="community_post" targetId={p.id} userId={user.id} size={12} />
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); openDetail(p); }}
+                className="flex items-center gap-1.5 font-mono text-[11px] font-semibold" style={{ color: COLORS.stone }}>
+                <MessageCircle size={12} />댓글
+              </button>
             </div>
           </div>
         ))}
@@ -1673,7 +2481,7 @@ function AttendancePage({ user }) {
             { label: '상태', value: user.status === 'completed' ? '수료' : '진행', unit: '' },
           ].map((s, i) => (
             <div key={i} className="p-4 rounded-2xl" style={{
-              background: s.highlight ? COLORS.primary : COLORS.white,
+              background: s.highlight ? COLORS.primary : COLORS.card,
               border: s.highlight ? 'none' : `1px solid ${COLORS.light}`
             }}>
               <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: s.highlight ? COLORS.white : COLORS.stone, opacity: s.highlight ? 0.9 : 1 }}>{s.label}</p>
@@ -1742,7 +2550,7 @@ function MyPage({ user, handleLogout }) {
       <PageIntro ko="마이페이지" en="My Page" />
       <div className="px-5 space-y-3">
         {/* 프로필 카드 */}
-        <section className="rounded-3xl p-6 relative overflow-hidden" style={{ background: COLORS.ink }}>
+        <section className="rounded-3xl p-6 relative overflow-hidden" style={{ background: COLORS.cardElev }}>
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: `radial-gradient(circle, ${COLORS.primary}50, transparent 70%)` }}></div>
           <div className="relative flex items-center gap-4">
             <button onClick={() => setShowColorPicker(!showColorPicker)} className="relative">
@@ -1754,9 +2562,9 @@ function MyPage({ user, handleLogout }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.white }}>{user.name}</h2>
-                {isAdmin && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>ADMIN</span>}
+                {isAdmin && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>}
               </div>
-              <p className="font-mono text-[10px] mt-1 truncate" style={{ color: COLORS.cream, opacity: 0.6 }}>{user.email}</p>
+              <p className="font-mono text-[10px] mt-1 truncate" style={{ color: COLORS.ink, opacity: 0.6 }}>{user.email}</p>
               <p className="font-serif-italic text-sm mt-2" style={{ color: COLORS.primary }}>{user.course}</p>
             </div>
           </div>
@@ -1764,7 +2572,7 @@ function MyPage({ user, handleLogout }) {
 
         {/* 컬러 선택 (펼침/접힘) */}
         {showColorPicker && (
-          <section className="rounded-2xl p-4 animate-fade-in" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <section className="rounded-2xl p-4 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Avatar Color</p>
@@ -1793,7 +2601,7 @@ function MyPage({ user, handleLogout }) {
         )}
 
         {/* 알림 설정 */}
-        <section className="rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+        <section className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Notifications</p>
@@ -1813,7 +2621,7 @@ function MyPage({ user, handleLogout }) {
               {(notifStatus === 'default' || notifStatus === 'unsubscribed') && (
                 <button onClick={handleEnableNotifications} disabled={notifLoading}
                   className="font-heading text-xs px-4 py-2 rounded-full flex items-center gap-1.5 disabled:opacity-60"
-                  style={{ background: COLORS.primary, color: COLORS.white }}>
+                  style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
                   {notifLoading ? <Loader2 size={12} className="animate-spin" /> : <Bell size={12} strokeWidth={2.5} />}
                   알림 켜기
                 </button>
@@ -1838,7 +2646,7 @@ function MyPage({ user, handleLogout }) {
         </section>
 
         {/* 계정 정보 */}
-        <section className="rounded-2xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+        <section className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <p className="font-mono text-[10px] font-bold tracking-widest uppercase p-4 pb-2" style={{ color: COLORS.primary }}>━━ Account</p>
           {[
             { label: 'Name', value: user.name },
@@ -1853,7 +2661,7 @@ function MyPage({ user, handleLogout }) {
           ))}
         </section>
 
-        <button onClick={handleLogout} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}`, color: COLORS.deep }}>
+        <button onClick={handleLogout} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, color: COLORS.deep }}>
           <LogOut size={14} />로그아웃
         </button>
       </div>
@@ -1863,6 +2671,7 @@ function MyPage({ user, handleLogout }) {
  
 function AdminDashboard({ setCurrentPage }) {
   const [stats, setStats] = useState({ students: 0, lectures: 0, pendingQna: 0 });
+
   useEffect(() => {
     const load = async () => {
       const [{ count: students }, { count: lectures }, { count: pendingQna }] = await Promise.all([
@@ -1874,59 +2683,104 @@ function AdminDashboard({ setCurrentPage }) {
     };
     load();
   }, []);
+
+  // 통계 데이터
+  const statsList = [
+    { label: '수강생',      value: stats.students,   highlight: true, target: 'admin-students' },
+    { label: '진행 강의',   value: stats.lectures,                    target: 'online' },
+    { label: '미답변 Q&A',  value: stats.pendingQna,                  target: 'admin-qna' },
+    { label: '월 매출',     value: '0',                               target: 'revenue-soon' },
+  ];
+
+  // Quick Action 그리드 (홈 화면과 같은 디자인 언어)
+  const quickActions = [
+    { id: 'admin-notice',   label: 'NOTICE',   ko: '공지 관리',   icon: Bell },
+    { id: 'admin-students', label: 'STUDENTS', ko: '수강생 관리', icon: UserCheck },
+    { id: 'admin-qna',      label: 'Q&A',      ko: 'Q&A 답변',    icon: MessageCircle },
+    { id: 'admin-cases',    label: 'CASES',    ko: '케이스 관리', icon: Camera },
+  ];
+
   return (
     <div className="pb-6">
+      {/* 헤더 */}
       <section className="px-5 pt-5 pb-6">
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Admin</p>
-        <h2 className="font-display text-[42px] leading-[1] mt-3 tracking-tighter" style={{ color: COLORS.ink }}>Dashboard<span style={{ color: COLORS.primary }}>.</span></h2>
+        <h2 className="font-display text-[42px] leading-[1] mt-3 tracking-tighter" style={{ color: COLORS.ink }}>
+          Dashboard<span className="glow-text" style={{ color: COLORS.primary }}>.</span>
+        </h2>
         <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>오늘의 운영 현황</p>
       </section>
-      <div className="px-5 space-y-4">
+
+      {/* 오늘의 미션 - 답변 대기 Q&A 있을 때 */}
+      {stats.pendingQna > 0 && (
+        <section className="px-5 mb-5">
+          <button onClick={() => setCurrentPage('admin-qna')} className="w-full rounded-3xl p-6 text-left relative overflow-hidden glow-primary" style={{ background: COLORS.primary }}>
+            <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
+            <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(0,0,0,0.15)' }}></div>
+            <div className="relative" style={{ color: COLORS.white }}>
+              <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">━━ Today's Mission</p>
+              <h3 className="font-display text-2xl mt-2 leading-tight tracking-tight">답변 기다리는<br />질문 {stats.pendingQna}건</h3>
+              <div className="flex items-center justify-between mt-5">
+                <p className="font-body text-xs font-medium opacity-90">수강생들이 기다려요</p>
+                <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
+                  <ArrowUpRight size={16} strokeWidth={2.5} style={{ color: COLORS.primary }} />
+                </div>
+              </div>
+            </div>
+          </button>
+        </section>
+      )}
+
+      {/* 통계 카드 */}
+      <section className="px-5 mb-6">
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-3 px-1" style={{ color: COLORS.primary }}>━━ Stats</p>
         <div className="grid grid-cols-2 gap-2">
-          {[
-            { label: '수강생', value: stats.students, highlight: true },
-            { label: '진행 강의', value: stats.lectures },
-            { label: '미답변 Q&A', value: stats.pendingQna },
-            { label: '월 매출', value: '0' },
-          ].map((s, i) => (
-            <div key={i} className="rounded-2xl p-4" style={{
-              background: s.highlight ? COLORS.primary : COLORS.white,
+          {statsList.map((s, i) => (
+            <button key={i} onClick={() => {
+              if (s.target === 'revenue-soon') {
+                alert('💳 결제 시스템(토스페이먼츠) 도입 후 표시됩니다!');
+              } else {
+                setCurrentPage(s.target);
+              }
+            }} className={`rounded-2xl p-4 text-left transition-transform active:scale-95 ${s.highlight ? 'glow-primary' : ''}`} style={{
+              background: s.highlight ? COLORS.primary : COLORS.card,
               border: s.highlight ? 'none' : `1px solid ${COLORS.light}`
             }}>
               <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: s.highlight ? COLORS.white : COLORS.stone, opacity: s.highlight ? 0.9 : 1 }}>{s.label}</p>
               <p className="font-display text-3xl mt-1 leading-none tracking-tight" style={{ color: s.highlight ? COLORS.white : COLORS.ink }}>{s.value}</p>
-            </div>
+            </button>
           ))}
         </div>
-        <section>
-          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3 px-1" style={{ color: COLORS.primary }}>━━ Quick Action</p>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: 'admin-notice', label: '공지', icon: Bell },
-              { id: 'admin-students', label: '수강생', icon: UserCheck },
-              { id: 'admin-qna', label: 'Q&A', icon: MessageCircle },
-            ].map(a => {
-              const Icon = a.icon;
-              return (
-                <button key={a.id} onClick={() => setCurrentPage(a.id)} className="rounded-2xl p-3 flex flex-col items-center gap-2" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
-                  <div className="w-10 h-10 flex items-center justify-center rounded-xl" style={{ background: COLORS.peach }}>
-                    <Icon size={16} style={{ color: COLORS.primary }} />
-                  </div>
-                  <p className="font-body text-[10px] font-semibold" style={{ color: COLORS.ink }}>{a.label}</p>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-        <div className="rounded-xl p-4" style={{ background: COLORS.peach }}>
-          <p className="font-serif-italic text-sm" style={{ color: COLORS.deep }}>🎉 모든 숫자는 실제 Supabase DB에서 가져온 실시간 데이터입니다!</p>
+      </section>
+
+      {/* Quick Action 2x2 그리드 */}
+      <section className="px-5">
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-3 px-1" style={{ color: COLORS.primary }}>━━ Quick Action</p>
+        <div className="grid grid-cols-2 gap-3">
+          {quickActions.map(item => {
+            const Icon = item.icon;
+            return (
+              <button key={item.id} onClick={() => setCurrentPage(item.id)}
+                className="aspect-square rounded-3xl p-5 flex flex-col justify-between transition-transform active:scale-95 text-left relative overflow-hidden"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,92,31,0.2), transparent 70%)` }}></div>
+                <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+                  <Icon size={22} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+                </div>
+                <div className="relative">
+                  <p className="font-display text-base tracking-tight" style={{ color: COLORS.ink }}>{item.label}</p>
+                  <p className="font-mono text-[10px] mt-0.5 tracking-widest" style={{ color: COLORS.stone }}>{item.ko}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-function AdminNotice({ user }) {
+function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   const [notices, setNotices] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', tag: '안내', urgent: false, sendPush: true });
@@ -2013,11 +2867,11 @@ function AdminNotice({ user }) {
     <>
       <PageIntro ko="공지 관리" en="Notice Admin" />
       <div className="px-5 space-y-3">
-        <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white }}>
+        <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
           <Plus size={14} strokeWidth={2.5} />새 공지
         </button>
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <select value={form.tag} onChange={e => setForm({...form, tag: e.target.value})}
               className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }}>
               <option>필독</option><option>안내</option><option>이벤트</option>
@@ -2048,22 +2902,31 @@ function AdminNotice({ user }) {
               </label>
             </div>
 
-            <button onClick={submit} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.ink, color: COLORS.white }}>
+            <button onClick={submit} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.white }}>
               {loading && <Loader2 size={12} className="animate-spin" />}발행
             </button>
           </div>
         )}
         {notices.map(n => (
-          <div key={n.id} className="rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <div key={n.id} onClick={() => { setSelectedNotice(n); setCurrentPage('notice-detail'); }}
+            className="rounded-2xl p-4 cursor-pointer transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between mb-2">
               <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
                 background: n.urgent ? COLORS.primary : COLORS.peach,
                 color: n.urgent ? COLORS.white : COLORS.deep
               }}>{n.tag}</span>
-              <button onClick={() => remove(n.id)}><Trash2 size={12} style={{ color: COLORS.stone }} /></button>
+              <button onClick={(e) => { e.stopPropagation(); remove(n.id); }} className="p-1">
+                <Trash2 size={12} style={{ color: COLORS.stone }} />
+              </button>
             </div>
             <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{n.title}</p>
-            <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>{new Date(n.created_at).toLocaleDateString('ko-KR')}</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(n.created_at).toLocaleDateString('ko-KR')}</p>
+              <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.primary }}>
+                자세히 보기 <ChevronRight size={11} />
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -2088,7 +2951,7 @@ function AdminStudents() {
         {students.length === 0 ? (
           <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>아직 등록된 수강생이 없습니다</p>
         ) : students.map(s => (
-          <div key={s.id} className="rounded-2xl p-4 flex items-center gap-3" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <div key={s.id} className="rounded-2xl p-4 flex items-center gap-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="text-3xl">{s.avatar}</div>
             <div className="flex-1">
               <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{s.name}</p>
@@ -2141,7 +3004,7 @@ function AdminCases() {
             <button key={f} onClick={() => setFilter(f)}
               className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold"
               style={{
-                background: filter === f ? COLORS.ink : COLORS.white,
+                background: filter === f ? COLORS.ink : COLORS.card,
                 color: filter === f ? COLORS.white : COLORS.ink,
                 border: `1px solid ${filter === f ? COLORS.ink : COLORS.light}`
               }}>
@@ -2165,13 +3028,13 @@ function AdminCases() {
           <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>케이스가 없습니다</p>
         ) : (
           filtered.map(c => (
-            <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+            <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
               {c.image_urls?.length > 0 && (
                 <div className="relative aspect-[4/3] overflow-hidden">
                   <img src={c.image_urls[0]} alt={c.title} className="w-full h-full object-cover" />
-                  <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.white, color: COLORS.ink }}>{c.category}</span>
+                  <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>{c.category}</span>
                   {c.is_best && (
-                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>★ BEST</span>
+                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>★ BEST</span>
                   )}
                 </div>
               )}
@@ -2188,7 +3051,7 @@ function AdminCases() {
                   className="w-full mt-3 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
                   style={{
                     background: c.is_best ? COLORS.cream : COLORS.primary,
-                    color: c.is_best ? COLORS.deep : COLORS.white,
+                    color: c.is_best ? COLORS.deep : COLORS.card,
                     border: c.is_best ? `1px solid ${COLORS.light}` : 'none'
                   }}>
                   {c.is_best ? (
@@ -2206,17 +3069,372 @@ function AdminCases() {
   );
 }
 
+function AdminLectures({ user }) {
+  const [lectures, setLectures] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    title: '', instructor: '', category: '기초', level: 'Basic',
+    duration: '', video_url: '', description: '', is_published: true,
+  });
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    const { data } = await supabase
+      .from('lectures')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setLectures(data || []);
+  };
+
+  // YouTube URL에서 영상 ID 추출
+  const getYouTubeId = (url) => {
+    if (!url) return null;
+    const patterns = [
+      /youtube\.com\/watch\?v=([^&\s]+)/,
+      /youtu\.be\/([^?\s]+)/,
+      /youtube\.com\/embed\/([^?\s]+)/,
+      /youtube\.com\/shorts\/([^?\s]+)/,
+    ];
+    for (const p of patterns) {
+      const match = url.match(p);
+      if (match) return match[1];
+    }
+    return null;
+  };
+
+  const resetForm = () => {
+    setForm({
+      title: '', instructor: '', category: '기초', level: 'Basic',
+      duration: '', video_url: '', description: '', is_published: true,
+    });
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const startEdit = (lecture) => {
+    setForm({
+      title: lecture.title || '',
+      instructor: lecture.instructor || '',
+      category: lecture.category || '기초',
+      level: lecture.level || 'Basic',
+      duration: lecture.duration || '',
+      video_url: lecture.video_url || '',
+      description: lecture.description || '',
+      is_published: lecture.is_published !== false,
+    });
+    setEditingId(lecture.id);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const submit = async () => {
+    if (!form.title.trim()) return alert('제목을 입력해주세요');
+    if (!form.instructor.trim()) return alert('강사명을 입력해주세요');
+    if (!form.video_url.trim()) return alert('YouTube URL을 입력해주세요');
+
+    const videoId = getYouTubeId(form.video_url);
+    if (!videoId) return alert('올바른 YouTube URL이 아닙니다.\n예: https://youtube.com/watch?v=XXXXX');
+
+    setLoading(true);
+    const data = {
+      ...form,
+      thumbnail_url: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    };
+
+    try {
+      if (editingId) {
+        const { error } = await supabase.from('lectures').update(data).eq('id', editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('lectures').insert(data);
+        if (error) throw error;
+      }
+      resetForm();
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert('저장 실패: ' + err.message);
+    }
+    setLoading(false);
+  };
+
+  const remove = async (id) => {
+    if (!confirm('이 강의를 삭제하시겠습니까?')) return;
+    await supabase.from('lectures').delete().eq('id', id);
+    await load();
+  };
+
+  const togglePublish = async (lecture) => {
+    await supabase
+      .from('lectures')
+      .update({ is_published: !lecture.is_published })
+      .eq('id', lecture.id);
+    await load();
+  };
+
+  const previewId = getYouTubeId(form.video_url);
+
+  return (
+    <>
+      <PageIntro ko="강의 관리" en="Lectures Admin" />
+      <div className="px-5 space-y-3">
+
+        {/* 통계 카드 */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl p-3" style={{ background: COLORS.primary }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>공개 중</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>
+              {lectures.filter(l => l.is_published).length}
+            </p>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>비공개</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>
+              {lectures.filter(l => !l.is_published).length}
+            </p>
+          </div>
+        </div>
+
+        {/* + 새 강의 등록 버튼 */}
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+            <Plus size={14} strokeWidth={2.5} />새 강의 등록
+          </button>
+        )}
+
+        {/* 등록/수정 폼 */}
+        {showForm && (
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>
+                {editingId ? '강의 수정' : '새 강의 등록'}
+              </h3>
+              <button onClick={resetForm}>
+                <X size={18} style={{ color: COLORS.stone }} />
+              </button>
+            </div>
+
+            {/* 제목 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>제목 *</label>
+              <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})}
+                placeholder="예: 엠보 브로우 기초"
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+
+            {/* 강사명 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>강사명 *</label>
+              <input type="text" value={form.instructor} onChange={e => setForm({...form, instructor: e.target.value})}
+                placeholder="예: 최용덕 원장"
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+
+            {/* 카테고리 + 레벨 */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>카테고리</label>
+                <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                  <option>기초</option><option>심화</option><option>테크닉</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>레벨</label>
+                <select value={form.level} onChange={e => setForm({...form, level: e.target.value})}
+                  className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                  style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                  <option>Basic</option><option>Intermediate</option><option>Advanced</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 영상 시간 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>영상 시간</label>
+              <input type="text" value={form.duration} onChange={e => setForm({...form, duration: e.target.value})}
+                placeholder="예: 12:30"
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+
+            {/* YouTube URL */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>YouTube URL *</label>
+              <input type="url" value={form.video_url} onChange={e => setForm({...form, video_url: e.target.value})}
+                placeholder="https://youtube.com/watch?v=..."
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              <p className="font-mono text-[10px] mt-1.5" style={{ color: COLORS.stone }}>
+                💡 youtube.com, youtu.be, shorts URL 모두 가능해요
+              </p>
+            </div>
+
+            {/* 미리보기 */}
+            {previewId && (
+              <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${COLORS.light}` }}>
+                <p className="font-mono text-[10px] font-bold tracking-widest uppercase px-3 py-2" style={{ color: COLORS.primary, background: COLORS.cardElev }}>━━ Preview</p>
+                <div className="relative aspect-video">
+                  <img src={`https://i.ytimg.com/vi/${previewId}/hqdefault.jpg`} alt="썸네일" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 20px rgba(255, 92, 31, 0.6)' }}>
+                      <Play size={20} fill={COLORS.white} style={{ color: COLORS.white }} className="ml-1" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 설명 */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>설명</label>
+              <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})}
+                placeholder="강의 내용, 학습 포인트 등" rows={3}
+                className="w-full font-body text-xs font-medium p-2 mt-1 outline-none resize-none rounded"
+                style={{ background: COLORS.cream, color: COLORS.ink }} />
+            </div>
+
+            {/* 공개 여부 */}
+            <label className="flex items-center gap-2 font-body text-xs cursor-pointer" style={{ color: COLORS.ink }}>
+              <input type="checkbox" checked={form.is_published} onChange={e => setForm({...form, is_published: e.target.checked})}
+                className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+              <span>✨ 즉시 공개 (체크 해제하면 비공개로 등록)</span>
+            </label>
+
+            {/* 저장 버튼 */}
+            <button onClick={submit} disabled={loading}
+              className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              {loading && <Loader2 size={14} className="animate-spin" />}
+              {editingId ? '수정 저장' : '등록하기'}
+            </button>
+          </div>
+        )}
+
+        {/* 강의 목록 */}
+        {lectures.length === 0 ? (
+          <div className="text-center py-10">
+            <PlayCircle size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>등록된 강의가 없습니다</p>
+            <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>첫 강의를 등록해보세요!</p>
+          </div>
+        ) : lectures.map(l => (
+          <div key={l.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: l.is_published ? 1 : 0.6 }}>
+            <div className="relative aspect-video">
+              {l.thumbnail_url ? (
+                <img src={l.thumbnail_url} alt={l.title} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full" style={{ background: COLORS.cardElev }}></div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: COLORS.card }}>
+                  <Play size={16} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
+                </div>
+              </div>
+              <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>
+                {l.category || '기초'}
+              </span>
+              {!l.is_published && (
+                <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+                  비공개
+                </span>
+              )}
+              {l.duration && (
+                <span className="absolute bottom-3 right-3 font-mono text-[10px] font-bold px-2 py-1 rounded" style={{ background: 'rgba(0,0,0,0.7)', color: COLORS.white }}>
+                  {l.duration}
+                </span>
+              )}
+            </div>
+
+            <div className="p-4">
+              <h4 className="font-heading text-sm" style={{ color: COLORS.ink }}>{l.title}</h4>
+              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>
+                {l.instructor} · {l.level}
+              </p>
+              {l.description && (
+                <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2" style={{ color: COLORS.stone }}>
+                  {l.description}
+                </p>
+              )}
+
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => togglePublish(l)}
+                  className="flex-1 font-heading text-[11px] py-2 rounded-full"
+                  style={{
+                    background: l.is_published ? COLORS.cream : COLORS.primary,
+                    color: l.is_published ? COLORS.stone : COLORS.white,
+                    border: l.is_published ? `1px solid ${COLORS.light}` : 'none',
+                  }}>
+                  {l.is_published ? '비공개로' : '공개'}
+                </button>
+                <button onClick={() => startEdit(l)}
+                  className="flex-1 font-heading text-[11px] py-2 rounded-full flex items-center justify-center gap-1"
+                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  <Edit3 size={11} />수정
+                </button>
+                <button onClick={() => remove(l.id)}
+                  className="px-3 py-2 rounded-full flex items-center justify-center"
+                  style={{ background: COLORS.cream }}>
+                  <Trash2 size={12} style={{ color: COLORS.deep }} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function AdminQna({ user }) {
   const [questions, setQuestions] = useState([]);
   const [selected, setSelected] = useState(null);
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
+  const [qnaFilter, setQnaFilter] = useState('all'); // 'all' | 'pending' | 'answered'
+
+  const toggleFilter = (status) => {
+    setQnaFilter(prev => prev === status ? 'all' : status);
+  };
  
   useEffect(() => { load(); }, []);
  
   const load = async () => {
-    const { data } = await supabase.from('questions').select('*, profiles(name)').order('created_at', { ascending: false });
-    setQuestions(data || []);
+    // 질문 먼저 가져오기 (조인 없이 안전하게)
+    const { data: qData, error: qErr } = await supabase
+      .from('questions')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (qErr) {
+      console.error('Q&A 로드 에러:', qErr);
+      setQuestions([]);
+      return;
+    }
+    if (!qData || qData.length === 0) {
+      setQuestions([]);
+      return;
+    }
+
+    // 작성자 프로필 별도로 가져오기
+    const userIds = [...new Set(qData.map(q => q.user_id).filter(Boolean))];
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, name, avatar_color')
+      .in('id', userIds);
+    
+    const profileMap = {};
+    (profilesData || []).forEach(p => { profileMap[p.id] = p; });
+    
+    const enriched = qData.map(q => ({ ...q, profiles: profileMap[q.user_id] || { name: '알 수 없음' } }));
+    setQuestions(enriched);
+    console.log('Q&A 로드됨:', enriched.length, '건');
   };
  
   const submitAnswer = async () => {
@@ -2237,7 +3455,7 @@ function AdminQna({ user }) {
         <button onClick={() => setSelected(null)} className="font-body text-xs flex items-center gap-1 mb-4" style={{ color: COLORS.stone }}>
           <ChevronLeft size={14} />목록으로
         </button>
-        <div className="rounded-2xl p-4 mb-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+        <div className="rounded-2xl p-4 mb-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cream, color: COLORS.stone }}>{selected.category}</span>
           <h3 className="font-heading text-base mt-2" style={{ color: COLORS.ink }}>{selected.title}</h3>
           <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>{selected.profiles?.name}</p>
@@ -2246,9 +3464,9 @@ function AdminQna({ user }) {
         <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.peach }}>
           <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.deep }}>관리자 답변</p>
           <textarea value={answer} onChange={e => setAnswer(e.target.value)} placeholder="답변을 작성해주세요" rows={6}
-            className="w-full font-body text-xs p-3 outline-none resize-none rounded" style={{ background: COLORS.white, color: COLORS.ink }} />
-          <button onClick={submitAnswer} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.ink, color: COLORS.white }}>
-            {loading && <Loader2 size={12} className="animate-spin" />}답변 등록
+            className="w-full font-body text-xs p-3 outline-none resize-none rounded" style={{ background: COLORS.card, color: COLORS.ink }} />
+          <button onClick={submitAnswer} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.white }}>
+            {loading && <Loader2 size={12} className="animate-spin" />}{selected?.answer ? '답변 수정하기' : '답변 등록하기'}
           </button>
         </div>
       </div>
@@ -2257,25 +3475,48 @@ function AdminQna({ user }) {
  
   const pending = questions.filter(q => q.status === 'pending');
   const answered = questions.filter(q => q.status === 'answered');
+  const filtered = qnaFilter === 'all' ? questions : qnaFilter === 'pending' ? pending : answered;
  
   return (
     <>
       <PageIntro ko="Q&A 답변" en="Q&A Admin" />
       <div className="px-5 space-y-3">
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-2xl p-3" style={{ background: COLORS.primary }}>
-            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>답변 대기</p>
+          <button onClick={() => toggleFilter('pending')}
+            className={`rounded-2xl p-3 text-left transition-transform active:scale-95 ${qnaFilter === 'pending' ? 'glow-primary' : ''}`}
+            style={{ background: COLORS.primary }}>
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>답변 대기</p>
+              {qnaFilter === 'pending' && <span className="text-[10px]" style={{ color: COLORS.white }}>●</span>}
+            </div>
             <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>{pending.length}</p>
-          </div>
-          <div className="rounded-2xl p-3" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
-            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>답변 완료</p>
+          </button>
+          <button onClick={() => toggleFilter('answered')}
+            className={`rounded-2xl p-3 text-left transition-transform active:scale-95 ${qnaFilter === 'answered' ? 'glow-soft' : ''}`}
+            style={{ background: COLORS.card, border: `1px solid ${qnaFilter === 'answered' ? COLORS.primary : COLORS.light}` }}>
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: qnaFilter === 'answered' ? COLORS.primary : COLORS.stone }}>답변 완료</p>
+              {qnaFilter === 'answered' && <span className="text-[10px]" style={{ color: COLORS.primary }}>●</span>}
+            </div>
             <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{answered.length}</p>
-          </div>
+          </button>
         </div>
+
+        {/* 필터 활성 표시 */}
+        {qnaFilter !== 'all' && (
+          <div className="flex items-center justify-between px-1 -mt-1">
+            <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+              <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>{qnaFilter === 'pending' ? '답변 대기' : '답변 완료'}</span> 만 보는 중
+            </p>
+            <button onClick={() => setQnaFilter('all')} className="font-mono text-[10px] font-semibold flex items-center gap-1" style={{ color: COLORS.primary }}>
+              전체 보기 <X size={10} strokeWidth={2.5} />
+            </button>
+          </div>
+        )}
         {questions.length === 0 ? (
           <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>등록된 질문이 없습니다</p>
         ) : questions.map(q => (
-          <button key={q.id} onClick={() => q.status === 'pending' && setSelected(q)} className="w-full text-left rounded-2xl p-4" style={{ background: COLORS.white, border: `1px solid ${COLORS.light}` }}>
+          <button key={q.id} onClick={() => { setSelected(q); setAnswer(q.answer || ''); }} className="w-full text-left rounded-2xl p-4 transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center gap-1.5 mb-2">
               <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
                 background: q.status === 'answered' ? COLORS.ink : COLORS.primary,
@@ -2285,6 +3526,12 @@ function AdminQna({ user }) {
             </div>
             <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{q.title}</p>
             <p className="font-mono text-[10px] mt-1.5" style={{ color: COLORS.stone }}>{q.profiles?.name} · {new Date(q.created_at).toLocaleDateString('ko-KR')}</p>
+            {q.answer && (
+              <div className="mt-2 pt-2 rounded-lg flex items-start gap-1.5" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+                <span className="font-mono text-[9px] font-bold tracking-widest uppercase shrink-0 mt-0.5" style={{ color: COLORS.primary }}>답변</span>
+                <p className="font-body text-[11px] line-clamp-2 leading-relaxed" style={{ color: COLORS.stone }}>{q.answer}</p>
+              </div>
+            )}
           </button>
         ))}
       </div>
