@@ -437,6 +437,8 @@ export default function HSSUPApp() {
         .font-body { font-family: 'Pretendard', sans-serif; letter-spacing: -0.01em; }
         .font-serif-italic { font-family: 'Instrument Serif', serif; font-style: italic; }
         .font-mono { font-family: 'Pretendard', sans-serif; font-feature-settings: "tnum"; }
+        select option { background: #161616; color: #FFFFFF; padding: 8px; }
+        select { color-scheme: dark; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -2263,7 +2265,7 @@ function MarketPage({ setCurrentPage, setSelectedProduct }) {
                   {['BEST', 'NEW', 'SALE'].includes(p.badge) && (
                     <span className="absolute top-2 left-2 font-mono text-[8px] font-bold tracking-widest px-1.5 py-0.5 rounded" style={{
                       background: p.badge === 'BEST' ? COLORS.ink : p.badge === 'NEW' ? COLORS.primary : COLORS.peach,
-                      color: p.badge === 'SALE' ? COLORS.deep : COLORS.white,
+                      color: p.badge === 'BEST' ? COLORS.primary : p.badge === 'SALE' ? COLORS.deep : COLORS.white,
                       boxShadow: p.badge === 'NEW' ? '0 0 12px rgba(255, 92, 31, 0.5)' : 'none'
                     }}>{p.badge}</span>
                   )}
@@ -2649,7 +2651,7 @@ function ProductDetailPage({ product, user, setCurrentPage }) {
         {product.badge && (
           <span className="absolute top-4 left-4 font-mono text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded" style={{
             background: product.badge === 'BEST' ? COLORS.ink : product.badge === 'NEW' ? COLORS.primary : COLORS.peach,
-            color: product.badge === 'SALE' ? COLORS.deep : COLORS.white,
+            color: product.badge === 'BEST' ? COLORS.primary : product.badge === 'SALE' ? COLORS.deep : COLORS.white,
             boxShadow: product.badge === 'NEW' ? '0 0 20px rgba(255, 92, 31, 0.5)' : 'none'
           }}>{product.badge}</span>
         )}
@@ -4482,7 +4484,7 @@ function AdminProducts({ user }) {
               {p.badge && (
                 <span className="absolute top-1 left-1 font-mono text-[8px] font-bold tracking-widest px-1.5 py-0.5 rounded" style={{
                   background: p.badge === 'BEST' ? COLORS.ink : p.badge === 'NEW' ? COLORS.primary : COLORS.peach,
-                  color: p.badge === 'SALE' ? COLORS.deep : COLORS.white
+                  color: p.badge === 'BEST' ? COLORS.primary : p.badge === 'SALE' ? COLORS.deep : COLORS.white
                 }}>{p.badge}</span>
               )}
             </div>
