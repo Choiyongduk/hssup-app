@@ -1471,7 +1471,7 @@ function CoursePage({ user, setCurrentPage, setSelectedCourse }) {
             }}>
               {c.image_url && (
                 <div className="aspect-video relative overflow-hidden">
-                  <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+                  <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                   <div className="absolute top-3 left-3 flex gap-1.5">
                     {c.badge && (
                       <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
@@ -2253,14 +2253,14 @@ function MarketPage({ setCurrentPage, setSelectedProduct }) {
                 {/* 이미지 영역 */}
                 <div className="relative aspect-square overflow-hidden" style={{ background: COLORS.cream }}>
                   {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <span className="text-5xl" style={{ color: COLORS.primary }}>{p.emoji || '🛍️'}</span>
                     </div>
                   )}
-                  {/* 배지 */}
-                  {p.badge && (
+                  {/* 배지 - BEST/NEW/SALE만 표시 */}
+                  {['BEST', 'NEW', 'SALE'].includes(p.badge) && (
                     <span className="absolute top-2 left-2 font-mono text-[8px] font-bold tracking-widest px-1.5 py-0.5 rounded" style={{
                       background: p.badge === 'BEST' ? COLORS.ink : p.badge === 'NEW' ? COLORS.primary : COLORS.peach,
                       color: p.badge === 'SALE' ? COLORS.deep : COLORS.white,
@@ -4473,7 +4473,7 @@ function AdminProducts({ user }) {
           <div key={p.id} className="rounded-2xl overflow-hidden flex" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: p.is_active ? 1 : 0.55 }}>
             <div className="relative w-24 h-24 shrink-0">
               {p.image_url ? (
-                <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center" style={{ background: COLORS.cream }}>
                   <span className="text-3xl">{p.emoji || '🛍️'}</span>
@@ -4852,7 +4852,7 @@ function AdminCourses({ user }) {
           <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: c.is_active ? 1 : 0.55 }}>
             {c.image_url && (
               <div className="aspect-video relative overflow-hidden">
-                <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+                <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               </div>
             )}
             <div className="p-3">
