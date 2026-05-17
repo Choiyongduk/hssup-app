@@ -535,7 +535,8 @@ export default function HSSUPApp() {
           {loading ? <LoadingScreen /> :
            !session || !profile ? <AuthScreen /> :
            profile.status === 'pending' && profile.role !== 'admin' ? <PendingApprovalScreen user={profile} handleLogout={handleLogout} /> :
-           profile.status === 'rejected' && profile.role !== 'admin' ? <RejectedScreen user={profile} handleLogout={handleLogout} /> : (
+           profile.status === 'rejected' && profile.role !== 'admin' ? <RejectedScreen user={profile} handleLogout={handleLogout} /> :
+           (profile.status === 'suspended' || profile.status === 'deleted') && profile.role !== 'admin' ? <SuspendedScreen profile={profile} handleLogout={handleLogout} /> : (
             <>
               <AppHeader user={profile} isAdmin={isAdmin}
                 onMenuClick={() => setDrawerOpen(true)}
@@ -3668,6 +3669,34 @@ function MyPage({ user, handleLogout }) {
   const [notifStatus, setNotifStatus] = useState('checking');
   const [notifLoading, setNotifLoading] = useState(false);
 
+  const handleDeleteAccount = async () => {
+    if (isAdmin) {
+      alert('관리자 계정은 탈퇴할 수 없어요.');
+      return;
+    }
+    if (!confirm('정말 회원 탈퇴하시겠습니까?\n\n탈퇴 후에는 되돌릴 수 없으며,\n작성한 글과 댓글은 "탈퇴한 회원"으로 표시됩니다.')) return;
+    if (!confirm('마지막 확인입니다.\n정말 탈퇴를 진행하시겠습니까?')) return;
+    
+    try {
+      const { error } = await supabase.from('profiles').update({
+        status: 'deleted',
+        name: '탈퇴한 회원',
+        phone: null,
+        deleted_at: new Date().toISOString(),
+      }).eq('id', user.id);
+      
+      if (error) {
+        alert('탈퇴 실패: ' + error.message);
+        return;
+      }
+      
+      alert('탈퇴가 완료되었습니다.\n그동안 이용해주셔서 감사합니다.');
+      await handleLogout();
+    } catch (e) {
+      alert('탈퇴 실패: ' + e.message);
+    }
+  };
+
   useEffect(() => {
     checkNotificationStatus().then(setNotifStatus);
   }, []);
@@ -3833,8 +3862,49 @@ function MyPage({ user, handleLogout }) {
         <button onClick={handleLogout} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, color: COLORS.deep }}>
           <LogOut size={14} />로그아웃
         </button>
+
+        {/* 회원 탈퇴 (관리자/운영진 제외) */}
+        {!isAdmin && (
+          <button onClick={handleDeleteAccount} 
+            className="w-full mt-3 py-3 font-body text-xs"
+            style={{ color: COLORS.stone, textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+            회원 탈퇴
+          </button>
+        )}
       </div>
     </>
+  );
+}
+
+// =============================================================
+// 🚫 SuspendedScreen - 정지/탈퇴된 계정 화면
+// =============================================================
+function SuspendedScreen({ profile, handleLogout }) {
+  const isDeleted = profile?.status === 'deleted';
+  return (
+    <div className="min-h-screen flex items-center justify-center px-5" style={{ background: COLORS.cream }}>
+      <div className="text-center max-w-xs">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"
+          style={{ background: COLORS.card, border: `2px solid #FF4444` }}>
+          <AlertCircle size={32} style={{ color: '#FF4444' }} strokeWidth={2.5} />
+        </div>
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: '#FF4444' }}>
+          ━━ {isDeleted ? 'Account Deleted' : 'Account Suspended'}
+        </p>
+        <h2 className="font-display text-2xl mt-3 tracking-tight" style={{ color: COLORS.ink }}>
+          {isDeleted ? '탈퇴된 계정이에요' : '계정이 정지되었어요'}
+        </h2>
+        <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+          {isDeleted 
+            ? '이 계정은 더 이상 사용할 수 없어요.'
+            : (profile?.suspended_reason || '자세한 사항은 원장님께 문의해주세요.')}
+        </p>
+        <button onClick={handleLogout} className="mt-6 font-heading text-sm px-6 py-3 rounded-full"
+          style={{ background: COLORS.cream, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+          로그아웃
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -4689,6 +4759,35 @@ function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
+  const toggleSuspend = async () => {
+    const isSuspended = student.status === 'suspended';
+    const msg = isSuspended
+      ? `${student.name}님의 정지를 해제하시겠습니까?`
+      : `${student.name}님의 계정을 정지하시겠습니까?\n\n정지된 사용자는 로그인 시 정지 화면이 표시되어 앱을 사용할 수 없어요.`;
+    
+    if (!confirm(msg)) return;
+    
+    let reason = null;
+    if (!isSuspended) {
+      reason = prompt('정지 사유 (선택사항, 사용자에게 표시됨)');
+      if (reason === null) return;
+    }
+    
+    setUpdating(true);
+    const { error } = await supabase.from('profiles').update({
+      status: isSuspended ? 'approved' : 'suspended',
+      suspended_reason: isSuspended ? null : (reason || null)
+    }).eq('id', student.id);
+    
+    if (error) {
+      alert('변경 실패: ' + error.message);
+    } else {
+      alert(isSuspended ? '✅ 정지가 해제되었습니다' : '⚠️ 계정이 정지되었습니다');
+      setCurrentPage('admin-students');
+    }
+    setUpdating(false);
+  };
+
   const toggleStaff = async () => {
     const newRole = student.role === 'staff' ? 'student' : 'staff';
     const msg = newRole === 'staff' 
@@ -4701,6 +4800,27 @@ function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) {
     if (error) {
       alert('변경 실패: ' + error.message);
     } else {
+      // 📢 임명된 본인에게 알림
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: newRole === 'staff' ? '🎉 운영진으로 임명되었어요!' : '운영진 권한이 해제되었어요',
+            body: newRole === 'staff' 
+              ? '이제 관리자 메뉴를 사용할 수 있어요. 환영합니다!' 
+              : '일반 수강생으로 돌아갔어요.',
+            url: '/',
+            targetUserId: student.id,
+          }),
+        });
+      } catch (e) { console.error('알림 발송 실패:', e); }
+
       alert(newRole === 'staff' ? '✅ 운영진으로 임명되었습니다' : '✅ 운영진 권한이 해제되었습니다');
       setCurrentPage('admin-students');
     }
@@ -4793,6 +4913,47 @@ function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) {
                 }}>
                 {updating ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} strokeWidth={2.5} />}
                 {student.role === 'staff' ? '해제' : '임명'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 🚨 계정 정지/해제 (admin만 가능) */}
+        {canViewRevenue && student.role !== 'admin' && (
+          <div className="rounded-2xl p-4" style={{ 
+            background: COLORS.card, 
+            border: `1px solid ${student.status === 'suspended' ? '#FF4444' : COLORS.light}`,
+            boxShadow: student.status === 'suspended' ? '0 0 16px rgba(255, 68, 68, 0.2)' : 'none'
+          }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: student.status === 'suspended' ? '#FF4444' : COLORS.stone }}>━━ Account Status</p>
+                {student.status === 'suspended' ? (
+                  <>
+                    <p className="font-heading text-sm mt-1 flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                      <AlertCircle size={14} style={{ color: '#FF4444' }} strokeWidth={2.5} />
+                      현재 정지됨
+                    </p>
+                    {student.suspended_reason && (
+                      <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>사유: {student.suspended_reason}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>문제 발생 시 계정 정지</p>
+                    <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>정지된 사용자는 로그인 불가</p>
+                  </>
+                )}
+              </div>
+              <button onClick={toggleSuspend} disabled={updating}
+                className="font-heading text-xs px-4 py-2.5 rounded-full flex items-center gap-1.5 shrink-0 disabled:opacity-60"
+                style={{
+                  background: student.status === 'suspended' ? COLORS.cream : '#FF4444',
+                  color: student.status === 'suspended' ? COLORS.deep : COLORS.white,
+                  border: student.status === 'suspended' ? `1px solid ${COLORS.light}` : 'none',
+                }}>
+                {updating ? <Loader2 size={12} className="animate-spin" /> : <AlertCircle size={12} strokeWidth={2.5} />}
+                {student.status === 'suspended' ? '해제' : '정지'}
               </button>
             </div>
           </div>
