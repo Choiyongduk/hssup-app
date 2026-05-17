@@ -3796,6 +3796,7 @@ function AdminDashboard({ setCurrentPage }) {
     lastMonthRevenue: 0,
     newStudents: 0,
     monthOrders: 0,
+    monthlyTrend: [],
   });
 
   useEffect(() => {
@@ -3824,7 +3825,29 @@ function AdminDashboard({ setCurrentPage }) {
       const monthRevenue = (thisMonthOrders || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
       const lastMonthRevenue = (lastMonthOrders || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
-      setStats({ 
+      // 📊 최근 6개월 매출 트렌드 로드
+      const monthRanges = [];
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const mStart = date.toISOString();
+        const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1).toISOString();
+        monthRanges.push({ date, mStart, mEnd });
+      }
+      const trendData = await Promise.all(
+        monthRanges.map(({ mStart, mEnd }) =>
+          supabase.from('orders').select('amount').eq('status', 'paid').gte('paid_at', mStart).lt('paid_at', mEnd)
+        )
+      );
+      const monthlyTrend = monthRanges.map((range, i) => {
+        const orders = trendData[i].data || [];
+        const revenue = orders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
+        return {
+          label: `${range.date.getMonth() + 1}월`,
+          revenue
+        };
+      });
+
+      setStats({
         students: students || 0, 
         lectures: lectures || 0, 
         pendingQna: pendingQna || 0,
@@ -3832,6 +3855,7 @@ function AdminDashboard({ setCurrentPage }) {
         lastMonthRevenue,
         newStudents: newStudents || 0,
         monthOrders: thisMonthOrders?.length || 0,
+        monthlyTrend,
       });
     };
     load();
@@ -3897,6 +3921,44 @@ function AdminDashboard({ setCurrentPage }) {
           </div>
         </button>
       </section>
+
+      {/* 📊 매출 트렌드 - 최근 6개월 */}
+      {stats.monthlyTrend.length > 0 && (
+        <section className="px-5 mb-3">
+          <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ Revenue Trend (6M)</p>
+          <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            {(() => {
+              const maxRevenue = Math.max(...stats.monthlyTrend.map(m => m.revenue), 1);
+              return (
+                <div className="flex items-end justify-between gap-2" style={{ height: '140px' }}>
+                  {stats.monthlyTrend.map((m, i) => {
+                    const heightPercent = (m.revenue / maxRevenue) * 100;
+                    const isCurrentMonth = i === stats.monthlyTrend.length - 1;
+                    const formatVal = m.revenue >= 10000 ? `${(m.revenue / 10000).toFixed(0)}만` : m.revenue > 0 ? m.revenue.toLocaleString() : '-';
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                        <p className="font-mono text-[9px] font-bold" style={{ color: isCurrentMonth ? COLORS.primary : COLORS.stone }}>
+                          {formatVal}
+                        </p>
+                        <div className="w-full rounded-t-lg" style={{ 
+                          height: `${Math.max(heightPercent, 2)}%`,
+                          background: isCurrentMonth ? COLORS.primary : 'rgba(255, 92, 31, 0.35)',
+                          boxShadow: isCurrentMonth ? '0 0 16px rgba(255, 92, 31, 0.5)' : 'none',
+                          transition: 'height 0.6s ease',
+                          minHeight: '4px',
+                        }}></div>
+                        <p className="font-mono text-[10px] font-bold" style={{ color: isCurrentMonth ? COLORS.primary : COLORS.stone }}>
+                          {m.label}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </section>
+      )}
 
       {/* 🚨 답변 대기 Q&A 알림 */}
       {stats.pendingQna > 0 && (
