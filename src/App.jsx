@@ -2429,6 +2429,27 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
     await supabase.from('questions').insert({
       title: form.title, content: form.content, category: form.category, user_id: user.id
     });
+
+    // 📢 관리자에게 알림
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: `❓ [${form.category}] 새 질문이 등록되었어요`,
+          body: `${user.name}: ${form.title}`,
+          url: '/',
+          targetRole: 'admin',
+          excludeUserId: user.id,
+        }),
+      });
+    } catch (e) { console.error('알림 발송 실패:', e); }
+
     setForm({ title: '', content: '', category: '시술' });
     setShowForm(false);
     await load();
@@ -3505,6 +3526,32 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
       console.error('글 작성 에러:', error);
       alert('글 작성 실패: ' + error.message);
     } else {
+      // 📢 알림 발송 (학생→관리자, 관리자→학생)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const categoryEmoji = fixedCategory === '인사' ? '👋' : fixedCategory === '후기' ? '⭐' : '💬';
+        const targetRole = isAdmin ? 'student' : 'admin';
+        const titlePrefix = isAdmin 
+          ? `${categoryEmoji} [${pageTitle || '게시판'}] 원장님이 글을 남겼어요`
+          : `${categoryEmoji} [${pageTitle || '게시판'}] 새 글이 등록됐어요`;
+        
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: titlePrefix,
+            body: `${user.name}: ${newPost.substring(0, 80)}`,
+            url: '/',
+            targetRole,
+            excludeUserId: user.id,
+          }),
+        });
+      } catch (e) { console.error('알림 발송 실패:', e); }
+
       setNewPost('');
       await load();
     }
@@ -4110,6 +4157,8 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
               title: `${form.urgent ? '🔴 ' : ''}[${form.tag}] ${form.title}`,
               body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
               url: '/',
+              targetRole: 'student',
+              excludeUserId: user.id,
             }),
           }
         );
@@ -6293,6 +6342,28 @@ function AdminQna({ user }) {
       answer, status: 'answered',
       answered_by: user.id, answered_at: new Date().toISOString()
     }).eq('id', selected.id);
+
+    // 📢 질문자에게 알림
+    if (selected.user_id && selected.user_id !== user.id) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: `✅ 원장님이 답변을 남겼어요!`,
+            body: `Q. ${selected.title}`,
+            url: '/',
+            targetUserId: selected.user_id,
+          }),
+        });
+      } catch (e) { console.error('알림 발송 실패:', e); }
+    }
+
     setAnswer(''); setSelected(null);
     await load();
     setLoading(false);
