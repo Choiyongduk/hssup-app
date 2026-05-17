@@ -208,6 +208,8 @@ export default function HSSUPApp() {
 
   const [selectedProduct, setSelectedProduct] = useState(null);
 
+  const [selectedStudent, setSelectedStudent] = useState(null);
+
   // 자동 업데이트 상태
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [waitingWorker, setWaitingWorker] = useState(null);
@@ -549,6 +551,7 @@ export default function HSSUPApp() {
                     selectedLecture={selectedLecture} setSelectedLecture={setSelectedLecture}
                     selectedCourse={selectedCourse} setSelectedCourse={setSelectedCourse}
                     selectedProduct={selectedProduct} setSelectedProduct={setSelectedProduct}
+                    selectedStudent={selectedStudent} setSelectedStudent={setSelectedStudent}
                     user={profile} handleLogout={handleLogout} isAdmin={isAdmin} />
                 </div>
               </main>
@@ -626,6 +629,186 @@ function Avatar({ user, size = 'md', onClick }) {
       >
         {initial}
       </span>
+    </div>
+  );
+}
+
+// =============================================================
+// ⭐ 등급 계산 헬퍼 (활동 + 매출 기반)
+// =============================================================
+function calculateLevel(stats) {
+  const activityPoints = (stats.cases || 0) * 10 + 
+                         (stats.posts || 0) * 5 + 
+                         (stats.comments || 0) * 2 + 
+                         (stats.likes || 0) * 1;
+  const purchasePoints = (stats.orders || 0) * 30 + 
+                         Math.floor((stats.totalSpent || 0) / 10000);
+  const total = activityPoints + purchasePoints;
+  
+  if (total >= 2000) return { 
+    level: 'vip', label: 'VIP', emoji: '👑', 
+    color: '#FF6B9D', glow: 'rgba(255, 107, 157, 0.6)',
+    next: null, current: total 
+  };
+  if (total >= 1000) return { 
+    level: 'platinum', label: 'PLATINUM', emoji: '💎', 
+    color: '#B9F2FF', glow: 'rgba(185, 242, 255, 0.5)',
+    next: { label: 'VIP', need: 2000 - total, totalForNext: 2000, prevMilestone: 1000 }, current: total 
+  };
+  if (total >= 500) return { 
+    level: 'gold', label: 'GOLD', emoji: '🥇',
+    color: '#FFD700', glow: 'rgba(255, 215, 0, 0.5)',
+    next: { label: 'PLATINUM', need: 1000 - total, totalForNext: 1000, prevMilestone: 500 }, current: total 
+  };
+  if (total >= 100) return { 
+    level: 'silver', label: 'SILVER', emoji: '🥈',
+    color: '#E0E0E0', glow: 'rgba(192, 192, 192, 0.5)',
+    next: { label: 'GOLD', need: 500 - total, totalForNext: 500, prevMilestone: 100 }, current: total 
+  };
+  return { 
+    level: 'bronze', label: 'BRONZE', emoji: '🥉',
+    color: '#CD7F32', glow: 'rgba(205, 127, 50, 0.5)',
+    next: { label: 'SILVER', need: 100 - total, totalForNext: 100, prevMilestone: 0 }, current: total 
+  };
+}
+
+// =============================================================
+// ⭐ LevelCard - 등급 카드 (활동 + 매출 통합)
+// =============================================================
+function LevelCard({ userId }) {
+  const [stats, setStats] = useState({ cases: 0, posts: 0, comments: 0, likes: 0, orders: 0, totalSpent: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    const load = async () => {
+      const [
+        { count: cases },
+        { count: posts },
+        { count: comments },
+        { count: likes },
+        { data: ordersData }
+      ] = await Promise.all([
+        supabase.from('cases').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        supabase.from('community_posts').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        supabase.from('comments').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        supabase.from('likes').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        supabase.from('orders').select('amount').eq('user_id', userId).eq('status', 'paid'),
+      ]);
+      const orders = ordersData?.length || 0;
+      const totalSpent = (ordersData || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
+      setStats({ 
+        cases: cases || 0, 
+        posts: posts || 0, 
+        comments: comments || 0, 
+        likes: likes || 0,
+        orders,
+        totalSpent
+      });
+      setLoading(false);
+    };
+    load();
+  }, [userId]);
+
+  const level = calculateLevel(stats);
+
+  // 진행 바 계산 (이전 등급 기준점에서 다음 등급 기준점까지의 비율)
+  const progress = level.next 
+    ? Math.min(100, Math.max(0, 
+        ((level.current - level.next.prevMilestone) / (level.next.totalForNext - level.next.prevMilestone)) * 100
+      ))
+    : 100;
+
+  const formatMoney = (n) => {
+    if (n >= 10000) return (n / 10000).toFixed(0) + '만';
+    return n.toLocaleString();
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl p-5 flex items-center justify-center" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, minHeight: '180px' }}>
+        <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl p-5 relative overflow-hidden" style={{ background: COLORS.cardElev }}>
+      {/* 배경 글로우 */}
+      <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none" 
+        style={{ background: `radial-gradient(circle, ${level.glow}, transparent 70%)` }}></div>
+      
+      <div className="relative">
+        <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Your Level</p>
+        
+        <div className="flex items-center gap-3 mt-3">
+          <span className="text-5xl">{level.emoji}</span>
+          <div className="flex-1">
+            <p className="font-display text-2xl tracking-tight" style={{ color: level.color }}>{level.label}</p>
+            <p className="font-mono text-[11px] mt-0.5" style={{ color: COLORS.stone }}>활동 점수 {level.current}점</p>
+          </div>
+          {stats.orders > 0 && (
+            <div className="text-right">
+              <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>VIP</p>
+              <p className="font-display text-lg tracking-tight" style={{ color: COLORS.primary }}>{stats.orders}건</p>
+            </div>
+          )}
+        </div>
+
+        {/* 진행 바 */}
+        {level.next && (
+          <>
+            <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ background: COLORS.cream }}>
+              <div className="h-full rounded-full transition-all duration-1000" 
+                style={{ 
+                  width: `${progress}%`, 
+                  background: COLORS.primary, 
+                  boxShadow: '0 0 12px rgba(255, 92, 31, 0.4)' 
+                }}></div>
+            </div>
+            <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>
+              다음 등급 <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>{level.next.label}</span>까지 <span style={{ color: COLORS.ink, fontWeight: 'bold' }}>{level.next.need}점</span>
+            </p>
+          </>
+        )}
+        {!level.next && (
+          <p className="font-serif-italic text-sm mt-3" style={{ color: level.color }}>✨ 최고 등급에 도달했습니다!</p>
+        )}
+
+        {/* 활동 통계 */}
+        <div className="grid grid-cols-4 gap-1 mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+          <div className="text-center">
+            <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.cases}</p>
+            <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>케이스</p>
+          </div>
+          <div className="text-center">
+            <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.posts}</p>
+            <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>게시글</p>
+          </div>
+          <div className="text-center">
+            <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.comments}</p>
+            <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>댓글</p>
+          </div>
+          <div className="text-center">
+            <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.likes}</p>
+            <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>좋아요</p>
+          </div>
+        </div>
+
+        {/* 결제 통계 (있을 때만) */}
+        {stats.orders > 0 && (
+          <div className="grid grid-cols-2 gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+            <div className="text-center rounded-lg py-2" style={{ background: 'rgba(255, 92, 31, 0.08)' }}>
+              <p className="font-display text-base" style={{ color: COLORS.primary }}>{stats.orders}</p>
+              <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>결제 건수</p>
+            </div>
+            <div className="text-center rounded-lg py-2" style={{ background: 'rgba(255, 92, 31, 0.08)' }}>
+              <p className="font-display text-base" style={{ color: COLORS.primary }}>{formatMoney(stats.totalSpent)}</p>
+              <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>구매 금액</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1161,13 +1344,14 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, user, handleLogout, isAdmin }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, user, handleLogout, isAdmin }) {
   if (isAdmin) {
     if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} />;
     if (currentPage === 'admin-notice') return <AdminNotice user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
     if (currentPage === 'admin-approvals') return <AdminApprovals user={user} />;
     if (currentPage === 'admin-orders') return <AdminOrders user={user} />;
-    if (currentPage === 'admin-students') return <AdminStudents />;
+    if (currentPage === 'admin-students') return <AdminStudents setCurrentPage={setCurrentPage} setSelectedStudent={setSelectedStudent} />;
+    if (currentPage === 'admin-student-detail') return <AdminStudentDetail student={selectedStudent} setCurrentPage={setCurrentPage} />;
     if (currentPage === 'admin-qna') return <AdminQna user={user} />;
     if (currentPage === 'admin-cases') return <AdminCases />;
     if (currentPage === 'admin-lectures') return <AdminLectures user={user} />;
@@ -3500,6 +3684,9 @@ function MyPage({ user, handleLogout }) {
           </div>
         </section>
 
+        {/* ⭐ 등급 카드 */}
+        <LevelCard userId={user.id} />
+
         {/* 컬러 선택 (펼침/접힘) */}
         {showColorPicker && (
           <section className="rounded-2xl p-4 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -4269,15 +4456,181 @@ function AdminApprovals({ user }) {
   );
 }
 
-function AdminStudents() {
+// =============================================================
+// 👤 AdminStudentDetail - 수강생 상세 정보 페이지 (관리자용)
+// =============================================================
+function AdminStudentDetail({ student, setCurrentPage }) {
+  const [cases, setCases] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!student?.id) return;
+    const load = async () => {
+      const [c, p, o] = await Promise.all([
+        supabase.from('cases').select('*').eq('user_id', student.id).order('created_at', { ascending: false }).limit(6),
+        supabase.from('community_posts').select('*').eq('user_id', student.id).order('created_at', { ascending: false }).limit(5),
+        supabase.from('orders').select('*').eq('user_id', student.id).order('created_at', { ascending: false }).limit(10),
+      ]);
+      setCases(c.data || []);
+      setPosts(p.data || []);
+      setOrders(o.data || []);
+      setLoading(false);
+    };
+    load();
+  }, [student?.id]);
+
+  if (!student) return (
+    <div className="px-5 py-10 text-center">
+      <p className="font-body text-sm" style={{ color: COLORS.stone }}>학생을 찾을 수 없습니다</p>
+      <button onClick={() => setCurrentPage('admin-students')} className="mt-4 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white }}>
+        수강생 목록으로
+      </button>
+    </div>
+  );
+
+  const formatPrice = (n) => Number(n || 0).toLocaleString('ko-KR') + '원';
+  const paidOrders = orders.filter(o => o.status === 'paid');
+  const totalSpent = paidOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
+
+  return (
+    <div className="pb-6">
+      <PageIntro ko={student.name} en="Student Detail" desc={student.course} />
+      
+      <div className="px-5 space-y-3">
+        {/* 기본 정보 */}
+        <div className="rounded-3xl p-6 relative overflow-hidden" style={{ background: COLORS.cardElev }}>
+          <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: `radial-gradient(circle, ${COLORS.primary}50, transparent 70%)` }}></div>
+          <div className="relative flex items-center gap-4">
+            <Avatar user={student} size="xxl" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.white }}>{student.name}</h2>
+                {student.status === 'pending' && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>승인 대기</span>}
+                {student.status === 'rejected' && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>거절됨</span>}
+              </div>
+              <p className="font-mono text-[10px] mt-1 truncate" style={{ color: COLORS.ink, opacity: 0.7 }}>{student.email}</p>
+              <p className="font-serif-italic text-sm mt-2" style={{ color: COLORS.primary }}>{student.course}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 등급 카드 (재사용) */}
+        <LevelCard userId={student.id} />
+
+        {/* 계정 정보 */}
+        <section className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase p-4 pb-2" style={{ color: COLORS.primary }}>━━ Account Info</p>
+          {[
+            { label: 'Email', value: student.email },
+            { label: 'Phone', value: student.phone || '미등록' },
+            { label: 'Joined', value: new Date(student.created_at).toLocaleDateString('ko-KR') },
+            { label: 'Status', value: student.status === 'approved' ? '✅ 승인됨' : student.status === 'pending' ? '⏳ 대기' : '❌ 거절' },
+          ].map((row, i) => (
+            <div key={i} className="flex items-center justify-between px-4 py-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+              <span className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>{row.label}</span>
+              <span className="font-body text-xs font-semibold truncate ml-2" style={{ color: COLORS.ink }}>{row.value}</span>
+            </div>
+          ))}
+        </section>
+
+        {/* 최근 결제 */}
+        {orders.length > 0 && (
+          <section>
+            <div className="flex items-baseline justify-between mb-2 px-1">
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Recent Orders</p>
+              <p className="font-mono text-[10px] font-bold" style={{ color: COLORS.primary }}>총 {formatPrice(totalSpent)}</p>
+            </div>
+            <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              {orders.map((o, i) => (
+                <div key={o.id} className="flex items-center justify-between p-3" style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
+                  <div className="flex-1 min-w-0 pr-2">
+                    <p className="font-body text-xs truncate" style={{ color: COLORS.ink }}>{o.course_title}</p>
+                    <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
+                      {o.item_type === 'product' ? '🛍️ 재료샵' : '📚 클래스'} · {new Date(o.paid_at || o.created_at).toLocaleDateString('ko-KR')}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-display text-sm tracking-tight" style={{ 
+                      color: o.status === 'paid' ? COLORS.primary : COLORS.stone,
+                      textDecoration: o.status === 'cancelled' ? 'line-through' : 'none' 
+                    }}>{formatPrice(o.amount)}</p>
+                    <p className="font-mono text-[9px]" style={{ color: COLORS.stone }}>{o.status === 'paid' ? '완료' : '취소'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 최근 케이스 */}
+        {cases.length > 0 && (
+          <section>
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ Portfolio ({cases.length})</p>
+            <div className="grid grid-cols-3 gap-2">
+              {cases.slice(0, 6).map(c => (
+                <div key={c.id} className="aspect-square rounded-xl overflow-hidden relative" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                  {c.image_urls?.length > 0 ? (
+                    <img src={c.image_urls[0]} alt={c.title} className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Camera size={20} style={{ color: COLORS.stone }} />
+                    </div>
+                  )}
+                  {c.is_best && (
+                    <span className="absolute top-1 right-1 font-mono text-[8px] font-bold tracking-widest uppercase px-1 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>★</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 최근 게시글 */}
+        {posts.length > 0 && (
+          <section>
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ Recent Posts ({posts.length})</p>
+            <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              {posts.slice(0, 3).map((p, i) => (
+                <div key={p.id} className="p-3" style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>{p.category || '자유'}</span>
+                    <p className="font-mono text-[9px]" style={{ color: COLORS.stone }}>{new Date(p.created_at).toLocaleDateString('ko-KR')}</p>
+                  </div>
+                  <p className="font-body text-xs line-clamp-2" style={{ color: COLORS.ink }}>{p.content}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 활동 없을 때 */}
+        {!loading && cases.length === 0 && posts.length === 0 && orders.length === 0 && (
+          <div className="text-center py-10">
+            <p className="font-body text-sm" style={{ color: COLORS.stone }}>아직 활동 내역이 없습니다</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminStudents({ setCurrentPage, setSelectedStudent }) {
   const [students, setStudents] = useState([]);
   useEffect(() => {
     supabase.from('profiles').select('*').eq('role', 'student').order('created_at', { ascending: false })
       .then(({ data }) => setStudents(data || []));
   }, []);
+
+  const openDetail = (s) => {
+    setSelectedStudent(s);
+    setCurrentPage('admin-student-detail');
+  };
+
   return (
     <>
-      <PageIntro ko="수강생 관리" en="Students" />
+      <PageIntro ko="수강생 관리" en="Students" desc="수강생을 눌러서 상세 정보를 확인하세요" />
       <div className="px-5 space-y-3">
         <div className="rounded-2xl p-3 text-center" style={{ background: COLORS.primary }}>
           <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>전체 수강생</p>
@@ -4286,14 +4639,21 @@ function AdminStudents() {
         {students.length === 0 ? (
           <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>아직 등록된 수강생이 없습니다</p>
         ) : students.map(s => (
-          <div key={s.id} className="rounded-2xl p-4 flex items-center gap-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <div className="text-3xl">{s.avatar}</div>
-            <div className="flex-1">
-              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{s.name}</p>
-              <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{s.email}</p>
+          <button key={s.id} onClick={() => openDetail(s)} 
+            className="w-full text-left rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]" 
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <Avatar user={s} size="md" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{s.name}</p>
+                {s.status === 'pending' && <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>대기</span>}
+                {s.status === 'rejected' && <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>거절</span>}
+              </div>
+              <p className="font-mono text-[10px] truncate" style={{ color: COLORS.stone }}>{s.email}</p>
               <p className="font-serif-italic text-xs mt-1" style={{ color: COLORS.primary }}>{s.course}</p>
             </div>
-          </div>
+            <ChevronRight size={16} style={{ color: COLORS.stone }} />
+          </button>
         ))}
       </div>
     </>
