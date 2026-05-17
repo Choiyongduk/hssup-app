@@ -435,6 +435,7 @@ export default function HSSUPApp() {
     { section: 'CONNECT', items: [
       { id: 'notice', label: '공지', icon: Bell },
       { id: 'qna', label: 'Q&A', icon: MessageCircle },
+      { id: 'greetings', label: '가입 인사', icon: Sparkles },
       { id: 'reviews', label: '수강후기', icon: Heart },
       { id: 'freeboard', label: '자유게시판', icon: Users },
     ]},
@@ -450,6 +451,7 @@ export default function HSSUPApp() {
     { section: 'ADMIN', items: [
       { id: 'dashboard', label: '대시보드', icon: BarChart3 },
       { id: 'admin-approvals', label: '가입 승인', icon: UserCheck },
+      { id: 'admin-orders', label: '결제 내역', icon: ShoppingBag },
       { id: 'admin-students', label: '수강생', icon: UserCheck },
       { id: 'admin-qna', label: 'Q&A 답변', icon: MessageCircle },
       { id: 'admin-notice', label: '공지 관리', icon: Bell },
@@ -473,6 +475,7 @@ export default function HSSUPApp() {
     { section: 'CONNECT', items: [
       { id: 'notice', label: '공지', icon: Bell },
       { id: 'qna', label: 'Q&A', icon: MessageCircle },
+      { id: 'greetings', label: '가입 인사', icon: Sparkles },
       { id: 'reviews', label: '수강후기', icon: Heart },
       { id: 'freeboard', label: '자유게시판', icon: Users },
     ]},
@@ -1163,6 +1166,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} />;
     if (currentPage === 'admin-notice') return <AdminNotice user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
     if (currentPage === 'admin-approvals') return <AdminApprovals user={user} />;
+    if (currentPage === 'admin-orders') return <AdminOrders user={user} />;
     if (currentPage === 'admin-students') return <AdminStudents />;
     if (currentPage === 'admin-qna') return <AdminQna user={user} />;
     if (currentPage === 'admin-cases') return <AdminCases />;
@@ -1190,6 +1194,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'market') return <MarketPage setCurrentPage={setCurrentPage} setSelectedProduct={setSelectedProduct} />;
   if (currentPage === 'online') return <OnlineLecturePage setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
   if (currentPage === 'community') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="자유" pageTitle="자유게시판" pageEn="Free Board" pageDesc="자유롭게 이야기 나눠보세요" />;
+  if (currentPage === 'greetings') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="인사" pageTitle="가입 인사" pageEn="Greetings" pageDesc="신규 회원들을 따뜻하게 환영해주세요" />;
   if (currentPage === 'reviews') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="후기" pageTitle="수강후기" pageEn="Reviews" pageDesc="동료들의 수강 후기를 만나보세요" />;
   if (currentPage === 'freeboard') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="자유" pageTitle="자유게시판" pageEn="Free Board" pageDesc="자유롭게 이야기 나눠보세요" />;
   if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
@@ -3595,7 +3600,7 @@ function MyPage({ user, handleLogout }) {
 }
  
 function AdminDashboard({ setCurrentPage }) {
-  const [stats, setStats] = useState({ students: 0, lectures: 0, pendingQna: 0 });
+  const [stats, setStats] = useState({ students: 0, lectures: 0, pendingQna: 0, monthRevenue: 0 });
 
   useEffect(() => {
     const load = async () => {
@@ -3604,17 +3609,39 @@ function AdminDashboard({ setCurrentPage }) {
         supabase.from('lectures').select('*', { count: 'exact', head: true }).eq('is_published', true),
         supabase.from('questions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
       ]);
-      setStats({ students: students || 0, lectures: lectures || 0, pendingQna: pendingQna || 0 });
+
+      // 이번 달 매출 계산
+      const now = new Date();
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('amount')
+        .eq('status', 'paid')
+        .gte('paid_at', thisMonthStart);
+      const monthRevenue = (orders || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
+
+      setStats({ 
+        students: students || 0, 
+        lectures: lectures || 0, 
+        pendingQna: pendingQna || 0,
+        monthRevenue 
+      });
     };
     load();
   }, []);
 
+  const formatRevenue = (n) => {
+    if (!n || n === 0) return '0';
+    if (n >= 10000) return (n / 10000).toFixed(0) + '만';
+    return n.toLocaleString();
+  };
+
   // 통계 데이터
   const statsList = [
-    { label: '수강생',      value: stats.students,   highlight: true, target: 'admin-students' },
-    { label: '진행 강의',   value: stats.lectures,                    target: 'online' },
-    { label: '미답변 Q&A',  value: stats.pendingQna,                  target: 'admin-qna' },
-    { label: '월 매출',     value: '0',                               target: 'revenue-soon' },
+    { label: '수강생',      value: stats.students,                  highlight: true, target: 'admin-students' },
+    { label: '진행 강의',   value: stats.lectures,                  target: 'online' },
+    { label: '미답변 Q&A',  value: stats.pendingQna,                target: 'admin-qna' },
+    { label: '월 매출',     value: formatRevenue(stats.monthRevenue), target: 'admin-orders' },
   ];
 
   // Quick Action 그리드 (홈 화면과 같은 디자인 언어)
@@ -3661,16 +3688,12 @@ function AdminDashboard({ setCurrentPage }) {
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-3 px-1" style={{ color: COLORS.primary }}>━━ Stats</p>
         <div className="grid grid-cols-2 gap-2">
           {statsList.map((s, i) => (
-            <button key={i} onClick={() => {
-              if (s.target === 'revenue-soon') {
-                alert('💳 결제 시스템(토스페이먼츠) 도입 후 표시됩니다!');
-              } else {
-                setCurrentPage(s.target);
-              }
-            }} className={`rounded-2xl p-4 text-left transition-transform active:scale-95 ${s.highlight ? 'glow-primary' : ''}`} style={{
-              background: s.highlight ? COLORS.primary : COLORS.card,
-              border: s.highlight ? 'none' : `1px solid ${COLORS.light}`
-            }}>
+            <button key={i} onClick={() => setCurrentPage(s.target)} 
+              className={`rounded-2xl p-4 text-left transition-transform active:scale-95 ${s.highlight ? 'glow-primary' : ''}`} 
+              style={{
+                background: s.highlight ? COLORS.primary : COLORS.card,
+                border: s.highlight ? 'none' : `1px solid ${COLORS.light}`
+              }}>
               <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: s.highlight ? COLORS.white : COLORS.stone, opacity: s.highlight ? 0.9 : 1 }}>{s.label}</p>
               <p className="font-display text-3xl mt-1 leading-none tracking-tight" style={{ color: s.highlight ? COLORS.white : COLORS.ink }}>{s.value}</p>
             </button>
@@ -3852,6 +3875,233 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                 자세히 보기 <ChevronRight size={11} />
               </div>
             </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// =============================================================
+// 📊 AdminOrders - 결제 내역 관리 페이지
+// =============================================================
+function AdminOrders() {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, profiles:user_id(name, email, phone, avatar_color, course)')
+      .order('created_at', { ascending: false });
+    if (error) console.error('orders load error:', error);
+    setOrders(data || []);
+    setLoading(false);
+  };
+
+  const moveMonth = (delta) => {
+    setSelectedMonth(prev => {
+      let m = prev.month + delta;
+      let y = prev.year;
+      if (m < 0) { m = 11; y -= 1; }
+      if (m > 11) { m = 0; y += 1; }
+      return { year: y, month: m };
+    });
+  };
+
+  // 선택된 월의 시작/끝
+  const monthStart = new Date(selectedMonth.year, selectedMonth.month, 1);
+  const monthEnd = new Date(selectedMonth.year, selectedMonth.month + 1, 1);
+
+  const paidOrders = orders.filter(o => o.status === 'paid');
+  
+  // 선택 월의 주문
+  const monthAllOrders = orders.filter(o => {
+    const orderDate = new Date(o.paid_at || o.created_at);
+    return orderDate >= monthStart && orderDate < monthEnd;
+  });
+  const monthPaidOrders = monthAllOrders.filter(o => o.status === 'paid');
+  const monthCancelledOrders = monthAllOrders.filter(o => o.status === 'cancelled');
+  const monthRevenue = monthPaidOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
+
+  // 이번 달인지 체크 (미래 월 못 가게)
+  const now = new Date();
+  const isCurrentMonth = selectedMonth.year === now.getFullYear() && selectedMonth.month === now.getMonth();
+
+  // 누적 통계 (전체 기간)
+  const totalRevenue = paidOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
+  const cancelledCount = orders.filter(o => o.status === 'cancelled').length;
+
+  // 현재 필터 적용 (선택 월 내에서)
+  const filtered = filter === 'all' ? monthAllOrders 
+                  : filter === 'paid' ? monthPaidOrders 
+                  : monthCancelledOrders;
+
+  const formatPrice = (n) => Number(n || 0).toLocaleString('ko-KR') + '원';
+
+  return (
+    <>
+      <PageIntro ko="결제 내역" en="Orders" desc="월별 매출을 한눈에" />
+      
+      <div className="px-5 space-y-3">
+        {/* 🗓️ 월 선택 네비게이션 */}
+        <div className="rounded-2xl p-3 flex items-center justify-between" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <button onClick={() => moveMonth(-1)} 
+            className="w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-90" 
+            style={{ background: COLORS.cardElev }}>
+            <ChevronLeft size={16} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+          </button>
+          <div className="text-center">
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>
+              {isCurrentMonth ? '━━ THIS MONTH' : '━━ SELECTED'}
+            </p>
+            <p className="font-display text-lg mt-0.5 tracking-tight" style={{ color: COLORS.ink }}>
+              {selectedMonth.year}년 {selectedMonth.month + 1}월
+            </p>
+          </div>
+          <button onClick={() => moveMonth(1)} disabled={isCurrentMonth}
+            className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-30 transition-all active:scale-90"
+            style={{ background: COLORS.cardElev }}>
+            <ChevronRight size={16} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {/* 💰 선택 월 매출 - 강조 카드 */}
+        <div className="rounded-2xl p-5 glow-primary" style={{ background: COLORS.primary }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.white, opacity: 0.8 }}>
+            {selectedMonth.year}년 {selectedMonth.month + 1}월 매출
+          </p>
+          <p className="font-display text-3xl mt-2 tracking-tight" style={{ color: COLORS.white }}>
+            {formatPrice(monthRevenue)}
+          </p>
+          <p className="font-serif-italic text-sm mt-1" style={{ color: COLORS.white, opacity: 0.85 }}>{monthPaidOrders.length}건 결제됨</p>
+        </div>
+
+        {/* 누적 통계 */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>누적 매출</p>
+            <p className="font-display text-xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{formatPrice(totalRevenue)}</p>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>전체 완료/취소</p>
+            <p className="font-display text-xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>
+              {paidOrders.length} <span style={{ color: COLORS.stone, fontSize: '14px' }}>/ {cancelledCount}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* 필터 (선택 월 내에서) */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+          {[
+            { id: 'all', label: `전체 ${monthAllOrders.length}` },
+            { id: 'paid', label: `완료 ${monthPaidOrders.length}` },
+            { id: 'cancelled', label: `취소 ${monthCancelledOrders.length}` },
+          ].map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)}
+              className="font-heading text-xs px-4 py-2 rounded-full whitespace-nowrap transition-transform active:scale-95"
+              style={{
+                background: filter === f.id ? COLORS.primary : COLORS.card,
+                color: filter === f.id ? COLORS.white : COLORS.stone,
+                border: filter === f.id ? 'none' : `1px solid ${COLORS.light}`,
+                boxShadow: filter === f.id ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
+              }}>{f.label}</button>
+          ))}
+        </div>
+
+        {/* 결제 목록 - 선택 월만 표시 */}
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <ShoppingBag size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {selectedMonth.year}년 {selectedMonth.month + 1}월에는 결제 내역이 없습니다
+            </p>
+            <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>← → 화살표로 다른 월을 확인해보세요</p>
+          </div>
+        ) : filtered.map(o => (
+          <div key={o.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            {/* 상단: 학생 + 금액 */}
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Avatar user={o.profiles || { name: o.buyer_name }} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-heading text-sm truncate" style={{ color: COLORS.ink }}>{o.profiles?.name || o.buyer_name || '익명'}</p>
+                  <p className="font-mono text-[10px] truncate" style={{ color: COLORS.stone }}>{o.profiles?.email || o.buyer_email || ''}</p>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="font-display text-lg tracking-tight" style={{ 
+                  color: o.status === 'paid' ? COLORS.primary : COLORS.stone, 
+                  textDecoration: o.status === 'cancelled' ? 'line-through' : 'none' 
+                }}>
+                  {formatPrice(o.amount)}
+                </p>
+                <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{
+                  background: o.status === 'paid' ? COLORS.primary : COLORS.cream,
+                  color: o.status === 'paid' ? COLORS.white : COLORS.stone,
+                  border: o.status === 'cancelled' ? `1px solid ${COLORS.muted}` : 'none'
+                }}>{o.status === 'paid' ? '완료' : '취소'}</span>
+              </div>
+            </div>
+
+            {/* 상품 정보 */}
+            <div className="rounded-lg p-3" style={{ background: COLORS.cream }}>
+              <div className="flex items-center gap-2">
+                {o.item_type === 'product' ? (
+                  <ShoppingBag size={14} style={{ color: COLORS.primary }} />
+                ) : (
+                  <BookOpen size={14} style={{ color: COLORS.primary }} />
+                )}
+                <p className="font-body text-sm flex-1 min-w-0 truncate" style={{ color: COLORS.ink }}>{o.course_title || '상품'}</p>
+                <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded shrink-0" style={{ background: COLORS.peach, color: COLORS.deep }}>
+                  {o.item_type === 'product' ? '재료샵' : '클래스'}
+                </span>
+              </div>
+            </div>
+
+            {/* 결제 정보 */}
+            <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+              <div>
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+                  💳 {o.payment_method || '카드'}{o.card_company ? ` · ${o.card_company}` : ''}
+                </p>
+                <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
+                  🕐 {new Date(o.paid_at || o.created_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+              {o.receipt_url && (
+                <a href={o.receipt_url} target="_blank" rel="noopener noreferrer"
+                  className="font-heading text-[10px] px-3 py-1.5 rounded-full shrink-0"
+                  style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                  영수증 →
+                </a>
+              )}
+            </div>
+
+            {/* 취소 사유 */}
+            {o.status === 'cancelled' && o.cancel_reason && (
+              <div className="mt-2 p-2 rounded" style={{ background: COLORS.cream }}>
+                <p className="font-mono text-[9px]" style={{ color: COLORS.stone }}>취소 사유</p>
+                <p className="font-body text-xs mt-0.5" style={{ color: COLORS.ink }}>{o.cancel_reason}</p>
+              </div>
+            )}
+
+            {/* 연락처 */}
+            {(o.profiles?.phone || o.buyer_phone) && (
+              <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>📞 {o.profiles?.phone || o.buyer_phone}</p>
+            )}
           </div>
         ))}
       </div>
