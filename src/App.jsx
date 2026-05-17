@@ -6,7 +6,7 @@ import {
   User, LogOut, Menu, X, Search, Heart, ChevronRight, Clock,
   Check, Plus, Send, Eye, Lock, Mail, Edit3, Download, Play, Upload,
   Palette, BarChart3, Trash2, ChevronLeft, ShoppingCart,
-  Shield, UserCheck, AlertCircle, Camera, Image as ImageIcon,
+  Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, Image as ImageIcon,
   Wifi, Battery, Signal, ArrowRight, ArrowUpRight, Loader2
 } from 'lucide-react';
 
@@ -1326,8 +1326,8 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
                 const Icon = item.icon;
                 const isActive = currentPage === item.id;
                 return (
-                  <button key={item.id} onClick={() => setCurrentPage(item.id)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-body text-sm font-medium"
-                    style={{ background: isActive ? COLORS.ink : 'transparent', color: isActive ? COLORS.cream : COLORS.ink }}>
+                  <button key={item.id} onClick={() => setCurrentPage(item.id)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-body text-sm font-medium transition-transform active:scale-[0.98]"
+                    style={{ background: isActive ? COLORS.primary : 'transparent', color: isActive ? COLORS.white : COLORS.ink, boxShadow: isActive ? '0 0 12px rgba(255, 92, 31, 0.3)' : 'none' }}>
                     <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />{item.label}
                   </button>
                 );
@@ -2005,11 +2005,12 @@ function BestCasePage() {
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {categories.map(cat => (
             <button key={cat} onClick={() => setFilter(cat)}
-              className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold"
+              className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold transition-transform active:scale-95"
               style={{
-                background: filter === cat ? COLORS.ink : COLORS.card,
+                background: filter === cat ? COLORS.primary : COLORS.card,
                 color: filter === cat ? COLORS.white : COLORS.ink,
-                border: `1px solid ${filter === cat ? COLORS.ink : COLORS.light}`
+                border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
+                boxShadow: filter === cat ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
               }}>
               {cat}
             </button>
@@ -3787,31 +3788,50 @@ function MyPage({ user, handleLogout }) {
 }
  
 function AdminDashboard({ setCurrentPage }) {
-  const [stats, setStats] = useState({ students: 0, lectures: 0, pendingQna: 0, monthRevenue: 0 });
+  const [stats, setStats] = useState({ 
+    students: 0, 
+    lectures: 0, 
+    pendingQna: 0, 
+    monthRevenue: 0,
+    lastMonthRevenue: 0,
+    newStudents: 0,
+    monthOrders: 0,
+  });
 
   useEffect(() => {
     const load = async () => {
-      const [{ count: students }, { count: lectures }, { count: pendingQna }] = await Promise.all([
+      const now = new Date();
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const [
+        { count: students },
+        { count: lectures },
+        { count: pendingQna },
+        { data: thisMonthOrders },
+        { data: lastMonthOrders },
+        { count: newStudents },
+      ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student'),
         supabase.from('lectures').select('*', { count: 'exact', head: true }).eq('is_published', true),
         supabase.from('questions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('orders').select('amount').eq('status', 'paid').gte('paid_at', thisMonthStart),
+        supabase.from('orders').select('amount').eq('status', 'paid').gte('paid_at', lastMonthStart).lt('paid_at', lastMonthEnd),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student').gte('created_at', thisMonthStart),
       ]);
-
-      // 이번 달 매출 계산
-      const now = new Date();
-      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('amount')
-        .eq('status', 'paid')
-        .gte('paid_at', thisMonthStart);
-      const monthRevenue = (orders || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
+      
+      const monthRevenue = (thisMonthOrders || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
+      const lastMonthRevenue = (lastMonthOrders || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
       setStats({ 
         students: students || 0, 
         lectures: lectures || 0, 
         pendingQna: pendingQna || 0,
-        monthRevenue 
+        monthRevenue,
+        lastMonthRevenue,
+        newStudents: newStudents || 0,
+        monthOrders: thisMonthOrders?.length || 0,
       });
     };
     load();
@@ -3823,15 +3843,11 @@ function AdminDashboard({ setCurrentPage }) {
     return n.toLocaleString();
   };
 
-  // 통계 데이터
-  const statsList = [
-    { label: '수강생',      value: stats.students,                  highlight: true, target: 'admin-students' },
-    { label: '진행 강의',   value: stats.lectures,                  target: 'online' },
-    { label: '미답변 Q&A',  value: stats.pendingQna,                target: 'admin-qna' },
-    { label: '월 매출',     value: formatRevenue(stats.monthRevenue), target: 'admin-orders' },
-  ];
+  // 매출 변화율 계산
+  const revenueChange = stats.lastMonthRevenue > 0 
+    ? Math.round(((stats.monthRevenue - stats.lastMonthRevenue) / stats.lastMonthRevenue) * 100)
+    : null;
 
-  // Quick Action 그리드 (홈 화면과 같은 디자인 언어)
   const quickActions = [
     { id: 'admin-notice',   label: 'NOTICE',   ko: '공지 관리',   icon: Bell },
     { id: 'admin-students', label: 'STUDENTS', ko: '수강생 관리', icon: UserCheck },
@@ -3850,45 +3866,109 @@ function AdminDashboard({ setCurrentPage }) {
         <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>오늘의 운영 현황</p>
       </section>
 
-      {/* 오늘의 미션 - 답변 대기 Q&A 있을 때 */}
-      {stats.pendingQna > 0 && (
-        <section className="px-5 mb-5">
-          <button onClick={() => setCurrentPage('admin-qna')} className="w-full rounded-3xl p-6 text-left relative overflow-hidden glow-primary" style={{ background: COLORS.primary }}>
-            <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
-            <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(0,0,0,0.15)' }}></div>
-            <div className="relative" style={{ color: COLORS.white }}>
-              <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">━━ Today's Mission</p>
-              <h3 className="font-display text-2xl mt-2 leading-tight tracking-tight">답변 기다리는<br />질문 {stats.pendingQna}건</h3>
-              <div className="flex items-center justify-between mt-5">
-                <p className="font-body text-xs font-medium opacity-90">수강생들이 기다려요</p>
-                <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
-                  <ArrowUpRight size={16} strokeWidth={2.5} style={{ color: COLORS.primary }} />
-                </div>
+      {/* 💰 이번 달 매출 - 큰 강조 카드 */}
+      <section className="px-5 mb-3">
+        <button onClick={() => setCurrentPage('admin-orders')} className="w-full rounded-3xl p-6 text-left relative overflow-hidden glow-primary" style={{ background: COLORS.primary }}>
+          <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
+          <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(0,0,0,0.15)' }}></div>
+          <div className="relative" style={{ color: COLORS.white }}>
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">━━ This Month Revenue</p>
+            <p className="font-display text-5xl mt-2 leading-none tracking-tighter">
+              {formatRevenue(stats.monthRevenue)}<span className="font-body text-2xl font-medium opacity-80">원</span>
+            </p>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                {revenueChange !== null && (
+                  <span className="font-mono text-xs font-bold px-2 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.25)' }}>
+                    {revenueChange > 0 ? '↑' : revenueChange < 0 ? '↓' : '→'} {Math.abs(revenueChange)}%
+                  </span>
+                )}
+                <p className="font-body text-xs opacity-90">
+                  {revenueChange === null ? '지난 달 데이터 없음' : 
+                   revenueChange > 0 ? `지난 달보다 ${revenueChange}% 증가` :
+                   revenueChange < 0 ? `지난 달보다 ${Math.abs(revenueChange)}% 감소` :
+                   '지난 달과 동일'}
+                </p>
+              </div>
+              <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 ml-2" style={{ background: COLORS.white }}>
+                <ArrowUpRight size={16} strokeWidth={2.5} style={{ color: COLORS.primary }} />
               </div>
             </div>
+          </div>
+        </button>
+      </section>
+
+      {/* 🚨 답변 대기 Q&A 알림 */}
+      {stats.pendingQna > 0 && (
+        <section className="px-5 mb-3">
+          <button onClick={() => setCurrentPage('admin-qna')} className="w-full rounded-2xl p-4 text-left flex items-center gap-3 transition-transform active:scale-[0.98]" 
+            style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.primary}` }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 glow-primary" style={{ background: COLORS.primary }}>
+              <MessageCircle size={20} style={{ color: COLORS.white }} strokeWidth={2.5} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Today's Mission</p>
+              <p className="font-heading text-base mt-0.5" style={{ color: COLORS.ink }}>답변 기다리는 질문 {stats.pendingQna}건</p>
+            </div>
+            <ChevronRight size={20} style={{ color: COLORS.primary }} />
           </button>
         </section>
       )}
 
-      {/* 통계 카드 */}
-      <section className="px-5 mb-6">
-        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-3 px-1" style={{ color: COLORS.primary }}>━━ Stats</p>
-        <div className="grid grid-cols-2 gap-2">
-          {statsList.map((s, i) => (
-            <button key={i} onClick={() => setCurrentPage(s.target)} 
-              className={`rounded-2xl p-4 text-left transition-transform active:scale-95 ${s.highlight ? 'glow-primary' : ''}`} 
-              style={{
-                background: s.highlight ? COLORS.primary : COLORS.card,
-                border: s.highlight ? 'none' : `1px solid ${COLORS.light}`
-              }}>
-              <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: s.highlight ? COLORS.white : COLORS.stone, opacity: s.highlight ? 0.9 : 1 }}>{s.label}</p>
-              <p className="font-display text-3xl mt-1 leading-none tracking-tight" style={{ color: s.highlight ? COLORS.white : COLORS.ink }}>{s.value}</p>
-            </button>
-          ))}
+      {/* 📅 이번 달 통계 - 3개 카드 */}
+      <section className="px-5 mb-3">
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ This Month</p>
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={() => setCurrentPage('admin-approvals')} 
+            className="rounded-2xl p-3 text-center transition-transform active:scale-95"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(255,92,31,0.12)' }}>
+              <UserPlus size={18} style={{ color: COLORS.primary }} strokeWidth={2} />
+            </div>
+            <p className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{stats.newStudents}</p>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase mt-1" style={{ color: COLORS.stone }}>신규</p>
+          </button>
+          <button onClick={() => setCurrentPage('admin-orders')}
+            className="rounded-2xl p-3 text-center transition-transform active:scale-95"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(255,92,31,0.12)' }}>
+              <CreditCard size={18} style={{ color: COLORS.primary }} strokeWidth={2} />
+            </div>
+            <p className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{stats.monthOrders}</p>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase mt-1" style={{ color: COLORS.stone }}>결제</p>
+          </button>
+          <button onClick={() => setCurrentPage('admin-qna')}
+            className="rounded-2xl p-3 text-center transition-transform active:scale-95"
+            style={{ background: stats.pendingQna > 0 ? COLORS.peach : COLORS.card, border: `1px solid ${stats.pendingQna > 0 ? COLORS.primary : COLORS.light}` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: stats.pendingQna > 0 ? 'rgba(255,92,31,0.2)' : 'rgba(255,92,31,0.12)' }}>
+              <MessageCircle size={18} style={{ color: COLORS.primary }} strokeWidth={2} />
+            </div>
+            <p className="font-display text-2xl tracking-tight" style={{ color: stats.pendingQna > 0 ? COLORS.primary : COLORS.ink }}>{stats.pendingQna}</p>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase mt-1" style={{ color: COLORS.stone }}>답변대기</p>
+          </button>
         </div>
       </section>
 
-      {/* Quick Action 2x2 그리드 */}
+      {/* 👥 전체 통계 - 2개 카드 */}
+      <section className="px-5 mb-6">
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ All Time</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => setCurrentPage('admin-students')}
+            className="rounded-2xl p-4 text-left transition-transform active:scale-95"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>전체 수강생</p>
+            <p className="font-display text-3xl mt-1 leading-none tracking-tight" style={{ color: COLORS.ink }}>{stats.students}<span className="font-body text-base font-medium" style={{ color: COLORS.stone }}>명</span></p>
+          </button>
+          <button onClick={() => setCurrentPage('online')}
+            className="rounded-2xl p-4 text-left transition-transform active:scale-95"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>진행 강의</p>
+            <p className="font-display text-3xl mt-1 leading-none tracking-tight" style={{ color: COLORS.ink }}>{stats.lectures}<span className="font-body text-base font-medium" style={{ color: COLORS.stone }}>개</span></p>
+          </button>
+        </div>
+      </section>
+
+      {/* ⚡ Quick Action 2x2 그리드 */}
       <section className="px-5">
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-3 px-1" style={{ color: COLORS.primary }}>━━ Quick Action</p>
         <div className="grid grid-cols-2 gap-3">
@@ -4697,11 +4777,12 @@ function AdminCases() {
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {filters.map(f => (
             <button key={f} onClick={() => setFilter(f)}
-              className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold"
+              className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold transition-transform active:scale-95"
               style={{
-                background: filter === f ? COLORS.ink : COLORS.card,
+                background: filter === f ? COLORS.primary : COLORS.card,
                 color: filter === f ? COLORS.white : COLORS.ink,
-                border: `1px solid ${filter === f ? COLORS.ink : COLORS.light}`
+                border: `1px solid ${filter === f ? COLORS.primary : COLORS.light}`,
+                boxShadow: filter === f ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
               }}>
               {f}
             </button>
