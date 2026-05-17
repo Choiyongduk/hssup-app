@@ -349,6 +349,7 @@ export default function HSSUPApp() {
 
   const studentTabs = [
   { id: 'home', label: '홈', icon: Home },
+  { id: 'MENU', label: '메뉴', icon: Menu, isMenu: true },
   { id: 'course', label: '강의', icon: BookOpen },
   { id: 'market', label: '재료샵', icon: ShoppingBag },
   { id: 'freeboard', label: '게시판', icon: Users },
@@ -356,6 +357,7 @@ export default function HSSUPApp() {
   ];
   const adminTabs = [
     { id: 'dashboard', label: '대시보드', icon: BarChart3 },
+    { id: 'MENU', label: '메뉴', icon: Menu, isMenu: true },
     { id: 'admin-students', label: '수강생', icon: UserCheck },
     { id: 'admin-qna', label: 'Q&A', icon: MessageCircle },
     { id: 'admin-notice', label: '공지', icon: Bell },
@@ -486,7 +488,7 @@ export default function HSSUPApp() {
                     user={profile} handleLogout={handleLogout} isAdmin={isAdmin} />
                 </div>
               </main>
-              <BottomTabBar tabs={tabs} currentPage={currentPage} setCurrentPage={setCurrentPage} />
+              <BottomTabBar tabs={tabs} currentPage={currentPage} setCurrentPage={setCurrentPage} setDrawerOpen={setDrawerOpen} />
               {drawerOpen && (
                 <Drawer fullMenu={fullMenu} user={profile} isAdmin={isAdmin}
                   currentPage={currentPage}
@@ -901,17 +903,24 @@ function AppHeader({ user, isAdmin, onMenuClick, onProfileClick, onLogoClick, sh
   );
 }
  
-function BottomTabBar({ tabs, currentPage, setCurrentPage }) {
+function BottomTabBar({ tabs, currentPage, setCurrentPage, setDrawerOpen }) {
   return (
-    <nav className="absolute bottom-0 left-0 right-0 shrink-0 grid grid-cols-5" style={{
+    <nav className="absolute bottom-0 left-0 right-0 shrink-0 grid grid-cols-6" style={{
       background: 'rgba(10, 10, 10, 0.85)', backdropFilter: 'blur(20px)',
       borderTop: `1px solid ${COLORS.light}`, paddingBottom: '20px'
     }}>
       {tabs.map(tab => {
         const Icon = tab.icon;
-        const isActive = currentPage === tab.id;
+        const isMenu = tab.isMenu;
+        const isActive = !isMenu && currentPage === tab.id;
         return (
-          <button key={tab.id} onClick={() => setCurrentPage(tab.id)} className="py-2.5 flex flex-col items-center gap-1 relative">
+          <button key={tab.id} onClick={() => {
+            if (isMenu) {
+              setDrawerOpen(true);
+            } else {
+              setCurrentPage(tab.id);
+            }
+          }} className="py-2.5 flex flex-col items-center gap-1 relative">
             {isActive && <span className="absolute top-0 w-8 h-0.5 rounded-full glow-dot" style={{ background: COLORS.primary }}></span>}
             <Icon size={19} strokeWidth={isActive ? 2.5 : 1.8} style={{ color: isActive ? COLORS.ink : COLORS.stone }} />
             <span className="font-body text-[10px]" style={{ color: isActive ? COLORS.ink : COLORS.stone, fontWeight: isActive ? 700 : 500 }}>{tab.label}</span>
