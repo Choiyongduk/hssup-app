@@ -449,6 +449,7 @@ export default function HSSUPApp() {
   const adminMenu = [
     { section: 'ADMIN', items: [
       { id: 'dashboard', label: '대시보드', icon: BarChart3 },
+      { id: 'admin-approvals', label: '가입 승인', icon: UserCheck },
       { id: 'admin-students', label: '수강생', icon: UserCheck },
       { id: 'admin-qna', label: 'Q&A 답변', icon: MessageCircle },
       { id: 'admin-notice', label: '공지 관리', icon: Bell },
@@ -526,7 +527,9 @@ export default function HSSUPApp() {
 <div className="app-container relative w-full overflow-hidden flex flex-col" style={{ background: COLORS.cream, height: '100dvh' }}>
  
           {loading ? <LoadingScreen /> :
-           !session || !profile ? <AuthScreen /> : (
+           !session || !profile ? <AuthScreen /> :
+           profile.status === 'pending' && profile.role !== 'admin' ? <PendingApprovalScreen user={profile} handleLogout={handleLogout} /> :
+           profile.status === 'rejected' && profile.role !== 'admin' ? <RejectedScreen user={profile} handleLogout={handleLogout} /> : (
             <>
               <AppHeader user={profile} isAdmin={isAdmin}
                 onMenuClick={() => setDrawerOpen(true)}
@@ -682,6 +685,85 @@ function UpdateBanner({ onUpdate, onDismiss }) {
           업데이트
         </button>
       </div>
+    </div>
+  );
+}
+
+// =============================================================
+// ⏳ PendingApprovalScreen - 승인 대기 화면
+// =============================================================
+function PendingApprovalScreen({ user, handleLogout }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center overflow-y-auto" style={{ background: COLORS.cream }}>
+      <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 pulse-glow"
+        style={{ background: 'rgba(255,92,31,0.15)', border: `2px solid ${COLORS.primary}` }}>
+        <Clock size={32} style={{ color: COLORS.primary }} />
+      </div>
+      
+      <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Pending Approval</p>
+      <h2 className="font-display text-3xl mt-3 tracking-tight" style={{ color: COLORS.ink }}>
+        승인 대기 중<span className="glow-text" style={{ color: COLORS.primary }}>.</span>
+      </h2>
+      <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>Almost there!</p>
+      
+      <div className="rounded-2xl p-5 mt-6 w-full max-w-sm" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink }}>
+          <strong>{user.name}</strong>님 안녕하세요! 🌸<br /><br />
+          가입 신청이 접수되었어요.<br />
+          원장님께서 확인 후 승인해드릴게요.<br /><br />
+          승인되면 모든 콘텐츠를 이용하실 수 있어요!
+        </p>
+      </div>
+
+      <div className="mt-6 p-3 rounded-xl max-w-sm" style={{ background: COLORS.peach }}>
+        <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.deep }}>
+          💡 보통 1~24시간 내에 승인됩니다.<br />
+          급한 경우 원장님께 직접 문의해주세요.
+        </p>
+      </div>
+
+      <button onClick={handleLogout} className="mt-8 font-heading text-sm px-6 py-3 rounded-full flex items-center gap-2" 
+        style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+        <LogOut size={14} />로그아웃
+      </button>
+    </div>
+  );
+}
+
+// =============================================================
+// ❌ RejectedScreen - 거절 화면
+// =============================================================
+function RejectedScreen({ user, handleLogout }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center overflow-y-auto" style={{ background: COLORS.cream }}>
+      <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
+        style={{ background: COLORS.card, border: `2px solid ${COLORS.stone}` }}>
+        <X size={32} style={{ color: COLORS.stone }} strokeWidth={2.5} />
+      </div>
+      
+      <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.stone }}>━━ Not Approved</p>
+      <h2 className="font-display text-2xl mt-3 tracking-tight" style={{ color: COLORS.ink }}>
+        가입이 거절되었습니다
+      </h2>
+      
+      <div className="rounded-2xl p-5 mt-6 w-full max-w-sm" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        {user.rejected_reason ? (
+          <>
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.stone }}>거절 사유</p>
+            <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink }}>{user.rejected_reason}</p>
+          </>
+        ) : (
+          <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.stone }}>
+            관리자가 가입을 승인하지 않았습니다.<br />
+            문의사항은 원장님께 직접 연락 주세요.
+          </p>
+        )}
+      </div>
+
+      <button onClick={handleLogout} className="mt-8 font-heading text-sm px-6 py-3 rounded-full flex items-center gap-2" 
+        style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+        <LogOut size={14} />로그아웃
+      </button>
     </div>
   );
 }
@@ -1080,6 +1162,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (isAdmin) {
     if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} />;
     if (currentPage === 'admin-notice') return <AdminNotice user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
+    if (currentPage === 'admin-approvals') return <AdminApprovals user={user} />;
     if (currentPage === 'admin-students') return <AdminStudents />;
     if (currentPage === 'admin-qna') return <AdminQna user={user} />;
     if (currentPage === 'admin-cases') return <AdminCases />;
@@ -3768,6 +3851,166 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
               <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.primary }}>
                 자세히 보기 <ChevronRight size={11} />
               </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// =============================================================
+// 🔐 AdminApprovals - 가입 승인 관리 페이지
+// =============================================================
+function AdminApprovals({ user }) {
+  const [allUsers, setAllUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('pending');
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    setAllUsers(data || []);
+    setLoading(false);
+  };
+
+  const approve = async (userId) => {
+    if (!confirm('이 회원을 승인하시겠습니까?')) return;
+    const { error } = await supabase.from('profiles').update({
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: user.id,
+      rejected_reason: null,
+    }).eq('id', userId);
+    if (error) {
+      alert('승인 실패: ' + error.message);
+    } else {
+      await load();
+    }
+  };
+
+  const reject = async (userId) => {
+    const reason = prompt('거절 사유를 입력하세요 (선택, 빈칸 가능):');
+    if (reason === null) return;
+    const { error } = await supabase.from('profiles').update({
+      status: 'rejected',
+      rejected_reason: reason || null,
+    }).eq('id', userId);
+    if (error) {
+      alert('거절 실패: ' + error.message);
+    } else {
+      await load();
+    }
+  };
+
+  const revoke = async (userId) => {
+    if (!confirm('이 회원의 승인을 취소하시겠습니까?\n승인 대기 상태로 돌아갑니다.')) return;
+    await supabase.from('profiles').update({ status: 'pending' }).eq('id', userId);
+    await load();
+  };
+
+  const filtered = allUsers.filter(u => u.status === filter);
+  const counts = {
+    pending: allUsers.filter(u => u.status === 'pending').length,
+    approved: allUsers.filter(u => u.status === 'approved').length,
+    rejected: allUsers.filter(u => u.status === 'rejected').length,
+  };
+
+  return (
+    <>
+      <PageIntro ko="가입 승인" en="Approvals" desc="신규 회원을 검토하세요" />
+      
+      <div className="px-5 space-y-3">
+        {/* 통계 + 필터 */}
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={() => setFilter('pending')} 
+            className={`rounded-2xl p-3 text-left transition-transform active:scale-95 ${filter === 'pending' ? 'glow-primary' : ''}`}
+            style={{ background: filter === 'pending' ? COLORS.primary : COLORS.card, border: filter === 'pending' ? 'none' : `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: filter === 'pending' ? COLORS.white : COLORS.stone }}>대기</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: filter === 'pending' ? COLORS.white : COLORS.ink }}>{counts.pending}</p>
+          </button>
+          <button onClick={() => setFilter('approved')}
+            className="rounded-2xl p-3 text-left transition-transform active:scale-95"
+            style={{ background: COLORS.card, border: `1px solid ${filter === 'approved' ? COLORS.primary : COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>승인</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{counts.approved}</p>
+          </button>
+          <button onClick={() => setFilter('rejected')}
+            className="rounded-2xl p-3 text-left transition-transform active:scale-95"
+            style={{ background: COLORS.card, border: `1px solid ${filter === 'rejected' ? COLORS.primary : COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>거절</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{counts.rejected}</p>
+          </button>
+        </div>
+
+        {/* 목록 */}
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <UserCheck size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {filter === 'pending' ? '대기 중인 가입 신청이 없습니다' : filter === 'approved' ? '승인된 회원이 없습니다' : '거절된 회원이 없습니다'}
+            </p>
+          </div>
+        ) : filtered.map(u => (
+          <div key={u.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-start gap-3">
+              <Avatar user={u} size="md" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{u.name}</p>
+                  {u.role === 'admin' && (
+                    <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>ADMIN</span>
+                  )}
+                </div>
+                <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{u.email}</p>
+                {u.phone && <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>📞 {u.phone}</p>}
+                <p className="font-serif-italic text-xs mt-1" style={{ color: COLORS.primary }}>{u.course}</p>
+                <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>가입: {new Date(u.created_at).toLocaleDateString('ko-KR')}</p>
+                {u.rejected_reason && (
+                  <div className="mt-2 p-2 rounded" style={{ background: COLORS.cream }}>
+                    <p className="font-mono text-[9px]" style={{ color: COLORS.stone }}>거절 사유</p>
+                    <p className="font-body text-xs mt-0.5" style={{ color: COLORS.ink }}>{u.rejected_reason}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 액션 버튼 */}
+            <div className="flex gap-2 mt-3">
+              {u.status === 'pending' && (
+                <>
+                  <button onClick={() => approve(u.id)}
+                    className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1"
+                    style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+                    <Check size={12} strokeWidth={3} />승인
+                  </button>
+                  <button onClick={() => reject(u.id)}
+                    className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1"
+                    style={{ background: COLORS.cream, color: COLORS.deep, border: `1px solid ${COLORS.light}` }}>
+                    <X size={12} strokeWidth={3} />거절
+                  </button>
+                </>
+              )}
+              {u.status === 'approved' && u.role !== 'admin' && (
+                <button onClick={() => revoke(u.id)}
+                  className="flex-1 font-heading text-xs py-2 rounded-full"
+                  style={{ background: COLORS.cream, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                  승인 취소
+                </button>
+              )}
+              {u.status === 'rejected' && (
+                <button onClick={() => approve(u.id)}
+                  className="flex-1 font-heading text-xs py-2 rounded-full flex items-center justify-center gap-1"
+                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  <Check size={12} strokeWidth={3} />다시 승인
+                </button>
+              )}
             </div>
           </div>
         ))}
