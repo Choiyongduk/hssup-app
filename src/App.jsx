@@ -366,7 +366,8 @@ export default function HSSUPApp() {
     setProfile(null); setSession(null); setDrawerOpen(false);
   };
  
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'staff';
+  const canViewRevenue = profile?.role === 'admin';
 
   // 🔝 탑 레벨 페이지 (뒤로가기 버튼 안 보임, 햄버거만)
   const TOP_LEVEL_PAGES = isAdmin
@@ -453,7 +454,7 @@ export default function HSSUPApp() {
     { section: 'ADMIN', items: [
       { id: 'dashboard', label: '대시보드', icon: BarChart3 },
       { id: 'admin-approvals', label: '가입 승인', icon: UserCheck },
-      { id: 'admin-orders', label: '결제 내역', icon: ShoppingBag },
+      ...(canViewRevenue ? [{ id: 'admin-orders', label: '결제 내역', icon: ShoppingBag }] : []),
       { id: 'admin-students', label: '수강생', icon: UserCheck },
       { id: 'admin-qna', label: 'Q&A 답변', icon: MessageCircle },
       { id: 'admin-notice', label: '공지 관리', icon: Bell },
@@ -552,7 +553,7 @@ export default function HSSUPApp() {
                     selectedCourse={selectedCourse} setSelectedCourse={setSelectedCourse}
                     selectedProduct={selectedProduct} setSelectedProduct={setSelectedProduct}
                     selectedStudent={selectedStudent} setSelectedStudent={setSelectedStudent}
-                    user={profile} handleLogout={handleLogout} isAdmin={isAdmin} />
+                    user={profile} handleLogout={handleLogout} isAdmin={isAdmin} canViewRevenue={canViewRevenue} />
                 </div>
               </main>
               <BottomTabBar tabs={tabs} currentPage={currentPage} setCurrentPage={setCurrentPage} setDrawerOpen={setDrawerOpen} />
@@ -675,7 +676,7 @@ function calculateLevel(stats) {
 // =============================================================
 // ⭐ LevelCard - 등급 카드 (활동 + 매출 통합)
 // =============================================================
-function LevelCard({ userId }) {
+function LevelCard({ userId, hideRevenue }) {
   const [stats, setStats] = useState({ cases: 0, posts: 0, comments: 0, likes: 0, orders: 0, totalSpent: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -747,7 +748,7 @@ function LevelCard({ userId }) {
             <p className="font-display text-2xl tracking-tight" style={{ color: level.color }}>{level.label}</p>
             <p className="font-mono text-[11px] mt-0.5" style={{ color: COLORS.stone }}>활동 점수 {level.current}점</p>
           </div>
-          {stats.orders > 0 && (
+          {!hideRevenue && stats.orders > 0 && (
             <div className="text-right">
               <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>VIP</p>
               <p className="font-display text-lg tracking-tight" style={{ color: COLORS.primary }}>{stats.orders}건</p>
@@ -795,8 +796,8 @@ function LevelCard({ userId }) {
           </div>
         </div>
 
-        {/* 결제 통계 (있을 때만) */}
-        {stats.orders > 0 && (
+        {/* 결제 통계 (admin만 표시) */}
+        {!hideRevenue && stats.orders > 0 && (
           <div className="grid grid-cols-2 gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
             <div className="text-center rounded-lg py-2" style={{ background: 'rgba(255, 92, 31, 0.08)' }}>
               <p className="font-display text-base" style={{ color: COLORS.primary }}>{stats.orders}</p>
@@ -1344,14 +1345,17 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, user, handleLogout, isAdmin }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, user, handleLogout, isAdmin, canViewRevenue }) {
   if (isAdmin) {
-    if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} />;
+    if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} canViewRevenue={canViewRevenue} />;
     if (currentPage === 'admin-notice') return <AdminNotice user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
     if (currentPage === 'admin-approvals') return <AdminApprovals user={user} />;
-    if (currentPage === 'admin-orders') return <AdminOrders user={user} />;
+    if (currentPage === 'admin-orders') {
+      if (!canViewRevenue) return <NoPermissionScreen setCurrentPage={setCurrentPage} />;
+      return <AdminOrders user={user} />;
+    }
     if (currentPage === 'admin-students') return <AdminStudents setCurrentPage={setCurrentPage} setSelectedStudent={setSelectedStudent} />;
-    if (currentPage === 'admin-student-detail') return <AdminStudentDetail student={selectedStudent} setCurrentPage={setCurrentPage} />;
+    if (currentPage === 'admin-student-detail') return <AdminStudentDetail student={selectedStudent} setCurrentPage={setCurrentPage} canViewRevenue={canViewRevenue} />;
     if (currentPage === 'admin-qna') return <AdminQna user={user} />;
     if (currentPage === 'admin-cases') return <AdminCases />;
     if (currentPage === 'admin-lectures') return <AdminLectures user={user} />;
@@ -3833,8 +3837,34 @@ function MyPage({ user, handleLogout }) {
     </>
   );
 }
- 
-function AdminDashboard({ setCurrentPage }) {
+
+// =============================================================
+// 🚫 NoPermissionScreen - 권한 없음 화면 (staff용)
+// =============================================================
+function NoPermissionScreen({ setCurrentPage }) {
+  return (
+    <div className="px-5 py-20 text-center">
+      <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"
+        style={{ background: COLORS.card, border: `2px solid ${COLORS.stone}` }}>
+        <Lock size={32} style={{ color: COLORS.stone }} strokeWidth={2.5} />
+      </div>
+      <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.stone }}>━━ Access Denied</p>
+      <h2 className="font-display text-2xl mt-3 tracking-tight" style={{ color: COLORS.ink }}>
+        접근 권한이 없어요
+      </h2>
+      <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+        이 페이지는 원장님만 볼 수 있어요.
+      </p>
+      <button onClick={() => setCurrentPage('dashboard')}
+        className="mt-6 font-heading text-sm px-6 py-3 rounded-full"
+        style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.4)' }}>
+        대시보드로 가기
+      </button>
+    </div>
+  );
+}
+
+function AdminDashboard({ setCurrentPage, canViewRevenue }) {
   const [stats, setStats] = useState({ 
     students: 0, 
     lectures: 0, 
@@ -3937,7 +3967,8 @@ function AdminDashboard({ setCurrentPage }) {
         <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>오늘의 운영 현황</p>
       </section>
 
-      {/* 💰 이번 달 매출 - 큰 강조 카드 */}
+      {/* 💰 이번 달 매출 - 큰 강조 카드 (admin만) */}
+      {canViewRevenue && (
       <section className="px-5 mb-3">
         <button onClick={() => setCurrentPage('admin-orders')} className="w-full rounded-3xl p-6 text-left relative overflow-hidden glow-primary" style={{ background: COLORS.primary }}>
           <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
@@ -3968,9 +3999,10 @@ function AdminDashboard({ setCurrentPage }) {
           </div>
         </button>
       </section>
+      )}
 
-      {/* 📊 매출 트렌드 - 최근 6개월 */}
-      {stats.monthlyTrend.length > 0 && (
+      {/* 📊 매출 트렌드 - 최근 6개월 (admin만) */}
+      {canViewRevenue && stats.monthlyTrend.length > 0 && (
         <section className="px-5 mb-3">
           <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ Revenue Trend (6M)</p>
           <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -4650,11 +4682,30 @@ function AdminApprovals({ user }) {
 // =============================================================
 // 👤 AdminStudentDetail - 수강생 상세 정보 페이지 (관리자용)
 // =============================================================
-function AdminStudentDetail({ student, setCurrentPage }) {
+function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) {
   const [cases, setCases] = useState([]);
   const [posts, setPosts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+
+  const toggleStaff = async () => {
+    const newRole = student.role === 'staff' ? 'student' : 'staff';
+    const msg = newRole === 'staff' 
+      ? `${student.name}님을 운영진으로 임명하시겠습니까?\n\n운영진은 매출을 제외한 모든 관리 기능을 사용할 수 있어요.`
+      : `${student.name}님의 운영진 권한을 해제하시겠습니까?\n\n다시 일반 수강생으로 돌아갑니다.`;
+    
+    if (!confirm(msg)) return;
+    setUpdating(true);
+    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', student.id);
+    if (error) {
+      alert('변경 실패: ' + error.message);
+    } else {
+      alert(newRole === 'staff' ? '✅ 운영진으로 임명되었습니다' : '✅ 운영진 권한이 해제되었습니다');
+      setCurrentPage('admin-students');
+    }
+    setUpdating(false);
+  };
 
   useEffect(() => {
     if (!student?.id) return;
@@ -4707,8 +4758,48 @@ function AdminStudentDetail({ student, setCurrentPage }) {
           </div>
         </div>
 
+        {/* 🛡️ 운영진 임명/해제 (admin만 가능) */}
+        {canViewRevenue && student.role !== 'admin' && (
+          <div className="rounded-2xl p-4" style={{ 
+            background: COLORS.card, 
+            border: `1px solid ${student.role === 'staff' ? COLORS.primary : COLORS.light}`,
+            boxShadow: student.role === 'staff' ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
+          }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Staff Role</p>
+                {student.role === 'staff' ? (
+                  <>
+                    <p className="font-heading text-sm mt-1 flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                      <Shield size={14} style={{ color: COLORS.primary }} strokeWidth={2.5} />
+                      현재 운영진이에요
+                    </p>
+                    <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>매출 외 모든 관리 기능 사용 가능</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>운영진으로 임명할까요?</p>
+                    <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>매출 외 모든 관리 기능 사용 가능</p>
+                  </>
+                )}
+              </div>
+              <button onClick={toggleStaff} disabled={updating}
+                className="font-heading text-xs px-4 py-2.5 rounded-full flex items-center gap-1.5 shrink-0 disabled:opacity-60"
+                style={{
+                  background: student.role === 'staff' ? COLORS.cream : COLORS.primary,
+                  color: student.role === 'staff' ? COLORS.deep : COLORS.white,
+                  border: student.role === 'staff' ? `1px solid ${COLORS.light}` : 'none',
+                  boxShadow: student.role === 'staff' ? 'none' : '0 0 16px rgba(255, 92, 31, 0.4)'
+                }}>
+                {updating ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} strokeWidth={2.5} />}
+                {student.role === 'staff' ? '해제' : '임명'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 등급 카드 (재사용) */}
-        <LevelCard userId={student.id} />
+        <LevelCard userId={student.id} hideRevenue={!canViewRevenue} />
 
         {/* 계정 정보 */}
         <section className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -4726,8 +4817,8 @@ function AdminStudentDetail({ student, setCurrentPage }) {
           ))}
         </section>
 
-        {/* 최근 결제 */}
-        {orders.length > 0 && (
+        {/* 최근 결제 (admin만) */}
+        {canViewRevenue && orders.length > 0 && (
           <section>
             <div className="flex items-baseline justify-between mb-2 px-1">
               <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Recent Orders</p>
@@ -4808,10 +4899,20 @@ function AdminStudentDetail({ student, setCurrentPage }) {
 }
 
 function AdminStudents({ setCurrentPage, setSelectedStudent }) {
-  const [students, setStudents] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    supabase.from('profiles').select('*').eq('role', 'student').order('created_at', { ascending: false })
-      .then(({ data }) => setStudents(data || []));
+    setLoading(true);
+    supabase.from('profiles').select('*')
+      .in('role', ['student', 'staff'])
+      .order('role', { ascending: false })  // staff 먼저
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setAllUsers(data || []);
+        setLoading(false);
+      });
   }, []);
 
   const openDetail = (s) => {
@@ -4819,24 +4920,83 @@ function AdminStudents({ setCurrentPage, setSelectedStudent }) {
     setCurrentPage('admin-student-detail');
   };
 
+  // 검색 필터
+  const filtered = allUsers.filter(u => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (u.name || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.phone || '').toLowerCase().includes(q) ||
+      (u.course || '').toLowerCase().includes(q)
+    );
+  });
+
+  const staffCount = allUsers.filter(u => u.role === 'staff').length;
+  const studentCount = allUsers.filter(u => u.role === 'student').length;
+
   return (
     <>
       <PageIntro ko="수강생 관리" en="Students" desc="수강생을 눌러서 상세 정보를 확인하세요" />
       <div className="px-5 space-y-3">
-        <div className="rounded-2xl p-3 text-center" style={{ background: COLORS.primary }}>
-          <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>전체 수강생</p>
-          <p className="font-display text-3xl mt-1 tracking-tight" style={{ color: COLORS.white }}>{students.length}명</p>
+        {/* 통계 */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl p-3 text-center" style={{ background: COLORS.primary }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>수강생</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>{studentCount}<span className="font-body text-base">명</span></p>
+          </div>
+          <div className="rounded-2xl p-3 text-center" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.primary}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>운영진</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{staffCount}<span className="font-body text-base">명</span></p>
+          </div>
         </div>
-        {students.length === 0 ? (
-          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>아직 등록된 수강생이 없습니다</p>
-        ) : students.map(s => (
+
+        {/* 🔍 검색바 */}
+        <div className="relative">
+          <Search size={16} style={{ color: COLORS.stone, position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="이름, 이메일, 연락처로 검색"
+            className="w-full rounded-full pl-10 pr-10 py-3 font-body text-sm outline-none"
+            style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
+              <X size={12} style={{ color: COLORS.stone }} />
+            </button>
+          )}
+        </div>
+
+        {searchQuery && (
+          <p className="font-mono text-[10px] px-1" style={{ color: COLORS.stone }}>
+            검색 결과: <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>{filtered.length}명</span>
+          </p>
+        )}
+
+        {/* 목록 */}
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>
+            {searchQuery ? '검색 결과가 없습니다' : '아직 등록된 수강생이 없습니다'}
+          </p>
+        ) : filtered.map(s => (
           <button key={s.id} onClick={() => openDetail(s)} 
             className="w-full text-left rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]" 
-            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            style={{ 
+              background: COLORS.card, 
+              border: `1px solid ${s.role === 'staff' ? COLORS.primary : COLORS.light}`,
+              boxShadow: s.role === 'staff' ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
+            }}>
             <Avatar user={s} size="md" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{s.name}</p>
+                {s.role === 'staff' && (
+                  <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded flex items-center gap-0.5" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>
+                    <Shield size={8} strokeWidth={3} />STAFF
+                  </span>
+                )}
                 {s.status === 'pending' && <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>대기</span>}
                 {s.status === 'rejected' && <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>거절</span>}
               </div>
