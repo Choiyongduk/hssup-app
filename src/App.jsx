@@ -207,6 +207,10 @@ export default function HSSUPApp() {
   const [selectedCourse, setSelectedCourse] = useState(null);
 
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // 자동 업데이트 상태
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [waitingWorker, setWaitingWorker] = useState(null);
     
   // PWA 설치 가능 여부 감지
   useEffect(() => {
@@ -280,6 +284,58 @@ export default function HSSUPApp() {
  
     return () => subscription.unsubscribe();
   }, []);
+
+  // 🔄 자동 업데이트 감지 시스템
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    let registration;
+    let intervalId;
+
+    navigator.serviceWorker.ready.then((reg) => {
+      registration = reg;
+      
+      // 1분마다 업데이트 확인
+      intervalId = setInterval(() => {
+        reg.update();
+      }, 60 * 1000);
+      
+      // 새 SW 발견 시 알림
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            setWaitingWorker(newWorker);
+            setUpdateAvailable(true);
+          }
+        });
+      });
+    });
+    
+    // 새 SW 활성화되면 자동 새로고침
+    let refreshing = false;
+    const onControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+    };
+  }, []);
+
+  // 업데이트 적용 함수
+  const applyUpdate = () => {
+    if (waitingWorker) {
+      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    }
+    setUpdateAvailable(false);
+  };
 
   // 토스 결제 응답 URL 처리 (성공/실패 자동 라우팅)
   useEffect(() => {
@@ -454,6 +510,8 @@ export default function HSSUPApp() {
         .pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         .animate-slide-up { animation: slideUp 0.3s ease-out; }
+        @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slide-down { animation: slideDown 0.4s ease-out; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .animate-spin { animation: spin 1s linear infinite; }
         @media (min-width: 481px) {
@@ -498,6 +556,11 @@ export default function HSSUPApp() {
             </>
           )}
       </div>
+
+      {/* 자동 업데이트 알림 */}
+      {updateAvailable && (
+        <UpdateBanner onUpdate={applyUpdate} onDismiss={() => setUpdateAvailable(false)} />
+      )}
 
       {/* PWA 설치 배너 */}
       {showInstallBanner && (
@@ -589,6 +652,37 @@ function SplashScreen({ onFinish }) {
       `}</style>
 
       </div>
+  );
+}
+
+// =============================================================
+// 🔄 UpdateBanner - 새 버전 알림 배너
+// =============================================================
+function UpdateBanner({ onUpdate, onDismiss }) {
+  return (
+    <div className="fixed top-4 left-4 right-4 z-[200] max-w-[450px] mx-auto rounded-2xl p-4 animate-slide-down"
+      style={{
+        background: COLORS.primary,
+        boxShadow: '0 0 40px rgba(255, 92, 31, 0.5), 0 8px 24px rgba(0,0,0,0.3)'
+      }}>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>
+          <Sparkles size={18} style={{ color: COLORS.white }} strokeWidth={2.5} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-heading text-sm" style={{ color: COLORS.white }}>새 버전이 있어요! ✨</p>
+          <p className="font-body text-[11px] mt-0.5" style={{ color: COLORS.white, opacity: 0.9 }}>업데이트하면 새 기능을 만날 수 있어요</p>
+        </div>
+        <button onClick={onDismiss} className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.15)' }}>
+          <X size={14} style={{ color: COLORS.white }} />
+        </button>
+        <button onClick={onUpdate}
+          className="px-4 py-2 rounded-full font-heading text-xs shrink-0"
+          style={{ background: COLORS.white, color: COLORS.primary, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+          업데이트
+        </button>
+      </div>
+    </div>
   );
 }
 
