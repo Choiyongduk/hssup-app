@@ -580,6 +580,15 @@ export default function HSSUPApp() {
         .animate-slide-down { animation: slideDown 0.4s ease-out; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .skeleton-shimmer {
+          background: linear-gradient(90deg, #1F1F1F 0%, #2A2A2A 50%, #1F1F1F 100%) !important;
+          background-size: 200% 100% !important;
+          animation: shimmer 1.5s ease-in-out infinite;
+        }
         @media (min-width: 481px) {
           .app-container {
             max-width: 480px;
@@ -648,6 +657,44 @@ export default function HSSUPApp() {
 
       {/* 스플래시 화면 (설치된 앱 첫 진입 시) */}
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+    </div>
+  );
+}
+
+// =============================================================
+// 🖼️ SkeletonImage - 로딩 중 스켈레톤 깜빡임 (Instagram 스타일)
+// =============================================================
+function SkeletonImage({ src, alt, className = '', style = {}, onError, ...rest }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setError(false);
+  }, [src]);
+
+  if (!src || error) {
+    return (
+      <div className={`flex items-center justify-center ${className}`} style={{ ...style, background: COLORS.cardElev }}>
+        <ImageIcon size={32} style={{ color: COLORS.stone, opacity: 0.4 }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative overflow-hidden ${className}`} style={{ ...style, background: COLORS.cardElev }}>
+      {!loaded && <div className="absolute inset-0 skeleton-shimmer"></div>}
+      <img
+        src={src}
+        alt={alt}
+        className="w-full h-full object-cover"
+        style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.3s ease' }}
+        onLoad={() => setLoaded(true)}
+        onError={() => { setError(true); if (onError) onError(); }}
+        loading="lazy"
+        decoding="async"
+        {...rest}
+      />
     </div>
   );
 }
@@ -1878,6 +1925,8 @@ function NoticePage({ user, setCurrentPage, setSelectedNotice }) {
  
 function CoursePage({ user, setCurrentPage, setSelectedCourse }) {
   const [courses, setCourses] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('order');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1885,20 +1934,82 @@ function CoursePage({ user, setCurrentPage, setSelectedCourse }) {
       .then(({ data }) => { setCourses(data || []); setLoading(false); });
   }, []);
 
+  // 🍊 검색 + 정렬
+  const filtered = courses
+    .filter(c => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const titleMatch = (c.title || '').toLowerCase().includes(q);
+        const enMatch = (c.en_title || '').toLowerCase().includes(q);
+        const levelMatch = (c.level || '').toLowerCase().includes(q);
+        if (!titleMatch && !enMatch && !levelMatch) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'price_low') return (a.price || 0) - (b.price || 0);
+      if (sortBy === 'price_high') return (b.price || 0) - (a.price || 0);
+      if (sortBy === 'newest') return new Date(b.created_at) - new Date(a.created_at);
+      // 기본: 추천순 (order_index)
+      return (a.order_index || 0) - (b.order_index || 0);
+    });
+
+  const isFiltering = searchQuery.trim().length > 0;
+
   return (
     <>
       <PageIntro ko="클래스" en="Class" desc="당신의 시그니처를 만들어보세요" />
+
+      {/* 🔍 검색바 */}
+      <div className="px-5 mb-3">
+        <div className="relative">
+          <Search size={16} style={{ color: COLORS.stone, position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="클래스명, 레벨 검색"
+            className="w-full rounded-full pl-10 pr-10 py-3 font-body text-sm outline-none"
+            style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
+              <X size={12} style={{ color: COLORS.stone }} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 📊 정렬 + 결과 카운트 */}
+      <div className="px-5 mb-4 flex items-center justify-between">
+        <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+          {isFiltering ? '검색 결과 ' : '총 '}
+          <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>{filtered.length}개</span>
+        </p>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          className="font-mono text-[11px] font-semibold rounded-full px-3 py-1.5 outline-none cursor-pointer"
+          style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+          <option value="order">추천순</option>
+          <option value="newest">최신순</option>
+          <option value="price_low">가격 낮은순</option>
+          <option value="price_high">가격 높은순</option>
+        </select>
+      </div>
+
       <div className="px-5 space-y-3">
         {loading ? (
           <div className="flex justify-center py-10">
             <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
           </div>
-        ) : courses.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="text-center py-10">
             <BookOpen size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
-            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>아직 등록된 클래스가 없습니다</p>
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {searchQuery ? `"${searchQuery}" 검색 결과가 없습니다` : '아직 등록된 클래스가 없습니다'}
+            </p>
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="mt-3 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+                검색 초기화
+              </button>
+            )}
           </div>
-        ) : courses.map(c => {
+        ) : filtered.map(c => {
           const features = c.features ? c.features.split('\n').filter(f => f.trim()) : [];
           const discount = c.original_price && c.show_price && c.original_price > c.price
             ? Math.round(((c.original_price - c.price) / c.original_price) * 100)
@@ -1912,7 +2023,7 @@ function CoursePage({ user, setCurrentPage, setSelectedCourse }) {
             }}>
               {c.image_url && (
                 <div className="aspect-video relative overflow-hidden">
-                  <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  <SkeletonImage src={c.image_url} alt={c.title} className="w-full h-full" />
                   <div className="absolute top-3 left-3 flex gap-1.5">
                     {c.badge && (
                       <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
@@ -2661,6 +2772,8 @@ function LibraryPage() {
 function MarketPage({ setCurrentPage, setSelectedProduct }) {
   const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState('전체');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
   const [loading, setLoading] = useState(true);
 
   const openDetail = (p) => {
@@ -2669,19 +2782,94 @@ function MarketPage({ setCurrentPage, setSelectedProduct }) {
   };
 
   useEffect(() => {
-    supabase.from('products').select('*').eq('is_active', true).order('created_at', { ascending: false })
-      .then(({ data }) => { setProducts(data || []); setLoading(false); });
+    const load = async () => {
+      setLoading(true);
+
+      // 1. 상품 가져오기
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (!productsData) {
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. 모든 상품의 좋아요 수 한 번에 가져오기 (인기순 정렬용)
+      const { data: likesData } = await supabase
+        .from('likes')
+        .select('target_id')
+        .eq('target_type', 'product');
+
+      // 3. product_id별 좋아요 수 카운트
+      const likeCounts = {};
+      (likesData || []).forEach(l => {
+        likeCounts[l.target_id] = (likeCounts[l.target_id] || 0) + 1;
+      });
+
+      // 4. 각 상품에 like_count 추가
+      const productsWithLikes = productsData.map(p => ({
+        ...p,
+        like_count: likeCounts[p.id] || 0
+      }));
+
+      setProducts(productsWithLikes);
+      setLoading(false);
+    };
+    load();
   }, []);
 
   const categories = ['전체', '색소', '니들/머신', '마취제', '도구', '기타'];
-  const filtered = filter === '전체' ? products : products.filter(p => p.category === filter);
+
+  // 🍊 필터 + 검색 + 정렬
+  const filtered = products
+    .filter(p => {
+      // 카테고리 필터
+      if (filter !== '전체' && p.category !== filter) return false;
+      // 검색어 필터
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const nameMatch = (p.name || '').toLowerCase().includes(q);
+        const brandMatch = (p.brand || '').toLowerCase().includes(q);
+        if (!nameMatch && !brandMatch) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'price_low') return (a.price || 0) - (b.price || 0);
+      if (sortBy === 'price_high') return (b.price || 0) - (a.price || 0);
+      if (sortBy === 'popular') return (b.like_count || 0) - (a.like_count || 0);
+      // 기본: 최신순
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+  const isFiltering = searchQuery.trim() || filter !== '전체';
 
   return (
     <>
       <PageIntro ko="재료샵" en="Market" desc="수강생 전용 가격으로 만나보세요" />
 
+      {/* 🔍 검색바 */}
+      <div className="px-5 mb-3">
+        <div className="relative">
+          <Search size={16} style={{ color: COLORS.stone, position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="상품명, 브랜드 검색"
+            className="w-full rounded-full pl-10 pr-10 py-3 font-body text-sm outline-none"
+            style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
+              <X size={12} style={{ color: COLORS.stone }} />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* 카테고리 탭 */}
-      <div className="px-5 mb-4">
+      <div className="px-5 mb-3">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {categories.map(cat => (
             <button key={cat} onClick={() => setFilter(cat)}
@@ -2697,6 +2885,22 @@ function MarketPage({ setCurrentPage, setSelectedProduct }) {
         </div>
       </div>
 
+      {/* 📊 정렬 + 결과 카운트 */}
+      <div className="px-5 mb-4 flex items-center justify-between">
+        <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+          {isFiltering ? '검색 결과 ' : '총 '}
+          <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>{filtered.length}개</span>
+        </p>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          className="font-mono text-[11px] font-semibold rounded-full px-3 py-1.5 outline-none cursor-pointer"
+          style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+          <option value="newest">최신순</option>
+          <option value="price_low">가격 낮은순</option>
+          <option value="price_high">가격 높은순</option>
+          <option value="popular">인기순</option>
+        </select>
+      </div>
+
       <div className="px-5">
         {loading ? (
           <div className="flex justify-center py-10">
@@ -2706,8 +2910,13 @@ function MarketPage({ setCurrentPage, setSelectedProduct }) {
           <div className="text-center py-10">
             <ShoppingBag size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
             <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
-              {filter === '전체' ? '아직 등록된 상품이 없습니다' : `${filter} 카테고리 상품이 없습니다`}
+              {searchQuery ? `"${searchQuery}" 검색 결과가 없습니다` : filter === '전체' ? '아직 등록된 상품이 없습니다' : `${filter} 카테고리 상품이 없습니다`}
             </p>
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="mt-3 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+                검색 초기화
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
@@ -2716,7 +2925,7 @@ function MarketPage({ setCurrentPage, setSelectedProduct }) {
                 {/* 이미지 영역 */}
                 <div className="relative aspect-square overflow-hidden" style={{ background: COLORS.cream }}>
                   {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                    <SkeletonImage src={p.image_url} alt={p.name} className="w-full h-full" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <span className="text-5xl" style={{ color: COLORS.primary }}>{p.emoji || '🛍️'}</span>
@@ -2755,6 +2964,12 @@ function MarketPage({ setCurrentPage, setSelectedProduct }) {
                   <p className="font-display text-base mt-0.5 tracking-tight" style={{ color: COLORS.ink }}>
                     {p.price?.toLocaleString()}<span className="font-body text-[10px] font-medium" style={{ color: COLORS.stone }}>원</span>
                   </p>
+                  {/* 🔥 인기순일 때만 좋아요 수 표시 */}
+                  {sortBy === 'popular' && p.like_count > 0 && (
+                    <p className="font-mono text-[9px] mt-1 flex items-center gap-1" style={{ color: COLORS.primary }}>
+                      <Heart size={9} fill={COLORS.primary} strokeWidth={2.5} />{p.like_count}
+                    </p>
+                  )}
                 </div>
               </button>
             ))}
@@ -2768,15 +2983,75 @@ function MarketPage({ setCurrentPage, setSelectedProduct }) {
 function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
   const [lectures, setLectures] = useState([]);
   const [filter, setFilter] = useState('전체');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from('lectures').select('*').eq('is_published', true).order('created_at', { ascending: false })
-      .then(({ data }) => { setLectures(data || []); setLoading(false); });
+    const load = async () => {
+      setLoading(true);
+
+      // 1. 강의 가져오기
+      const { data: lecturesData } = await supabase
+        .from('lectures')
+        .select('*')
+        .eq('is_published', true)
+        .order('created_at', { ascending: false });
+
+      if (!lecturesData) {
+        setLectures([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. 모든 강의의 좋아요 수 한 번에 가져오기 (인기순 정렬용)
+      const { data: likesData } = await supabase
+        .from('likes')
+        .select('target_id')
+        .eq('target_type', 'lecture');
+
+      // 3. lecture_id별 좋아요 수 카운트
+      const likeCounts = {};
+      (likesData || []).forEach(l => {
+        likeCounts[l.target_id] = (likeCounts[l.target_id] || 0) + 1;
+      });
+
+      // 4. 각 강의에 like_count 추가
+      const lecturesWithLikes = lecturesData.map(l => ({
+        ...l,
+        like_count: likeCounts[l.id] || 0
+      }));
+
+      setLectures(lecturesWithLikes);
+      setLoading(false);
+    };
+    load();
   }, []);
 
   const categories = ['전체', '기초', '심화', '테크닉'];
-  const filtered = filter === '전체' ? lectures : lectures.filter(l => l.category === filter);
+
+  // 🍊 카테고리 + 검색 + 정렬
+  const filtered = lectures
+    .filter(l => {
+      // 카테고리 필터
+      if (filter !== '전체' && l.category !== filter) return false;
+      // 검색어 필터
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const titleMatch = (l.title || '').toLowerCase().includes(q);
+        const instructorMatch = (l.instructor || '').toLowerCase().includes(q);
+        if (!titleMatch && !instructorMatch) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+      if (sortBy === 'popular') return (b.like_count || 0) - (a.like_count || 0);
+      // 기본: 최신순
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+  const isFiltering = searchQuery.trim() || filter !== '전체';
 
   const openDetail = (lecture) => {
     setSelectedLecture(lecture);
@@ -2787,8 +3062,24 @@ function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
     <>
       <PageIntro ko="온라인 강의" en="Lectures" desc="언제 어디서나 학습하세요" />
 
+      {/* 🔍 검색바 */}
+      <div className="px-5 mb-3">
+        <div className="relative">
+          <Search size={16} style={{ color: COLORS.stone, position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="강의명, 강사명 검색"
+            className="w-full rounded-full pl-10 pr-10 py-3 font-body text-sm outline-none"
+            style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
+              <X size={12} style={{ color: COLORS.stone }} />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* 카테고리 탭 */}
-      <div className="px-5 mb-4">
+      <div className="px-5 mb-3">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {categories.map(cat => (
             <button key={cat} onClick={() => setFilter(cat)}
@@ -2804,6 +3095,21 @@ function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
         </div>
       </div>
 
+      {/* 📊 정렬 + 결과 카운트 */}
+      <div className="px-5 mb-4 flex items-center justify-between">
+        <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+          {isFiltering ? '검색 결과 ' : '총 '}
+          <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>{filtered.length}개</span>
+        </p>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          className="font-mono text-[11px] font-semibold rounded-full px-3 py-1.5 outline-none cursor-pointer"
+          style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+          <option value="newest">최신순</option>
+          <option value="oldest">오래된순</option>
+          <option value="popular">인기순</option>
+        </select>
+      </div>
+
       {/* 강의 목록 */}
       <div className="px-5 space-y-3">
         {loading ? (
@@ -2814,8 +3120,13 @@ function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
           <div className="text-center py-10">
             <PlayCircle size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
             <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
-              {filter === '전체' ? '아직 등록된 강의가 없습니다' : `${filter} 카테고리 강의가 없습니다`}
+              {searchQuery ? `"${searchQuery}" 검색 결과가 없습니다` : filter === '전체' ? '아직 등록된 강의가 없습니다' : `${filter} 카테고리 강의가 없습니다`}
             </p>
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="mt-3 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+                검색 초기화
+              </button>
+            )}
           </div>
         ) : filtered.map(l => (
           <button key={l.id} onClick={() => openDetail(l)}
@@ -2823,7 +3134,7 @@ function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="relative aspect-video">
               {l.thumbnail_url ? (
-                <img src={l.thumbnail_url} alt={l.title} className="w-full h-full object-cover" />
+                <SkeletonImage src={l.thumbnail_url} alt={l.title} className="w-full h-full" />
               ) : (
                 <div className="w-full h-full" style={{ background: COLORS.cardElev }}></div>
               )}
@@ -2843,9 +3154,17 @@ function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
             </div>
             <div className="p-4">
               <h4 className="font-heading text-sm" style={{ color: COLORS.ink }}>{l.title}</h4>
-              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>
-                {l.instructor} · {l.level || 'Basic'}
-              </p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+                  {l.instructor} · {l.level || 'Basic'}
+                </p>
+                {/* 🔥 인기순일 때만 좋아요 수 표시 */}
+                {sortBy === 'popular' && l.like_count > 0 && (
+                  <p className="font-mono text-[10px] flex items-center gap-1" style={{ color: COLORS.primary }}>
+                    <Heart size={10} fill={COLORS.primary} strokeWidth={2.5} />{l.like_count}
+                  </p>
+                )}
+              </div>
             </div>
           </button>
         ))}
@@ -3103,7 +3422,7 @@ function ProductDetailPage({ product, user, setCurrentPage }) {
       {/* 큰 이미지 */}
       <div className="relative aspect-square w-full overflow-hidden" style={{ background: COLORS.cream }}>
         {product.image_url ? (
-          <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+          <SkeletonImage src={product.image_url} alt={product.name} className="w-full h-full" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-9xl" style={{ color: COLORS.primary }}>{product.emoji || '🛍️'}</span>
@@ -3306,7 +3625,7 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
         <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           {itemImage && (
             <div className="aspect-video">
-              <img src={itemImage} alt={itemName} className="w-full h-full object-cover" />
+              <SkeletonImage src={itemImage} alt={itemName} className="w-full h-full" />
             </div>
           )}
           <div className="p-4">
@@ -5074,7 +5393,7 @@ function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) {
               {cases.slice(0, 6).map(c => (
                 <div key={c.id} className="aspect-square rounded-xl overflow-hidden relative" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
                   {c.image_urls?.length > 0 ? (
-                    <img src={c.image_urls[0]} alt={c.title} className="w-full h-full object-cover" loading="lazy" />
+                    <SkeletonImage src={c.image_urls[0]} alt={c.title} className="w-full h-full" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <Camera size={20} style={{ color: COLORS.stone }} />
@@ -5298,7 +5617,7 @@ function AdminCases() {
             <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
               {c.image_urls?.length > 0 && (
                 <div className="relative aspect-[4/3] overflow-hidden">
-                  <img src={c.image_urls[0]} alt={c.title} className="w-full h-full object-cover" />
+                  <SkeletonImage src={c.image_urls[0]} alt={c.title} className="w-full h-full" />
                   <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>{c.category}</span>
                   {c.is_best && (
                     <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>★ BEST</span>
@@ -6386,7 +6705,7 @@ function AdminCourses({ user }) {
           <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: c.is_active ? 1 : 0.55 }}>
             {c.image_url && (
               <div className="aspect-video relative overflow-hidden">
-                <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                <SkeletonImage src={c.image_url} alt={c.title} className="w-full h-full" />
               </div>
             )}
             <div className="p-3">
