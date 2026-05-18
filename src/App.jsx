@@ -27,17 +27,76 @@ const getInitial = (name) => {
   return trimmed.charAt(0).toUpperCase();
 };
 
+// 🍊 이미지 압축 헬퍼 함수 (Canvas API 사용)
+const compressImage = (file, maxWidth = 1200, quality = 0.85) => {
+  return new Promise((resolve, reject) => {
+    // 이미지 아니거나 SVG/GIF는 압축 X (애니메이션 깨짐)
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.type === 'image/gif') {
+      resolve(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+
+        // 너비 기준 리사이즈 (비율 유지)
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('이미지 압축 실패'));
+              return;
+            }
+            const compressedFile = new File(
+              [blob],
+              file.name.replace(/\.[^/.]+$/, '.jpg'),
+              { type: 'image/jpeg', lastModified: Date.now() }
+            );
+            // 원본이 더 작으면 원본 사용 (불필요한 변환 방지)
+            console.log(`📸 이미지 압축: ${(file.size / 1024).toFixed(0)}KB → ${(compressedFile.size / 1024).toFixed(0)}KB`);
+            resolve(compressedFile.size > file.size ? file : compressedFile);
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => reject(new Error('이미지 로드 실패'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('파일 읽기 실패'));
+    reader.readAsDataURL(file);
+  });
+};
+
 // 이미지 업로드 헬퍼 함수
 const uploadCaseImage = async (file, userId) => {
+  // 🍊 압축 먼저
+  const compressed = await compressImage(file, 1200, 0.85);
+
   // 파일 이름 생성 (timestamp + random)
-  const fileExt = file.name.split('.').pop();
+  const fileExt = compressed.name.split('.').pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
   const filePath = `${userId}/${fileName}`;
 
   // Supabase Storage에 업로드
   const { error: uploadError } = await supabase.storage
     .from('case-images')
-    .upload(filePath, file);
+    .upload(filePath, compressed);
 
   if (uploadError) {
     console.error('Upload error:', uploadError);
@@ -544,7 +603,7 @@ export default function HSSUPApp() {
                 onProfileClick={() => setCurrentPage('mypage')}
                 showBackButton={isSubPage}
                 onBackClick={() => window.history.back()} />
-              <main className="flex-1 overflow-y-auto scrollbar-hide pb-20">
+              <main className="flex-1 overflow-y-auto scrollbar-hide pb-20" style={{ background: COLORS.cream }}>
                 <div className="animate-fade-in">
                   <PageRouter currentPage={currentPage} setCurrentPage={setCurrentPage} 
                     selectedNotice={selectedNotice} setSelectedNotice={setSelectedNotice}
@@ -5640,11 +5699,13 @@ function AdminProducts({ user }) {
   };
 
   const uploadProductImage = async (file) => {
-    const fileExt = file.name.split('.').pop();
+    // 🍊 압축 먼저
+    const compressed = await compressImage(file, 1200, 0.85);
+    const fileExt = compressed.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
     const { error: uploadError } = await supabase.storage
       .from('product-images')
-      .upload(fileName, file);
+      .upload(fileName, compressed);
     if (uploadError) throw uploadError;
     const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
     return data.publicUrl;
@@ -6027,9 +6088,11 @@ function AdminCourses({ user }) {
   };
 
   const uploadCourseImage = async (file) => {
-    const fileExt = file.name.split('.').pop();
+    // 🍊 압축 먼저
+    const compressed = await compressImage(file, 1600, 0.85);
+    const fileExt = compressed.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const { error } = await supabase.storage.from('course-images').upload(fileName, file);
+    const { error } = await supabase.storage.from('course-images').upload(fileName, compressed);
     if (error) throw error;
     const { data } = supabase.storage.from('course-images').getPublicUrl(fileName);
     return data.publicUrl;

@@ -19,7 +19,7 @@
     <!-- iOS (애플 홈 화면 추가용) -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="HSSUP" />
     
     <!-- 안드로이드 (테마 색상) -->
@@ -32,6 +32,22 @@
     <meta property="og:description" content="반영구 시술 전문 학원" />
     <meta property="og:image" content="/android-chrome-512x512.png" />
     <meta property="og:locale" content="ko_KR" />
+    
+    <!-- 다크 배경 강제 (흰 화면 깜빡임 방지) -->
+    <style>
+      html, body {
+        background: #0A0A0A !important;
+        margin: 0;
+        padding: 0;
+        overscroll-behavior: none;
+        color-scheme: dark;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        background: #0A0A0A;
+        min-height: 100dvh;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
