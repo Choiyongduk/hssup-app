@@ -604,7 +604,7 @@ export default function HSSUPApp() {
                 showBackButton={isSubPage}
                 onBackClick={() => window.history.back()} />
               <main className="flex-1 overflow-y-auto scrollbar-hide pb-20" style={{ background: COLORS.cream }}>
-                <div className="animate-fade-in">
+                <div className="animate-fade-in" style={{ background: COLORS.cream, minHeight: '100%' }}>
                   <PageRouter currentPage={currentPage} setCurrentPage={setCurrentPage} 
                     selectedNotice={selectedNotice} setSelectedNotice={setSelectedNotice}
                     selectedQna={selectedQna} setSelectedQna={setSelectedQna}

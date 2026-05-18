@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     
     <!-- 기본 정보 -->
     <title>HSSUP Beauty Academy</title>
@@ -36,16 +36,37 @@
     <!-- 다크 배경 강제 (흰 화면 깜빡임 방지) -->
     <style>
       html, body {
+        background-color: #0A0A0A !important;
         background: #0A0A0A !important;
         margin: 0;
         padding: 0;
         overscroll-behavior: none;
         color-scheme: dark;
         -webkit-tap-highlight-color: transparent;
+        min-height: 100%;
       }
       #root {
+        background-color: #0A0A0A;
         background: #0A0A0A;
         min-height: 100dvh;
+      }
+      
+      /* iOS Safari 스와이프 백 흰 화면 방지 */
+      @supports (-webkit-touch-callout: none) {
+        html, body, #root {
+          background-color: #0A0A0A !important;
+          -webkit-overflow-scrolling: touch;
+        }
+        body {
+          /* iOS 페이지 전환 시 깜빡임 감소 */
+          -webkit-transform: translateZ(0);
+          transform: translateZ(0);
+        }
+      }
+      
+      /* 사파리에서 빈 영역 보이는 것 방지 */
+      html {
+        background-color: #0A0A0A;
       }
     </style>
   </head>
