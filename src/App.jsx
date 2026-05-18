@@ -612,7 +612,7 @@ export default function HSSUPApp() {
                 onProfileClick={() => setCurrentPage('mypage')}
                 showBackButton={isSubPage}
                 onBackClick={() => window.history.back()} />
-              <main className="flex-1 overflow-y-auto scrollbar-hide pb-20" style={{ background: COLORS.cream }}>
+              <main className="flex-1 overflow-y-auto scrollbar-hide" style={{ background: COLORS.cream, paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)' }}>
                 <div className="animate-fade-in" style={{ background: COLORS.cream, minHeight: '100%' }}>
                   <PageRouter currentPage={currentPage} setCurrentPage={setCurrentPage} 
                     selectedNotice={selectedNotice} setSelectedNotice={setSelectedNotice}
@@ -1352,7 +1352,7 @@ function AuthScreen() {
  
 function AppHeader({ user, isAdmin, onMenuClick, onProfileClick, onLogoClick, showBackButton, onBackClick }) {
   return (
-    <header className="shrink-0 px-5 py-3.5 flex items-center justify-between" style={{ background: COLORS.cream, borderBottom: `1px solid ${COLORS.light}` }}>
+    <header className="shrink-0 px-5 flex items-center justify-between" style={{ background: COLORS.cream, borderBottom: `1px solid ${COLORS.light}`, paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)', paddingBottom: '14px' }}>
       {showBackButton ? (
         <button onClick={onBackClick} className="p-1 -ml-1 flex items-center" aria-label="뒤로가기">
           <ChevronLeft size={24} style={{ color: COLORS.ink }} strokeWidth={2.5} />
@@ -1377,7 +1377,7 @@ function BottomTabBar({ tabs, currentPage, setCurrentPage, setDrawerOpen }) {
   return (
     <nav className="absolute bottom-0 left-0 right-0 shrink-0 grid grid-cols-6" style={{
       background: 'rgba(10, 10, 10, 0.85)', backdropFilter: 'blur(20px)',
-      borderTop: `1px solid ${COLORS.light}`, paddingBottom: '20px'
+      borderTop: `1px solid ${COLORS.light}`, paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)'
     }}>
       {tabs.map(tab => {
         const Icon = tab.icon;
