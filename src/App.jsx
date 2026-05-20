@@ -196,6 +196,38 @@ const unsubscribeFromNotifications = async (userId) => {
   }
 };
 
+// 🍊 운영진 활동 → 원장님께 별도 알림
+const notifyAdminsOfStaffActivity = async (user, title, body) => {
+  if (user?.role !== 'staff') return;  // staff만 해당
+  try {
+    const { data: admins } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'admin');
+    if (!admins || admins.length === 0) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    for (const admin of admins) {
+      if (admin.id === user.id) continue;
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: `👮 [운영진] ${title}`,
+          body: `${user.name}: ${body}`,
+          url: '/',
+          targetUserId: admin.id,
+        }),
+      }).catch(e => console.error('관리자 알림 실패:', e));
+    }
+  } catch (e) {
+    console.error('관리자 알림 헬퍼 에러:', e);
+  }
+};
+
 // 현재 알림 상태 확인
 const checkNotificationStatus = async () => {
   if (!('Notification' in window)) return 'unsupported';
@@ -350,6 +382,22 @@ export default function HSSUPApp() {
  
     return () => subscription.unsubscribe();
   }, []);
+
+  // 🍊 프로필 실시간 구독 - 운영진 임명/온보딩 완료 등 자동 반영
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const channel = supabase
+      .channel(`profile-realtime-${session.user.id}`)
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${session.user.id}` },
+        (payload) => {
+          console.log('🔄 프로필 자동 업데이트:', payload.new);
+          setProfile(payload.new);
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [session?.user?.id]);
 
   // 🔄 자동 업데이트 감지 시스템
   useEffect(() => {
@@ -4590,6 +4638,7 @@ function MyPage({ user, handleLogout }) {
     try {
       const { error } = await supabase.from('profiles').update({
         status: 'deleted',
+        role: 'student',  // 🍊 운영진 권한 자동 해제
         name: '탈퇴한 회원',
         phone: null,
         deleted_at: new Date().toISOString(),
@@ -5159,6 +5208,9 @@ function AdminImprovements({ user }) {
         link_type: 'improvements',
         is_read: false
       });
+      // 🍊 운영진이면 원장님께 별도 알림
+      await notifyAdminsOfStaffActivity(user, `개선 제안 답변`, reply.substring(0, 60));
+
       setReply('');
       setSelectedId(null);
       loadItems();
@@ -5698,6 +5750,9 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
         author_id: user.id
       });
       if (insertError) throw insertError;
+
+      // 🍊 운영진이면 원장님께 별도 알림
+      await notifyAdminsOfStaffActivity(user, `공지 등록: ${form.title}`, form.content?.substring(0, 60) || '');
 
       if (form.sendPush && subscriberCount > 0) {
         const { data: { session } } = await supabase.auth.getSession();
@@ -6564,6 +6619,7 @@ function AdminStudents({ setCurrentPage, setSelectedStudent }) {
     setLoading(true);
     supabase.from('profiles').select('*')
       .in('role', ['student', 'staff'])
+      .neq('status', 'deleted')  // 🍊 탈퇴한 회원 제외
       .order('role', { ascending: false })  // staff 먼저
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -8223,9 +8279,32 @@ function AdminQna({ user }) {
       } catch (e) { console.error('알림 발송 실패:', e); }
     }
 
+    // 🍊 운영진이면 원장님께 별도 알림
+    await notifyAdminsOfStaffActivity(user, `Q&A 답변: ${selected.title}`, answer.substring(0, 60));
+
     setAnswer(''); setSelected(null);
     await load();
     setLoading(false);
+  };
+
+  const deleteAnswer = async () => {
+    if (!confirm('답변을 삭제하시겠습니까?\n질문은 "답변 대기" 상태로 돌아갑니다.')) return;
+    setLoading(true);
+    const { error } = await supabase.from('questions').update({
+      answer: null,
+      status: 'pending',
+      answered_by: null,
+      answered_at: null,
+    }).eq('id', selected.id);
+    setLoading(false);
+    if (error) {
+      alert('❌ 삭제 실패: ' + error.message);
+    } else {
+      alert('🗑️ 답변이 삭제되었습니다');
+      setAnswer('');
+      setSelected(null);
+      await load();
+    }
   };
  
   if (selected) {
@@ -8247,6 +8326,13 @@ function AdminQna({ user }) {
           <button onClick={submitAnswer} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.white }}>
             {loading && <Loader2 size={12} className="animate-spin" />}{selected?.answer ? '답변 수정하기' : '답변 등록하기'}
           </button>
+          
+          {/* 🍊 답변 삭제 (답변 있을 때만 표시) */}
+          {selected?.answer && (
+            <button onClick={deleteAnswer} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cream, color: COLORS.deep, border: `1px solid ${COLORS.light}` }}>
+              <Trash2 size={11} strokeWidth={2.5} />답변 삭제하기
+            </button>
+          )}
         </div>
       </div>
     );
