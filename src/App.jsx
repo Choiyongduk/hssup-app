@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import {
   Home, Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles,
-  ShoppingBag, PlayCircle, Users, Calendar, Video, FileCheck, Gift,
-  User, LogOut, Menu, X, Search, Heart, ChevronRight, Clock,
-  Check, Plus, Send, Eye, Lock, Mail, Edit3, Download, Play, Upload,
+  ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock,
+  Check, Plus, Send, Lock, Mail, Edit3, Download, Play, Upload,
   Palette, BarChart3, Trash2, ChevronLeft, ShoppingCart,
   Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, Image as ImageIcon,
-  Wifi, Battery, Signal, ArrowRight, ArrowUpRight, Loader2
+  ArrowRight, ArrowUpRight, Loader2,
+  User, LogOut, Menu, X, Search
 } from 'lucide-react';
 
 // 아바타 그라데이션 컬러 (반영구 시술 무드)
@@ -68,7 +68,6 @@ const compressImage = (file, maxWidth = 1200, quality = 0.85) => {
               { type: 'image/jpeg', lastModified: Date.now() }
             );
             // 원본이 더 작으면 원본 사용 (불필요한 변환 방지)
-            console.log(`📸 이미지 압축: ${(file.size / 1024).toFixed(0)}KB → ${(compressedFile.size / 1024).toFixed(0)}KB`);
             resolve(compressedFile.size > file.size ? file : compressedFile);
           },
           'image/jpeg',
@@ -355,7 +354,6 @@ export default function HSSUPApp() {
       installPrompt.prompt();
       const { outcome } = await installPrompt.userChoice;
       if (outcome === 'accepted') {
-        console.log('PWA 설치 성공!');
         setShowInstallBanner(false);
       }
       setInstallPrompt(null);
@@ -391,7 +389,6 @@ export default function HSSUPApp() {
       .on('postgres_changes', 
         { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${session.user.id}` },
         (payload) => {
-          console.log('🔄 프로필 자동 업데이트:', payload.new);
           setProfile(payload.new);
         }
       )
@@ -552,16 +549,15 @@ export default function HSSUPApp() {
   // 🍊 페이지 상태를 sessionStorage에 저장 (앱 재진입 시 복원용)
   useEffect(() => {
     if (!profile || !currentPage) return;
-    // detail 페이지는 selected가 없어서 복원 불가 → top-level만 저장
-    const TOP_LEVEL_PAGES = [
+    const SAVABLE_PAGES = [
       'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
       'best', 'mycase', 'library', 'market', 'community', 'freeboard',
-      'greetings', 'reviews', 'my-activity',
+      'greetings', 'reviews', 'improvements',
       'admin-approvals', 'admin-orders', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
-      'admin-library', 'admin-courses'
+      'admin-library', 'admin-courses', 'admin-improvements'
     ];
-    if (TOP_LEVEL_PAGES.includes(currentPage)) {
+    if (SAVABLE_PAGES.includes(currentPage)) {
       sessionStorage.setItem('hssup_last_page', currentPage);
     }
   }, [currentPage, profile]);
@@ -1631,7 +1627,7 @@ function AuthScreen() {
                     <div className="flex items-center justify-center rounded-full shrink-0"
                       style={{
                         width: '52px', height: '52px',
-                        background: AVATAR_COLORS[signupForm.avatar_color].gradient,
+                        background: (AVATAR_COLORS[signupForm.avatar_color] || AVATAR_COLORS.orange).gradient,
                         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                       }}>
                       <span className="font-display font-bold text-xl" style={{ color: '#FFF', textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
@@ -1856,7 +1852,6 @@ function PageIntro({ ko, en, desc }) {
     <div className="px-5 pt-5 pb-6">
       <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ {en}</p>
       <h1 className="font-display text-4xl mt-3 tracking-tighter" style={{ color: COLORS.ink }}>{ko}<span className="glow-text" style={{ color: COLORS.primary }}>.</span></h1>
-      {desc && <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>{desc}</p>}
     </div>
   );
 }
@@ -3823,85 +3818,6 @@ function LectureDetailPage({ lecture, user }) {
     </div>
   );
 }
- 
-function SimulatorPage() {
-  const [skinTone, setSkinTone] = useState('#F5DEB3');
-  const [pigment, setPigment] = useState('#FF5C1F');
-  const [area, setArea] = useState('eyebrow');
-  const mixColors = (c1, c2, ratio = 0.55) => {
-    const hex2rgb = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
-    const rgb2hex = ([r,g,b]) => '#' + [r,g,b].map(x => Math.round(x).toString(16).padStart(2,'0')).join('');
-    const a = hex2rgb(c1), b = hex2rgb(c2);
-    return rgb2hex([0,1,2].map(i => a[i] * (1-ratio) + b[i] * ratio));
-  };
-  const result = mixColors(skinTone, pigment, 0.45);
-  const faded2w = mixColors(skinTone, pigment, 0.32);
-  const faded1m = mixColors(skinTone, pigment, 0.22);
-  const skinTones = ['#FFE4D0', '#F5D4B5', '#E8C29D', '#D2A07A', '#A87454'];
-  const pigments = [
-    { name: '브라운', value: '#8B6F5C' }, { name: '딥브라운', value: '#5C463A' },
-    { name: '소프트', value: '#A08770' }, { name: '오렌지', value: '#FF5C1F' },
-    { name: '코랄', value: '#FF7556' }, { name: '누드', value: '#D4A593' },
-    { name: '블랙', value: '#2D2520' }, { name: '차콜', value: '#4A4036' },
-  ];
-  return (
-    <>
-      <PageIntro ko="색소 시뮬레이터" en="Simulator" desc="피부톤과 색소의 만남" />
-      <div className="px-5 space-y-3">
-        <section className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>01 / Area</p>
-          <h3 className="font-heading text-sm mt-1 mb-3" style={{ color: COLORS.ink }}>시술 부위</h3>
-          <div className="grid grid-cols-3 gap-2">
-            {[{ id: 'eyebrow', label: '눈썹' }, { id: 'lip', label: '입술' }, { id: 'eyeline', label: '아이라인' }].map(a => (
-              <button key={a.id} onClick={() => setArea(a.id)} className="py-3 rounded-xl font-body text-xs font-semibold"
-                style={{ background: area === a.id ? COLORS.ink : COLORS.cream, color: area === a.id ? COLORS.cream : COLORS.ink }}>{a.label}</button>
-            ))}
-          </div>
-        </section>
-        <section className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>02 / Skin</p>
-          <h3 className="font-heading text-sm mt-1 mb-3" style={{ color: COLORS.ink }}>피부톤</h3>
-          <div className="grid grid-cols-5 gap-1.5">
-            {skinTones.map(v => (
-              <button key={v} onClick={() => setSkinTone(v)} className="aspect-square rounded-xl"
-                style={{ background: v, border: skinTone === v ? `3px solid ${COLORS.ink}` : `1px solid ${COLORS.light}`, transform: skinTone === v ? 'scale(0.92)' : 'scale(1)' }}></button>
-            ))}
-          </div>
-        </section>
-        <section className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>03 / Pigment</p>
-          <h3 className="font-heading text-sm mt-1 mb-3" style={{ color: COLORS.ink }}>색소</h3>
-          <div className="grid grid-cols-4 gap-1.5">
-            {pigments.map(p => (
-              <button key={p.value} onClick={() => setPigment(p.value)} className="aspect-square rounded-xl flex items-end justify-center pb-1"
-                style={{ background: p.value, border: pigment === p.value ? `3px solid ${COLORS.ink}` : `1px solid ${COLORS.light}`, transform: pigment === p.value ? 'scale(0.92)' : 'scale(1)' }}>
-                <span className="font-body text-[8px] font-bold" style={{ color: COLORS.card, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>{p.name}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-        <section className="rounded-3xl p-5" style={{ background: COLORS.cardElev }}>
-          <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Result</p>
-          <h3 className="font-display text-2xl mt-1 mb-4 tracking-tight" style={{ color: COLORS.white }}>발색 예측</h3>
-          <div className="aspect-video flex items-center justify-center rounded-2xl mb-4 overflow-hidden" style={{ background: skinTone }}>
-            {area === 'eyebrow' && (<svg width="180" height="60" viewBox="0 0 240 80"><path d="M 20 50 Q 60 20, 120 30 T 220 45" stroke={result} strokeWidth="14" fill="none" strokeLinecap="round" opacity="0.85" /></svg>)}
-            {area === 'lip' && (<svg width="180" height="90" viewBox="0 0 240 120"><path d="M 30 60 Q 80 40, 120 50 Q 160 40, 210 60 Q 160 90, 120 80 Q 80 90, 30 60 Z" fill={result} opacity="0.85" /></svg>)}
-            {area === 'eyeline' && (<svg width="180" height="60" viewBox="0 0 240 80"><path d="M 30 45 Q 120 35, 210 45" stroke={result} strokeWidth="6" fill="none" strokeLinecap="round" opacity="0.9" /></svg>)}
-          </div>
-          <div className="space-y-2">
-            {[{ label: '시술 직후', color: result }, { label: '2주 후', color: faded2w }, { label: '1개월 후', color: faded1m }].map((p, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                <div className="w-10 h-10 shrink-0 rounded-lg" style={{ background: p.color }}></div>
-                <p className="font-body text-xs font-semibold flex-1" style={{ color: COLORS.white }}>{p.label}</p>
-                <p className="font-mono text-[10px] font-bold" style={{ color: COLORS.primary }}>{p.color}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-    </>
-  );
-}
 
 // =============================================================
 // 💬 PostDetailPage - 커뮤니티 글 상세보기 (댓글 + 좋아요)
@@ -4589,31 +4505,6 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
             </div>
           </div>
         ))}
-      </div>
-    </>
-  );
-}
- 
-function AttendancePage({ user }) {
-  return (
-    <>
-      <PageIntro ko="출석·진도" en="Attendance" desc="나의 학습 현황" />
-      <div className="px-5 space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: '출석', value: user.attendance_rate || 0, unit: '%', highlight: true },
-            { label: '진도', value: user.progress_rate || 0, unit: '%' },
-            { label: '상태', value: user.status === 'completed' ? '수료' : '진행', unit: '' },
-          ].map((s, i) => (
-            <div key={i} className="p-4 rounded-2xl" style={{
-              background: s.highlight ? COLORS.primary : COLORS.card,
-              border: s.highlight ? 'none' : `1px solid ${COLORS.light}`
-            }}>
-              <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: s.highlight ? COLORS.white : COLORS.stone, opacity: s.highlight ? 0.9 : 1 }}>{s.label}</p>
-              <p className="font-display text-3xl mt-1 leading-none tracking-tight" style={{ color: s.highlight ? COLORS.white : COLORS.ink }}>{s.value}<span className="font-body text-sm font-medium">{s.unit}</span></p>
-            </div>
-          ))}
-        </div>
       </div>
     </>
   );
@@ -5775,7 +5666,6 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
           }
         );
         const result = await response.json();
-        console.log('알림 전송 결과:', result);
         if (result.sent > 0) {
           alert(`✅ 공지 등록 완료!\n📢 ${result.sent}명에게 알림 전송됨`);
         } else {
@@ -7098,7 +6988,7 @@ function AdminLectures({ user }) {
           <div key={l.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: l.is_published ? 1 : 0.6 }}>
             <div className="relative aspect-video">
               {l.thumbnail_url ? (
-                <img src={l.thumbnail_url} alt={l.title} className="w-full h-full object-cover" />
+                <SkeletonImage src={l.thumbnail_url} alt={l.title} className="w-full h-full" />
               ) : (
                 <div className="w-full h-full" style={{ background: COLORS.cardElev }}></div>
               )}
@@ -8255,7 +8145,6 @@ function AdminQna({ user }) {
     
     const enriched = qData.map(q => ({ ...q, profiles: profileMap[q.user_id] || { name: '알 수 없음' } }));
     setQuestions(enriched);
-    console.log('Q&A 로드됨:', enriched.length, '건');
   };
  
   const submitAnswer = async () => {
