@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import {
   Home, Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles,
@@ -272,6 +272,11 @@ export default function HSSUPApp() {
   // 자동 업데이트 상태
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [waitingWorker, setWaitingWorker] = useState(null);
+
+  // 🍊 Pull-to-Refresh 상태
+  const mainRef = useRef(null);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
     
   // PWA 설치 가능 여부 감지
   useEffect(() => {
@@ -409,13 +414,65 @@ export default function HSSUPApp() {
       setCurrentPage('payment-fail');
     }
   }, [profile]);
+
+  // 🍊 Pull-to-Refresh 로직
+  useEffect(() => {
+    const container = mainRef.current;
+    if (!container) return;
+
+    let startY = 0;
+    let isPulling = false;
+    let currentDist = 0;
+
+    const onTouchStart = (e) => {
+      if (container.scrollTop === 0 && !refreshing) {
+        startY = e.touches[0].pageY;
+        isPulling = true;
+      }
+    };
+
+    const onTouchMove = (e) => {
+      if (!isPulling) return;
+      const currentY = e.touches[0].pageY;
+      const diff = currentY - startY;
+      if (diff > 0) {
+        currentDist = Math.min(diff * 0.5, 100);
+        setPullDistance(currentDist);
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (!isPulling) return;
+      isPulling = false;
+      if (currentDist > 60) {
+        setRefreshing(true);
+        setTimeout(() => window.location.reload(), 300);
+      } else {
+        setPullDistance(0);
+      }
+      currentDist = 0;
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: true });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [refreshing]);
  
   const loadProfile = async (userId) => {
     setLoading(true);
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data);
-      setCurrentPage(data.role === 'admin' ? 'dashboard' : 'home');
+      // 🍊 마지막 페이지 복원 (앱 재진입 시)
+      const lastPage = sessionStorage.getItem('hssup_last_page');
+      const defaultPage = data.role === 'admin' ? 'dashboard' : 'home';
+      setCurrentPage(lastPage || defaultPage);
     }
     setLoading(false);
   };
@@ -442,6 +499,23 @@ export default function HSSUPApp() {
   useEffect(() => {
     if (!profile) return; // 로그인 전에는 작동 안 함
     window.history.pushState({ page: currentPage }, '', '');
+  }, [currentPage, profile]);
+
+  // 🍊 페이지 상태를 sessionStorage에 저장 (앱 재진입 시 복원용)
+  useEffect(() => {
+    if (!profile || !currentPage) return;
+    // detail 페이지는 selected가 없어서 복원 불가 → top-level만 저장
+    const TOP_LEVEL_PAGES = [
+      'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
+      'best', 'mycase', 'library', 'market', 'community', 'freeboard',
+      'greetings', 'reviews', 'my-activity',
+      'admin-approvals', 'admin-orders', 'admin-students', 'admin-qna',
+      'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
+      'admin-library', 'admin-courses'
+    ];
+    if (TOP_LEVEL_PAGES.includes(currentPage)) {
+      sessionStorage.setItem('hssup_last_page', currentPage);
+    }
   }, [currentPage, profile]);
 
   // 사용자가 뒤로가기 누르면 → 이전 페이지로 이동
@@ -490,13 +564,14 @@ export default function HSSUPApp() {
       { id: 'online', label: '온라인 강의', icon: PlayCircle },
     ]},
     { section: 'PRACTICE', items: [
-      { id: 'mycase', label: '내 포트폴리오', icon: Camera },
+      { id: 'mycase', label: '개별피드백', icon: Camera },
       { id: 'best', label: '베스트 케이스', icon: Award },
       
     ]},
     { section: 'CONNECT', items: [
-      { id: 'notice', label: '공지', icon: Bell },
+      { id: 'notice', label: '학원공지', icon: Bell },
       { id: 'qna', label: 'Q&A', icon: MessageCircle },
+      { id: 'improvements', label: '개선 제안', icon: Edit3 },
       { id: 'greetings', label: '가입 인사', icon: Sparkles },
       { id: 'reviews', label: '수강후기', icon: Heart },
       { id: 'freeboard', label: '자유게시판', icon: Users },
@@ -516,7 +591,8 @@ export default function HSSUPApp() {
       ...(canViewRevenue ? [{ id: 'admin-orders', label: '결제 내역', icon: ShoppingBag }] : []),
       { id: 'admin-students', label: '수강생', icon: UserCheck },
       { id: 'admin-qna', label: 'Q&A 답변', icon: MessageCircle },
-      { id: 'admin-notice', label: '공지 관리', icon: Bell },
+      { id: 'admin-improvements', label: '개선 제안 답변', icon: Edit3 },
+      { id: 'admin-notice', label: '학원공지 관리', icon: Bell },
       { id: 'admin-cases', label: '케이스 관리', icon: Camera },
       { id: 'admin-lectures', label: '강의 관리', icon: PlayCircle },
       { id: 'admin-products', label: '재료샵 관리', icon: ShoppingBag },
@@ -527,15 +603,14 @@ export default function HSSUPApp() {
       { id: 'home', label: '홈', icon: Home },
       { id: 'course', label: '클래스', icon: BookOpen },
       { id: 'online', label: '온라인 강의', icon: PlayCircle },
-      { id: 'attendance', label: '출석·진도', icon: Calendar },
     ]},
     { section: 'PRACTICE', items: [
-      { id: 'mycase', label: '내 포트폴리오', icon: Camera },
+      { id: 'mycase', label: '개별피드백', icon: Camera },
       { id: 'best', label: '베스트 케이스', icon: Award },
       
     ]},
     { section: 'CONNECT', items: [
-      { id: 'notice', label: '공지', icon: Bell },
+      { id: 'notice', label: '학원공지', icon: Bell },
       { id: 'qna', label: 'Q&A', icon: MessageCircle },
       { id: 'greetings', label: '가입 인사', icon: Sparkles },
       { id: 'reviews', label: '수강후기', icon: Heart },
@@ -612,7 +687,30 @@ export default function HSSUPApp() {
                 onProfileClick={() => setCurrentPage('mypage')}
                 showBackButton={isSubPage}
                 onBackClick={() => window.history.back()} />
-              <main className="flex-1 overflow-y-auto scrollbar-hide" style={{ background: COLORS.cream, paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)' }}>
+              <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-hide relative" style={{ 
+                background: COLORS.cream, 
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)',
+                transform: pullDistance > 0 ? `translateY(${pullDistance}px)` : 'none',
+                transition: pullDistance === 0 && !refreshing ? 'transform 0.3s ease' : 'none'
+              }}>
+                {/* 🍊 Pull-to-Refresh 인디케이터 */}
+                {(pullDistance > 0 || refreshing) && (
+                  <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-50"
+                    style={{
+                      top: `${Math.max(10, pullDistance - 40)}px`,
+                      opacity: Math.min(1, pullDistance / 60),
+                    }}>
+                    <div className="rounded-full p-3" style={{ background: COLORS.cardElev, boxShadow: '0 4px 16px rgba(0,0,0,0.4), 0 0 16px rgba(255, 92, 31, 0.3)' }}>
+                      <Loader2 size={20} 
+                        className={refreshing ? 'animate-spin' : ''} 
+                        style={{ 
+                          color: COLORS.primary,
+                          transform: !refreshing ? `rotate(${pullDistance * 4}deg)` : 'none',
+                          transition: !refreshing ? 'transform 0.1s' : 'none'
+                        }} />
+                    </div>
+                  </div>
+                )}
                 <div className="animate-fade-in" style={{ background: COLORS.cream, minHeight: '100%' }}>
                   <PageRouter currentPage={currentPage} setCurrentPage={setCurrentPage} 
                     selectedNotice={selectedNotice} setSelectedNotice={setSelectedNotice}
@@ -1189,39 +1287,125 @@ function AuthScreen() {
   const [mode, setMode] = useState('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [info, setInfo] = useState('');
+  const [showFindPw, setShowFindPw] = useState(false);
+  const [findPwEmail, setFindPwEmail] = useState('');
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [signupForm, setSignupForm] = useState({
-    name: '', email: '', password: '', passwordConfirm: '',
-    phone: '', course: '눈썹 마스터 클래스', avatar_color: 'orange'
+    name: '', username: '', email: '', password: '', passwordConfirm: '',
+    phone: '', course: '눈썹 마스터 클래스', avatar_color: 'orange',
+    is_graduate: false
   });
- 
+
   const handleLogin = async () => {
-    setError(''); setLoading(true);
+    setError(''); setInfo('');
+    if (!loginForm.username.trim()) return setError('아이디를 입력해주세요');
+    if (!loginForm.password) return setError('비밀번호를 입력해주세요');
+    setLoading(true);
+    
+    let emailToUse = loginForm.username.trim();
+    
+    // 이메일 형식이 아니면 → 아이디로 가정 → 이메일 조회
+    if (!emailToUse.includes('@')) {
+      const { data: foundEmail, error: rpcError } = await supabase.rpc('lookup_email_by_username', { 
+        p_username: emailToUse 
+      });
+      if (rpcError || !foundEmail) {
+        setError('등록되지 않은 아이디입니다');
+        setLoading(false);
+        return;
+      }
+      emailToUse = foundEmail;
+    }
+    
     const { error } = await supabase.auth.signInWithPassword({
-      email: loginForm.email, password: loginForm.password
+      email: emailToUse, 
+      password: loginForm.password
     });
-    if (error) setError(error.message);
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        setError('아이디 또는 비밀번호가 올바르지 않습니다');
+      } else {
+        setError(error.message);
+      }
+    }
     setLoading(false);
   };
- 
+
   const handleSignup = async () => {
-    setError('');
-    if (!signupForm.name || !signupForm.email || !signupForm.password) return setError('필수 항목을 모두 입력해주세요');
+    setError(''); setInfo('');
+    if (!signupForm.name || !signupForm.username || !signupForm.email || !signupForm.password) {
+      return setError('필수 항목을 모두 입력해주세요');
+    }
+    if (!/^[a-z0-9_]{3,20}$/.test(signupForm.username.toLowerCase())) {
+      return setError('아이디는 영어 소문자, 숫자, _ 만 사용 (3~20자)');
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupForm.email)) {
+      return setError('올바른 이메일 형식이 아닙니다');
+    }
     if (signupForm.password !== signupForm.passwordConfirm) return setError('비밀번호가 일치하지 않습니다');
     if (signupForm.password.length < 6) return setError('비밀번호는 6자 이상이어야 합니다');
     setLoading(true);
+
+    // username 중복 체크
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', signupForm.username.toLowerCase())
+      .maybeSingle();
+    
+    if (existing) {
+      setError('이미 사용 중인 아이디입니다');
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.auth.signUp({
-      email: signupForm.email, password: signupForm.password,
-      options: { data: { name: signupForm.name, phone: signupForm.phone, course: signupForm.course, avatar_color: signupForm.avatar_color } }
+      email: signupForm.email.trim().toLowerCase(),
+      password: signupForm.password,
+      options: { 
+        data: { 
+          name: signupForm.name, 
+          username: signupForm.username.toLowerCase(),
+          phone: signupForm.phone, 
+          course: signupForm.course, 
+          avatar_color: signupForm.avatar_color,
+          is_graduate: signupForm.is_graduate
+        } 
+      }
     });
-    if (error) setError(error.message);
+    if (error) {
+      if (error.message.includes('already registered')) {
+        setError('이미 가입된 이메일입니다');
+      } else {
+        setError(error.message);
+      }
+    }
+    setLoading(false);
+  };
+
+  const handleFindPassword = async () => {
+    setError(''); setInfo('');
+    if (!findPwEmail.trim()) return setError('이메일을 입력해주세요');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(findPwEmail)) {
+      return setError('올바른 이메일 형식이 아닙니다');
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(findPwEmail.trim(), {
+      redirectTo: `${window.location.origin}?reset=true`
+    });
+    if (error) {
+      setError(error.message);
+    } else {
+      setInfo(`✉️ ${findPwEmail}로 비밀번호 재설정 메일을 보냈어요!\n메일을 확인해주세요.`);
+      setFindPwEmail('');
+    }
     setLoading(false);
   };
  
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="relative h-[45%] flex flex-col justify-end p-7 overflow-hidden" style={{ background: COLORS.cream }}>
-        {/* 오렌지 라디얼 글로우 (배경) */}
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
           <div className="w-[120%] h-[120%] rounded-full"
             style={{
@@ -1229,7 +1413,6 @@ function AuthScreen() {
               filter: 'blur(20px)'
             }}></div>
         </div>
-        {/* 동심원 데코 */}
         <div className="absolute top-12 right-0 opacity-30">
           <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
             <circle cx="100" cy="100" r="98" stroke={COLORS.primary} strokeWidth="0.5" />
@@ -1237,7 +1420,6 @@ function AuthScreen() {
             <circle cx="100" cy="100" r="42" stroke={COLORS.primary} strokeWidth="0.5" />
           </svg>
         </div>
-        {/* 미세한 가로선 (오렌지 라이트) */}
         <div className="absolute top-1/3 left-0 right-0 h-px opacity-40"
           style={{ background: `linear-gradient(90deg, transparent 0%, ${COLORS.primary} 50%, transparent 100%)` }}></div>
 
@@ -1248,131 +1430,239 @@ function AuthScreen() {
       </div>
  
       <div className="flex-1 px-7 py-6 overflow-y-auto scrollbar-hide">
-        <div className="flex gap-6 mb-6">
-          <button onClick={() => setMode('login')} className="font-heading text-base"
-            style={{ color: mode === 'login' ? COLORS.ink : COLORS.stone, opacity: mode === 'login' ? 1 : 0.4 }}>로그인</button>
-          <button onClick={() => setMode('signup')} className="font-heading text-base"
-            style={{ color: mode === 'signup' ? COLORS.ink : COLORS.stone, opacity: mode === 'signup' ? 1 : 0.4 }}>회원가입</button>
-        </div>
- 
-        {mode === 'login' ? (
+        {showFindPw ? (
           <div className="space-y-4">
-            <div>
-              <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>Email</label>
-              <input type="email" value={loginForm.email} onChange={e => setLoginForm({ ...loginForm, email: e.target.value })}
-                placeholder="your@email.com" className="w-full font-body text-base font-medium border-b py-2 mt-1 bg-transparent outline-none"
-                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            <div className="flex items-center gap-2">
+              <button onClick={() => { setShowFindPw(false); setError(''); setInfo(''); }}>
+                <ChevronLeft size={20} style={{ color: COLORS.ink }} />
+              </button>
+              <h2 className="font-heading text-base" style={{ color: COLORS.ink }}>비밀번호 찾기</h2>
             </div>
+            <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.stone }}>
+              가입 시 사용한 이메일을 입력하면<br/>비밀번호 재설정 링크를 보내드려요 🍊
+            </p>
             <div>
-              <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>Password</label>
-              <input type="password" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()} placeholder="••••••••"
+              <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>EMAIL</label>
+              <input type="email" value={findPwEmail} 
+                onChange={e => setFindPwEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleFindPassword()}
+                placeholder="가입 시 사용한 이메일"
                 className="w-full font-body text-base font-medium border-b py-2 mt-1 bg-transparent outline-none"
                 style={{ borderColor: COLORS.light, color: COLORS.ink }} />
             </div>
+            {info && <p className="font-body text-xs leading-relaxed whitespace-pre-line" style={{ color: COLORS.primary }}>{info}</p>}
             {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
-            <button onClick={handleLogin} disabled={loading} className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-              style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5), 0 0 8px rgba(255, 92, 31, 0.3)' }}>
-              <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Enter HSSUP</span>
-              <ArrowUpRight size={18} />
+            <button onClick={handleFindPassword} disabled={loading} 
+              className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
+              style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5)' }}>
+              <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}재설정 메일 보내기</span>
+              <Mail size={18} />
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
-            {[
-              { key: 'name', type: 'text', label: 'NAME', placeholder: '홍길동' },
-              { key: 'email', type: 'email', label: 'EMAIL', placeholder: 'your@email.com' },
-              { key: 'password', type: 'password', label: 'PASSWORD', placeholder: '6자 이상' },
-              { key: 'passwordConfirm', type: 'password', label: 'CONFIRM', placeholder: '비밀번호 재입력' },
-              { key: 'phone', type: 'tel', label: 'PHONE', placeholder: '010-0000-0000' },
-            ].map(f => (
-              <div key={f.key}>
-                <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>{f.label}</label>
-                <input type={f.type} value={signupForm[f.key]} onChange={e => setSignupForm({ ...signupForm, [f.key]: e.target.value })}
-                  placeholder={f.placeholder} className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none"
-                  style={{ borderColor: COLORS.light, color: COLORS.ink }} />
-              </div>
-            ))}
-            <div>
-              <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>CLASS</label>
-              <select value={signupForm.course} onChange={e => setSignupForm({ ...signupForm, course: e.target.value })}
-                className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }}>
-                <option>눈썹 베이직 클래스</option><option>눈썹 마스터 클래스</option><option>아이라인 클래스</option>
-                <option>입술 문신 클래스</option><option>속눈썹 펌·연장 클래스</option><option>올인원 마스터 클래스</option>
-              </select>
+          <>
+            <div className="flex gap-6 mb-6">
+              <button onClick={() => { setMode('login'); setError(''); setInfo(''); }} className="font-heading text-base"
+                style={{ color: mode === 'login' ? COLORS.ink : COLORS.stone, opacity: mode === 'login' ? 1 : 0.4 }}>로그인</button>
+              <button onClick={() => { setMode('signup'); setError(''); setInfo(''); }} className="font-heading text-base"
+                style={{ color: mode === 'signup' ? COLORS.ink : COLORS.stone, opacity: mode === 'signup' ? 1 : 0.4 }}>회원가입</button>
             </div>
+     
+            {mode === 'login' ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>아이디</label>
+                  <input type="text" value={loginForm.username} 
+                    onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
+                    placeholder="아이디 또는 이메일" 
+                    autoComplete="username"
+                    className="w-full font-body text-base font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>Password</label>
+                  <input type="password" value={loginForm.password} 
+                    onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                    onKeyDown={e => e.key === 'Enter' && handleLogin()} placeholder="••••••••"
+                    autoComplete="current-password"
+                    className="w-full font-body text-base font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                </div>
+                {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
+                <button onClick={handleLogin} disabled={loading} className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
+                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5), 0 0 8px rgba(255, 92, 31, 0.3)' }}>
+                  <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Enter HSSUP</span>
+                  <ArrowUpRight size={18} />
+                </button>
+                <button onClick={() => { setShowFindPw(true); setError(''); setInfo(''); }}
+                  className="w-full mt-2 font-mono text-[11px] text-center"
+                  style={{ color: COLORS.stone, textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+                  비밀번호를 잊으셨나요?
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>NAME *</label>
+                  <input type="text" value={signupForm.name} onChange={e => setSignupForm({ ...signupForm, name: e.target.value })}
+                    placeholder="홍길동" className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>아이디 *</label>
+                  <input type="text" value={signupForm.username} 
+                    onChange={e => setSignupForm({ ...signupForm, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+                    placeholder="영어 소문자/숫자 (3~20자)" 
+                    autoComplete="off"
+                    className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                  <p className="font-mono text-[9px] mt-1" style={{ color: COLORS.stone }}>로그인 시 사용</p>
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>이메일 *</label>
+                  <input type="email" value={signupForm.email} 
+                    onChange={e => setSignupForm({ ...signupForm, email: e.target.value })}
+                    placeholder="your@email.com" className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                  <p className="font-mono text-[9px] mt-1" style={{ color: COLORS.stone }}>비밀번호 찾기에 사용됩니다</p>
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>PASSWORD *</label>
+                  <input type="password" value={signupForm.password} 
+                    onChange={e => setSignupForm({ ...signupForm, password: e.target.value })}
+                    placeholder="6자 이상" className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>CONFIRM *</label>
+                  <input type="password" value={signupForm.passwordConfirm} 
+                    onChange={e => setSignupForm({ ...signupForm, passwordConfirm: e.target.value })}
+                    placeholder="비밀번호 재입력" className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>PHONE</label>
+                  <input type="tel" value={signupForm.phone} 
+                    onChange={e => setSignupForm({ ...signupForm, phone: e.target.value })}
+                    placeholder="010-0000-0000" className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>CLASS</label>
+                  <select value={signupForm.course} onChange={e => setSignupForm({ ...signupForm, course: e.target.value })}
+                    className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                    <option>눈썹 베이직 클래스</option><option>눈썹 마스터 클래스</option><option>아이라인 클래스</option>
+                    <option>입술 문신 클래스</option><option>속눈썹 펌·연장 클래스</option><option>올인원 마스터 클래스</option>
+                  </select>
+                </div>
 
-            <div className="pt-2">
-              <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>AVATAR COLOR</label>
-              <div className="mt-2 flex items-center gap-3">
-                <div className="flex items-center justify-center rounded-full shrink-0"
-                  style={{
-                    width: '52px', height: '52px',
-                    background: AVATAR_COLORS[signupForm.avatar_color].gradient,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                {/* 🎓 졸업생 체크박스 */}
+                <button type="button" onClick={() => setSignupForm({ ...signupForm, is_graduate: !signupForm.is_graduate })}
+                  className="w-full rounded-xl p-3 flex items-center gap-2 transition-all mt-2"
+                  style={{ 
+                    background: signupForm.is_graduate ? 'rgba(255,92,31,0.1)' : COLORS.card,
+                    border: `1px solid ${signupForm.is_graduate ? COLORS.primary : COLORS.light}` 
                   }}>
-                  <span className="font-display font-bold text-xl" style={{ color: '#FFF', textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
-                    {getInitial(signupForm.name) || '?'}
-                  </span>
-                </div>
-                <div className="flex-1 grid grid-cols-6 gap-1.5">
-                  {Object.entries(AVATAR_COLORS).map(([key, c]) => (
-                    <button key={key} type="button"
-                      onClick={() => setSignupForm({ ...signupForm, avatar_color: key })}
-                      className="aspect-square rounded-full"
-                      style={{
-                        background: c.gradient,
-                        border: signupForm.avatar_color === key ? `2px solid ${COLORS.ink}` : '2px solid transparent',
-                        boxShadow: signupForm.avatar_color === key ? '0 0 0 2px rgba(255,92,31,0.3)' : 'none',
-                        transform: signupForm.avatar_color === key ? 'scale(0.92)' : 'scale(1)',
-                        transition: 'all 0.15s ease',
-                      }}
-                      title={c.name}
-                    ></button>
-                  ))}
-                </div>
-              </div>
-              <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>
-                선택: <span style={{ color: COLORS.primary, fontWeight: 700 }}>{AVATAR_COLORS[signupForm.avatar_color].name}</span>
-              </p>
-            </div>
+                  <div className="w-5 h-5 rounded border-2 flex items-center justify-center"
+                    style={{ borderColor: signupForm.is_graduate ? COLORS.primary : COLORS.stone, background: signupForm.is_graduate ? COLORS.primary : 'transparent' }}>
+                    {signupForm.is_graduate && <Check size={12} style={{ color: COLORS.white }} />}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>
+                      🎓 HSSUP 졸업생입니다
+                    </p>
+                    <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
+                      온보딩 미션 면제
+                    </p>
+                  </div>
+                </button>
 
-            {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
-            <button onClick={handleSignup} disabled={loading} className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-              style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5), 0 0 8px rgba(255, 92, 31, 0.3)' }}>
-              <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Join HSSUP</span>
-              <ArrowUpRight size={18} />
-            </button>
-          </div>
+                <div className="pt-2">
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>AVATAR COLOR</label>
+                  <div className="mt-2 flex items-center gap-3">
+                    <div className="flex items-center justify-center rounded-full shrink-0"
+                      style={{
+                        width: '52px', height: '52px',
+                        background: AVATAR_COLORS[signupForm.avatar_color].gradient,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      }}>
+                      <span className="font-display font-bold text-xl" style={{ color: '#FFF', textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
+                        {getInitial(signupForm.name) || '?'}
+                      </span>
+                    </div>
+                    <div className="flex-1 grid grid-cols-6 gap-1.5">
+                      {Object.entries(AVATAR_COLORS).map(([key, c]) => (
+                        <button key={key} type="button"
+                          onClick={() => setSignupForm({ ...signupForm, avatar_color: key })}
+                          className="aspect-square rounded-full"
+                          style={{
+                            background: c.gradient,
+                            border: signupForm.avatar_color === key ? `2px solid ${COLORS.ink}` : '2px solid transparent',
+                            boxShadow: signupForm.avatar_color === key ? '0 0 0 2px rgba(255,92,31,0.3)' : 'none',
+                            transform: signupForm.avatar_color === key ? 'scale(0.92)' : 'scale(1)',
+                            transition: 'all 0.15s ease',
+                          }}
+                          title={c.name}
+                        ></button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
+                <button onClick={handleSignup} disabled={loading} className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
+                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5), 0 0 8px rgba(255, 92, 31, 0.3)' }}>
+                  <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Join HSSUP</span>
+                  <ArrowUpRight size={18} />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
  
-function AppHeader({ user, isAdmin, onMenuClick, onProfileClick, onLogoClick, showBackButton, onBackClick }) {
+function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, showBackButton, onBackClick }) {
   return (
-    <header className="shrink-0 px-5 flex items-center justify-between" style={{ background: COLORS.cream, borderBottom: `1px solid ${COLORS.light}`, paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)', paddingBottom: '14px' }}>
-      {showBackButton ? (
-        <button onClick={onBackClick} className="p-1 -ml-1 flex items-center" aria-label="뒤로가기">
-          <ChevronLeft size={24} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+    <header className="shrink-0 relative z-10" style={{
+      background: 'rgba(10, 10, 10, 0.85)',
+      backdropFilter: 'blur(20px)',
+      borderBottom: `1px solid ${COLORS.light}`,
+      paddingTop: 'env(safe-area-inset-top, 0px)',
+    }}>
+      <div className="flex items-center justify-between px-4 py-3">
+        {/* 왼쪽: 햄버거 또는 뒤로가기 */}
+        <button onClick={showBackButton ? onBackClick : onMenuClick}
+          className="w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-90"
+          style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          {showBackButton
+            ? <ChevronLeft size={18} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+            : <Menu size={18} style={{ color: COLORS.ink }} strokeWidth={2} />
+          }
         </button>
-      ) : (
-        <button onClick={onMenuClick} className="p-1" aria-label="메뉴">
-          <Menu size={20} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+
+        {/* 가운데: 로고 */}
+        <button onClick={onLogoClick} className="flex items-center transition-transform active:scale-95">
+          <img src="/logo-white.png" alt="HSSUP" style={{ height: '24px', filter: 'drop-shadow(0 0 8px rgba(255, 92, 31, 0.4))' }} />
+          {isAdmin && (
+            <span className="ml-2 font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" 
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>
+              ADMIN
+            </span>
+          )}
         </button>
-      )}
-      <button onClick={onLogoClick} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-        <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '20px', filter: 'drop-shadow(0 0 8px rgba(255, 92, 31, 0.5))' }} />
-      </button>
-      <button onClick={onProfileClick} className="relative">
-        <Avatar user={user} size="sm" />
-        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: COLORS.primary }}></span>
-      </button>
+
+        {/* 오른쪽: 프로필 아바타 */}
+        <button onClick={onProfileClick} className="transition-transform active:scale-90">
+          <Avatar user={user} size="sm" />
+        </button>
+      </div>
     </header>
   );
 }
- 
+
 function BottomTabBar({ tabs, currentPage, setCurrentPage, setDrawerOpen }) {
   return (
     <nav className="absolute bottom-0 left-0 right-0 shrink-0 grid grid-cols-6" style={{
@@ -1453,6 +1743,21 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
 }
  
 function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, user, handleLogout, isAdmin, canViewRevenue }) {
+  // 🍊 온보딩 체크 - 졸업생은 인사+후기, 신입생은 전부 필요
+  const needsOnboarding = !isAdmin && user && (
+    user.is_graduate 
+      ? (!user.onb_greeting || !user.onb_review)  // 🎓 졸업생: 인사+후기만
+      : (!user.onb_greeting || !user.onb_review || !user.onb_video)  // 🌱 신입생: 전부
+  );
+  const ONBOARDING_ALLOWED = ['onboarding', 'greetings', 'reviews', 'community', 'freeboard', 'lecture-detail', 'mypage'];
+  
+  if (needsOnboarding && !ONBOARDING_ALLOWED.includes(currentPage)) {
+    return <OnboardingScreen user={user} setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
+  }
+  if (currentPage === 'onboarding') {
+    return <OnboardingScreen user={user} setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
+  }
+
   if (isAdmin) {
     if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} canViewRevenue={canViewRevenue} />;
     if (currentPage === 'admin-notice') return <AdminNotice user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
@@ -1472,7 +1777,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
   }
   if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} />;
-  if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} />;
+  if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'post-detail') return <PostDetailPage post={selectedPost} user={user} />;
   if (currentPage === 'lecture-detail') return <LectureDetailPage lecture={selectedLecture} user={user} />;
   if (currentPage === 'payment') return <PaymentPage course={selectedCourse} product={selectedProduct} user={user} setCurrentPage={setCurrentPage} />;
@@ -1493,6 +1798,8 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'reviews') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="후기" pageTitle="수강후기" pageEn="Reviews" pageDesc="동료들의 수강 후기를 만나보세요" />;
   if (currentPage === 'freeboard') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="자유" pageTitle="자유게시판" pageEn="Free Board" pageDesc="자유롭게 이야기 나눠보세요" />;
   if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
+  if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
+  if (currentPage === 'admin-improvements') return <AdminImprovements user={user} />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} />;
 }
  
@@ -1898,7 +2205,7 @@ function NoticePage({ user, setCurrentPage, setSelectedNotice }) {
  
   return (
     <>
-      <PageIntro ko="공지사항" en="Notice" desc="최신 소식을 확인하세요" />
+      <PageIntro ko="학원공지" en="Notice" desc="HSSUP 학원의 최신 소식" />
       <div className="px-5 space-y-2">
         {notices.length === 0 ? (
           <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>등록된 공지가 없습니다</p>
@@ -2356,7 +2663,7 @@ function MyCasePage({ user }) {
 
   return (
     <>
-      <PageIntro ko="포트폴리오" en="My Portfolio" desc="나만의 시술 기록을 남기세요" />
+      <PageIntro ko="개별피드백" en="Personal Feedback" desc="원장님의 1:1 개별 피드백을 받아보세요 🔒" />
       <div className="px-5 space-y-3">
 
         {/* 새 케이스 추가 버튼 */}
@@ -2503,16 +2810,24 @@ function MyCasePage({ user }) {
 }
 
 // =============================================================
-// 💬 QnaDetailPage - Q&A 상세보기 (답변 + 댓글 + 좋아요)
+// 💬 QnaDetailPage - Q&A 상세보기 (수정/삭제 + 답변 + 댓글 + 좋아요)
 // =============================================================
-function QnaDetailPage({ qna, user }) {
+function QnaDetailPage({ qna, user, setCurrentPage }) {
   const [author, setAuthor] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ title: '', content: '', category: '시술' });
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     if (!qna?.user_id) return;
     supabase.from('profiles').select('name, avatar_color, role').eq('id', qna.user_id).maybeSingle()
       .then(({ data }) => setAuthor(data));
-  }, [qna?.user_id]);
+    setEditForm({ 
+      title: qna.title || '', 
+      content: qna.content || '', 
+      category: qna.category || '시술' 
+    });
+  }, [qna]);
 
   if (!qna) {
     return (
@@ -2522,6 +2837,130 @@ function QnaDetailPage({ qna, user }) {
     );
   }
 
+  const isOwner = qna.user_id === user?.id;
+  const isAdmin = user?.role === 'admin' || user?.role === 'staff';
+  const canEdit = isOwner;  // 수정은 본인만
+  const canDelete = isOwner || isAdmin;  // 삭제는 본인 또는 관리자
+
+  const handleUpdate = async () => {
+    if (!editForm.title.trim()) return alert('제목을 입력해주세요');
+    setActionLoading(true);
+    const { error } = await supabase.from('questions').update({
+      title: editForm.title.trim(),
+      content: editForm.content.trim(),
+      category: editForm.category,
+    }).eq('id', qna.id);
+    setActionLoading(false);
+    if (error) {
+      alert('❌ 수정 실패: ' + error.message);
+    } else {
+      alert('✏️ 수정 완료!');
+      setEditing(false);
+      setCurrentPage('qna');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('이 질문을 삭제하시겠습니까?\n답변과 댓글도 함께 삭제됩니다.')) return;
+    setActionLoading(true);
+    
+    try {
+      // 1. 댓글 삭제
+      const { error: commentsError } = await supabase.from('comments')
+        .delete()
+        .eq('target_type', 'qna')
+        .eq('target_id', qna.id);
+      if (commentsError) console.warn('댓글 삭제 경고:', commentsError);
+      
+      // 2. 좋아요 삭제
+      const { error: likesError } = await supabase.from('likes')
+        .delete()
+        .eq('target_type', 'qna')
+        .eq('target_id', qna.id);
+      if (likesError) console.warn('좋아요 삭제 경고:', likesError);
+      
+      // 3. 질문 삭제
+      const { error, count } = await supabase.from('questions')
+        .delete({ count: 'exact' })
+        .eq('id', qna.id);
+      
+      if (error) {
+        console.error('삭제 에러:', error);
+        alert('❌ 삭제 실패: ' + error.message);
+        setActionLoading(false);
+        return;
+      }
+      
+      if (count === 0) {
+        alert('⚠️ 삭제 권한이 없습니다.\n본인이 작성한 질문만 삭제할 수 있어요.');
+        setActionLoading(false);
+        return;
+      }
+      
+      alert('🗑️ 삭제되었습니다');
+      setCurrentPage('qna');
+    } catch (err) {
+      console.error('삭제 예외:', err);
+      alert('❌ 삭제 실패: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ✏️ 수정 모드 UI
+  if (editing) {
+    return (
+      <div className="pb-6">
+        <div className="px-5 pt-5 pb-4">
+          <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Edit Q&A</p>
+          <h1 className="font-display text-2xl mt-3 tracking-tight" style={{ color: COLORS.ink }}>질문 수정</h1>
+        </div>
+
+        <div className="px-5">
+          <div className="rounded-2xl p-5 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>카테고리</label>
+              <select value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})}
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                <option>시술</option><option>재료</option><option>수업</option><option>창업</option>
+              </select>
+            </div>
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>제목 *</label>
+              <input type="text" value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})}
+                placeholder="질문 제목"
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>내용</label>
+              <textarea value={editForm.content} onChange={e => setEditForm({...editForm, content: e.target.value})}
+                placeholder="질문 내용" rows={6}
+                className="w-full font-body text-xs font-medium p-2 mt-1 outline-none resize-none rounded"
+                style={{ background: COLORS.cream, color: COLORS.ink }} />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => setEditing(false)} disabled={actionLoading}
+                className="flex-1 font-heading text-sm py-3 rounded-full"
+                style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+                취소
+              </button>
+              <button onClick={handleUpdate} disabled={actionLoading}
+                className="flex-1 font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2"
+                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+                {actionLoading && <Loader2 size={14} className="animate-spin" />}
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 📖 일반 보기 모드
   return (
     <div className="pb-6">
       {/* 헤더 */}
@@ -2536,12 +2975,35 @@ function QnaDetailPage({ qna, user }) {
         </div>
         <h1 className="font-display text-2xl mt-3 tracking-tight leading-tight" style={{ color: COLORS.ink }}>{qna.title}</h1>
         {author && (
-          <div className="flex items-center gap-2 mt-3">
-            <Avatar user={author} size="sm" />
-            <div>
-              <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{author.name}</p>
-              <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(qna.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric' })}</p>
+          <div className="flex items-center justify-between mt-3">
+            <div className="flex items-center gap-2">
+              <Avatar user={author} size="sm" />
+              <div>
+                <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{author.name}</p>
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(qna.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric' })}</p>
+              </div>
             </div>
+
+            {/* 🍊 수정/삭제 버튼 (본인 또는 관리자) */}
+            {(canEdit || canDelete) && (
+              <div className="flex gap-1.5">
+                {canEdit && (
+                  <button onClick={() => setEditing(true)} disabled={actionLoading}
+                    className="font-heading text-[10px] px-3 py-1.5 rounded-full flex items-center gap-1"
+                    style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                    <Edit3 size={10} strokeWidth={2.5} />수정
+                  </button>
+                )}
+                {canDelete && (
+                  <button onClick={handleDelete} disabled={actionLoading}
+                    className="font-heading text-[10px] px-3 py-1.5 rounded-full flex items-center gap-1"
+                    style={{ background: COLORS.cream, color: COLORS.deep, border: `1px solid ${COLORS.light}` }}>
+                    {actionLoading ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} strokeWidth={2.5} />}
+                    삭제
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2590,6 +3052,7 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', category: '시술' });
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState('전체');
  
   useEffect(() => { load(); }, []);
  
@@ -2636,9 +3099,38 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
     setCurrentPage('qna-detail');
   };
  
+  const categories = ['전체', '시술', '재료', '수업', '창업'];
+  const filtered = filter === '전체' ? questions : questions.filter(q => q.category === filter);
+
   return (
     <>
       <PageIntro ko="Q&A" en="Questions" desc="궁금한 점을 물어보세요" />
+
+      {/* 🍊 카테고리 필터 - 재료샵 스타일 */}
+      <div className="px-5 mb-3">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilter(cat)}
+              className={`shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold transition-transform active:scale-95 ${filter === cat ? 'glow-soft' : ''}`}
+              style={{
+                background: filter === cat ? COLORS.primary : COLORS.card,
+                color: filter === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
+              }}>
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 📊 결과 카운트 */}
+      <div className="px-5 mb-4">
+        <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+          {filter === '전체' ? '총 ' : `${filter} 카테고리 `}
+          <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>{filtered.length}개</span>
+        </p>
+      </div>
+
       <div className="px-5 space-y-3">
         <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
           <Plus size={16} strokeWidth={2.5} />질문하기
@@ -2658,9 +3150,11 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
             </button>
           </div>
         )}
-        {questions.length === 0 ? (
-          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>등록된 질문이 없습니다</p>
-        ) : questions.map(q => (
+        {filtered.length === 0 ? (
+          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>
+            {filter === '전체' ? '등록된 질문이 없습니다' : `${filter} 카테고리에 질문이 없습니다`}
+          </p>
+        ) : filtered.map(q => (
           <button key={q.id} onClick={() => openDetail(q)} className="w-full text-left rounded-2xl p-4 transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center gap-1.5 mb-2">
               <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
@@ -3177,6 +3671,26 @@ function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
 // 🎬 LectureDetailPage - 영상 강의 상세 (YouTube 임베드)
 // =============================================================
 function LectureDetailPage({ lecture, user }) {
+  // 🍊 오리엔테이션 영상이면 자동 미션 체크
+  useEffect(() => {
+    if (lecture?.is_orientation && user && !user.onb_video) {
+      supabase.from('profiles').update({ onb_video: true }).eq('id', user.id).then(() => {
+        // 3초 후 자동 새로고침 (영상 시청 시간 확보)
+        setTimeout(() => {
+          if (!user.onb_greeting || !user.onb_review) {
+            // 다른 미션 남았으면 알림
+            alert('🎬 오리엔테이션 시청 완료!');
+            window.location.reload();
+          } else {
+            // 마지막 미션이면 축하
+            alert('🎉 모든 미션 완료! HSSUP 시작!');
+            window.location.reload();
+          }
+        }, 3000);
+      });
+    }
+  }, [lecture, user]);
+
   if (!lecture) {
     return (
       <div className="px-5 py-10 text-center">
@@ -3503,12 +4017,13 @@ function ProductDetailPage({ product, user, setCurrentPage }) {
       </div>
 
       {/* 하단 구매 버튼 (고정) */}
-      <div className="fixed bottom-20 left-0 right-0 px-5 py-3" style={{
+      <div className="fixed left-0 right-0 px-5 py-3" style={{
         background: 'rgba(10, 10, 10, 0.85)',
         backdropFilter: 'blur(20px)',
         borderTop: `1px solid ${COLORS.light}`,
         maxWidth: '480px',
-        margin: '0 auto'
+        margin: '0 auto',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)'
       }}>
         <button onClick={() => {
                 if (product.stock === 0) { alert('품절된 상품입니다.'); return; }
@@ -3535,8 +4050,8 @@ function ProductDetailPage({ product, user, setCurrentPage }) {
 function PaymentPage({ course, product, user, setCurrentPage }) {
   const [loading, setLoading] = useState(false);
 
-  // course 또는 product 중 하나가 와야 함
-  const isProduct = !!product;
+  // course 또는 product 중 하나가 와야 함 (course 우선)
+  const isProduct = !course && !!product;
   const item = course || product;
 
   if (!item) {
@@ -3909,6 +4424,23 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
       console.error('글 작성 에러:', error);
       alert('글 작성 실패: ' + error.message);
     } else {
+      // 🍊 온보딩 자동 미션 체크
+      let missionDone = false;
+      if (fixedCategory === '인사' && !user.onb_greeting) {
+        await supabase.from('profiles').update({ onb_greeting: true }).eq('id', user.id);
+        missionDone = true;
+      } else if (fixedCategory === '후기' && !user.onb_review) {
+        await supabase.from('profiles').update({ onb_review: true }).eq('id', user.id);
+        missionDone = true;
+      }
+      if (missionDone) {
+        alert('🎉 미션 완료! 온보딩으로 돌아갑니다.');
+        setNewPost('');
+        await load();
+        setLoading(false);
+        setTimeout(() => window.location.reload(), 500);
+        return;
+      }
       // 📢 알림 발송 (학생→관리자, 관리자→학생)
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -4143,8 +4675,8 @@ function MyPage({ user, handleLogout }) {
           </div>
         </section>
 
-        {/* ⭐ 등급 카드 */}
-        <LevelCard userId={user.id} />
+        {/* ⭐ 등급 카드 (admin 제외) */}
+        {!isAdmin && <LevelCard userId={user.id} />}
 
         {/* 컬러 선택 (펼침/접힘) */}
         {showColorPicker && (
@@ -4226,6 +4758,7 @@ function MyPage({ user, handleLogout }) {
           <p className="font-mono text-[10px] font-bold tracking-widest uppercase p-4 pb-2" style={{ color: COLORS.primary }}>━━ Account</p>
           {[
             { label: 'Name', value: user.name },
+            { label: 'Username', value: user.username || '미등록' },
             { label: 'Email', value: user.email },
             { label: 'Phone', value: user.phone || '미등록' },
             { label: 'Role', value: isAdmin ? 'Administrator' : 'Student' },
@@ -4249,6 +4782,544 @@ function MyPage({ user, handleLogout }) {
             회원 탈퇴
           </button>
         )}
+      </div>
+    </>
+  );
+}
+
+// =============================================================
+// 🎯 OnboardingScreen - 신규 학생 온보딩 미션
+// =============================================================
+function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
+  const [orientation, setOrientation] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from('lectures').select('*')
+      .eq('is_orientation', true)
+      .eq('is_published', true)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        setOrientation(data);
+        setLoading(false);
+      });
+  }, []);
+
+  const missions = [
+    {
+      id: 'greeting',
+      icon: Sparkles,
+      title: '가입 인사 작성',
+      desc: '학원 친구들에게 첫 인사를 남겨주세요',
+      done: user.onb_greeting,
+      action: () => setCurrentPage('greetings'),
+    },
+    {
+      id: 'review',
+      icon: Heart,
+      title: '첫 수업 후기 작성',
+      desc: '첫 수업의 인상을 후기로 남겨주세요',
+      done: user.onb_review,
+      action: () => setCurrentPage('reviews'),
+    },
+    // 🍊 신입생만 영상 미션 표시 (졸업생은 면제)
+    ...(user.is_graduate ? [] : [{
+      id: 'video',
+      icon: PlayCircle,
+      title: '오리엔테이션 영상 시청',
+      desc: 'HSSUP 아카데미를 소개해드릴게요',
+      done: user.onb_video,
+      action: () => {
+        if (orientation) {
+          setSelectedLecture(orientation);
+          setCurrentPage('lecture-detail');
+        } else {
+          alert('오리엔테이션 영상이 아직 준비되지 않았어요.\n원장님께 문의해주세요!');
+        }
+      },
+    }]),
+  ];
+
+  const completed = missions.filter(m => m.done).length;
+  const progress = (completed / missions.length) * 100;
+  const allDone = completed === missions.length;
+
+  return (
+    <div className="pb-6">
+      <div className="px-5 pt-6 pb-4">
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Welcome</p>
+        <h1 className="font-display text-[42px] leading-[1] mt-3 tracking-tighter" style={{ color: COLORS.ink }}>
+          환영합니다,<br />
+          <span className="glow-text" style={{ color: COLORS.primary }}>{user.name}</span>님
+        </h1>
+        <p className="font-serif-italic text-base mt-3" style={{ color: COLORS.stone }}>
+          {allDone ? '모든 미션을 완료했어요! 🎉' : 'HSSUP에 오신 걸 환영해요 🍊'}
+        </p>
+      </div>
+
+      <div className="px-5">
+        {/* 진행률 */}
+        <div className="rounded-2xl p-4 mb-4" style={{ background: COLORS.cardElev }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 미션 진행도</p>
+            <p className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>
+              {completed}<span className="font-body text-sm" style={{ color: COLORS.stone }}> / {missions.length}</span>
+            </p>
+          </div>
+          <div className="h-2 rounded-full overflow-hidden" style={{ background: COLORS.cream }}>
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{
+                width: `${progress}%`,
+                background: COLORS.primary,
+                boxShadow: '0 0 12px rgba(255, 92, 31, 0.5)'
+              }}></div>
+          </div>
+        </div>
+
+        {/* 미션 카드 */}
+        <div className="space-y-3">
+          {missions.map((m) => {
+            const Icon = m.icon;
+            return (
+              <button key={m.id} onClick={m.action}
+                disabled={m.done}
+                className="w-full rounded-2xl p-4 text-left flex items-center gap-3 transition-transform active:scale-[0.98] disabled:active:scale-100"
+                style={{
+                  background: m.done ? 'rgba(255,92,31,0.08)' : COLORS.card,
+                  border: `1px solid ${m.done ? COLORS.primary : COLORS.light}`,
+                  opacity: m.done ? 0.7 : 1
+                }}>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                  style={{
+                    background: m.done ? COLORS.primary : 'rgba(255,92,31,0.1)',
+                    border: m.done ? 'none' : `1px solid rgba(255,92,31,0.25)`
+                  }}>
+                  {m.done 
+                    ? <Check size={20} style={{ color: COLORS.white }} strokeWidth={3} /> 
+                    : <Icon size={20} style={{ color: COLORS.primary }} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{m.title}</p>
+                  <p className="font-body text-xs mt-0.5" style={{ color: m.done ? COLORS.primary : COLORS.stone }}>
+                    {m.done ? '✓ 완료!' : m.desc}
+                  </p>
+                </div>
+                {!m.done && <ChevronRight size={16} style={{ color: COLORS.stone }} />}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 안내 */}
+        {!allDone && (
+          <div className="mt-4 p-3 rounded-xl" style={{ background: COLORS.peach }}>
+            <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.deep }}>
+              💡 3가지 미션을 모두 완료하면<br/>모든 기능을 자유롭게 이용할 수 있어요!
+            </p>
+          </div>
+        )}
+
+        {/* 완료 시 안내 */}
+        {allDone && (
+          <button onClick={() => window.location.reload()}
+            className="w-full mt-4 rounded-2xl py-4 font-display text-base font-bold transition-transform active:scale-95"
+            style={{ 
+              background: COLORS.primary, 
+              color: COLORS.white,
+              boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)'
+            }}>
+            🎉 HSSUP 시작하기!
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// 💡 ImprovementsPage - 개선 제안 (학생용)
+// =============================================================
+function ImprovementsPage({ user }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [content, setContent] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    loadItems();
+  }, []);
+
+  const loadItems = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('improvements')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    setItems(data || []);
+    setLoading(false);
+  };
+
+  const handleSubmit = async () => {
+    if (!content.trim()) return alert('내용을 입력해주세요');
+    setSubmitting(true);
+    const { error } = await supabase.from('improvements').insert({
+      user_id: user.id,
+      content: content.trim(),
+      is_anonymous: isAnonymous,
+      status: 'pending'
+    });
+    setSubmitting(false);
+    if (error) {
+      alert('등록 실패: ' + error.message);
+    } else {
+      setContent('');
+      setIsAnonymous(false);
+      setShowForm(false);
+      loadItems();
+      alert('소중한 의견 감사합니다! 원장님께 전달되었어요 🍊');
+    }
+  };
+
+  return (
+    <>
+      <PageIntro ko="개선 제안" en="Improvements" desc="아카데미에게 바라는 점을 자유롭게 남겨주세요 🔒 원장님께만 보입니다" />
+
+      <div className="px-5">
+        {!showForm && (
+          <button onClick={() => setShowForm(true)}
+            className="w-full rounded-2xl py-4 font-display text-base font-bold mb-4 transition-transform active:scale-95 flex items-center justify-center gap-2"
+            style={{ background: COLORS.primary, color: COLORS.white }}>
+            <Plus size={18} /> 새 제안하기
+          </button>
+        )}
+
+        {showForm && (
+          <div className="rounded-2xl p-5 mb-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}>
+            <textarea value={content} onChange={(e) => setContent(e.target.value)}
+              placeholder="아카데미의 개선점이나 바라는 점을 자유롭게 적어주세요..."
+              className="w-full rounded-xl p-3 font-body text-sm focus:outline-none"
+              rows={6}
+              style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+
+            <button onClick={() => setIsAnonymous(!isAnonymous)}
+              className="w-full mt-3 rounded-xl p-3 flex items-center gap-2 transition-all"
+              style={{ 
+                background: isAnonymous ? 'rgba(255,92,31,0.1)' : COLORS.cardElev,
+                border: `1px solid ${isAnonymous ? COLORS.primary : COLORS.light}` 
+              }}>
+              <div className="w-5 h-5 rounded border-2 flex items-center justify-center"
+                style={{ borderColor: isAnonymous ? COLORS.primary : COLORS.stone, background: isAnonymous ? COLORS.primary : 'transparent' }}>
+                {isAnonymous && <Check size={12} style={{ color: COLORS.white }} />}
+              </div>
+              <span className="font-body text-sm" style={{ color: COLORS.ink }}>
+                {isAnonymous ? '🔒 익명으로 제출 (이름 숨김)' : '👤 익명으로 제출하지 않음'}
+              </span>
+            </button>
+
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { setShowForm(false); setContent(''); setIsAnonymous(false); }}
+                className="flex-1 rounded-xl py-3 font-display text-sm font-bold transition-transform active:scale-95"
+                style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+                취소
+              </button>
+              <button onClick={handleSubmit} disabled={submitting}
+                className="flex-1 rounded-xl py-3 font-display text-sm font-bold transition-transform active:scale-95"
+                style={{ background: COLORS.primary, color: COLORS.white }}>
+                {submitting ? '제출 중...' : '제출하기'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="text-center py-10">
+            <Heart size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              아직 등록한 제안이 없어요
+            </p>
+            <p className="font-body text-xs mt-2" style={{ color: COLORS.muted }}>
+              자유롭게 의견을 남겨주세요 🍊
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {items.map(item => (
+              <div key={item.id} className="rounded-2xl p-4"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded"
+                    style={{ 
+                      background: item.status === 'replied' ? COLORS.peach : COLORS.cardElev, 
+                      color: item.status === 'replied' ? COLORS.primary : COLORS.stone 
+                    }}>
+                    {item.status === 'replied' ? '✓ 답변 완료' : '⏳ 답변 대기'}
+                  </span>
+                  <span className="font-mono text-[9px] px-2 py-1 rounded"
+                    style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+                    {item.is_anonymous ? '🔒 익명' : '👤 실명'}
+                  </span>
+                  <p className="font-mono text-[10px] ml-auto" style={{ color: COLORS.stone }}>
+                    {new Date(item.created_at).toLocaleDateString('ko-KR')}
+                  </p>
+                </div>
+                <p className="font-body text-sm leading-relaxed mb-3" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
+                  {item.content}
+                </p>
+
+                {item.status === 'replied' && item.admin_reply && (
+                  <div className="mt-3 rounded-lg p-3" style={{ background: COLORS.cardElev, borderLeft: `3px solid ${COLORS.primary}` }}>
+                    <p className="font-mono text-[9px] font-bold tracking-widest uppercase mb-1" style={{ color: COLORS.primary }}>
+                      ━━ 원장님 답변
+                    </p>
+                    <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
+                      {item.admin_reply}
+                    </p>
+                    {item.admin_replied_at && (
+                      <p className="font-mono text-[9px] mt-2" style={{ color: COLORS.stone }}>
+                        {new Date(item.admin_replied_at).toLocaleDateString('ko-KR')}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// =============================================================
+// 💡 AdminImprovements - 개선 제안 관리 (관리자용)
+// =============================================================
+function AdminImprovements({ user }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [profiles, setProfiles] = useState({});
+  const [selectedId, setSelectedId] = useState(null);
+  const [reply, setReply] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    loadItems();
+  }, []);
+
+  const loadItems = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('improvements')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (data && data.length > 0) {
+      const userIds = [...new Set(data.map(d => d.user_id))];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, name, email, avatar_color')
+        .in('id', userIds);
+
+      const profileMap = {};
+      (profilesData || []).forEach(p => { profileMap[p.id] = p; });
+      setProfiles(profileMap);
+    }
+
+    setItems(data || []);
+    setLoading(false);
+  };
+
+  const handleReply = async (item) => {
+    if (!reply.trim()) return alert('답변을 입력해주세요');
+    setSubmitting(true);
+    const { error } = await supabase.from('improvements').update({
+      admin_reply: reply.trim(),
+      admin_replied_at: new Date().toISOString(),
+      admin_replied_by: user.id,
+      status: 'replied'
+    }).eq('id', item.id);
+    setSubmitting(false);
+    if (error) {
+      alert('답변 실패: ' + error.message);
+    } else {
+      // 학생에게 알림 보내기
+      await supabase.from('notifications').insert({
+        user_id: item.user_id,
+        type: 'improvement_reply',
+        title: '개선 제안에 답변이 등록되었어요',
+        message: reply.substring(0, 50) + (reply.length > 50 ? '...' : ''),
+        link_type: 'improvements',
+        is_read: false
+      });
+      setReply('');
+      setSelectedId(null);
+      loadItems();
+    }
+  };
+
+  const toggleAnonymous = async (item) => {
+    if (!window.confirm(item.is_anonymous ? '실명으로 공개 변경할까요?' : '익명으로 변경할까요?')) return;
+    const { error } = await supabase.from('improvements').update({
+      is_anonymous: !item.is_anonymous
+    }).eq('id', item.id);
+    if (error) {
+      alert('변경 실패: ' + error.message);
+    } else {
+      loadItems();
+    }
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm('정말 삭제할까요? (복구 불가)')) return;
+    const { error } = await supabase.from('improvements').delete().eq('id', item.id);
+    if (error) {
+      alert('삭제 실패: ' + error.message);
+    } else {
+      loadItems();
+    }
+  };
+
+  const toggleFilter = (status) => {
+    setFilter(prev => prev === status ? 'all' : status);
+  };
+
+  const pending = items.filter(i => i.status === 'pending');
+  const replied = items.filter(i => i.status === 'replied');
+  const filtered = filter === 'all' ? items : filter === 'pending' ? pending : replied;
+
+  return (
+    <>
+      <PageIntro ko="개선 제안 관리" en="Improvements Admin" desc="학생들의 의견에 답변해주세요" />
+
+      <div className="px-5 mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <button onClick={() => toggleFilter('pending')}
+            className={`rounded-2xl p-3 text-left transition-transform active:scale-95 ${filter === 'pending' ? 'glow-primary' : ''}`}
+            style={{ background: COLORS.primary }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>답변 대기</p>
+            <p className="font-display text-2xl mt-1" style={{ color: COLORS.white }}>{pending.length}</p>
+          </button>
+          <button onClick={() => toggleFilter('replied')}
+            className={`rounded-2xl p-3 text-left transition-transform active:scale-95 ${filter === 'replied' ? 'glow-primary' : ''}`}
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.primary}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>답변 완료</p>
+            <p className="font-display text-2xl mt-1" style={{ color: COLORS.ink }}>{replied.length}</p>
+          </button>
+        </div>
+
+        {filter !== 'all' && (
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-mono text-[10px]" style={{ color: COLORS.primary }}>
+              <span className="font-bold">{filter === 'pending' ? '답변 대기' : '답변 완료'}</span> 만 보는 중
+            </p>
+            <button onClick={() => setFilter('all')} className="font-mono text-[10px] font-bold flex items-center gap-1" style={{ color: COLORS.stone }}>
+              전체 보기 <X size={11} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="px-5 space-y-3">
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>
+            {filter === 'pending' ? '답변 대기 중인 제안이 없습니다' :
+             filter === 'replied' ? '답변 완료된 제안이 없습니다' :
+             '등록된 제안이 없습니다'}
+          </p>
+        ) : filtered.map(item => {
+          const profile = profiles[item.user_id];
+          return (
+            <div key={item.id} className="rounded-2xl p-4"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded"
+                    style={{ 
+                      background: item.status === 'replied' ? COLORS.peach : COLORS.primary, 
+                      color: item.status === 'replied' ? COLORS.primary : COLORS.white 
+                    }}>
+                    {item.status === 'replied' ? '완료' : '대기'}
+                  </span>
+                  <button onClick={() => toggleAnonymous(item)}
+                    className="font-mono text-[9px] px-2 py-1 rounded transition-transform active:scale-95"
+                    style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                    {item.is_anonymous ? '🔒 익명' : '👤 실명'} (변경)
+                  </button>
+                </div>
+                <button onClick={() => handleDelete(item)} className="rounded p-1.5" style={{ background: COLORS.cardElev }}>
+                  <Trash2 size={12} style={{ color: COLORS.muted }} />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 mb-3 pb-2" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
+                <div className="w-7 h-7 rounded-full flex items-center justify-center font-display text-xs font-bold"
+                  style={{ background: profile?.avatar_color || COLORS.primary, color: COLORS.white }}>
+                  {profile?.name?.[0] || '?'}
+                </div>
+                <div className="flex-1">
+                  <p className="font-body text-xs font-bold" style={{ color: COLORS.ink }}>
+                    {profile?.name || '(알 수 없음)'}
+                    {item.is_anonymous && <span className="ml-2 font-mono text-[9px]" style={{ color: COLORS.stone }}>(학생에게는 익명 표시)</span>}
+                  </p>
+                  <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+                    {new Date(item.created_at).toLocaleString('ko-KR')}
+                  </p>
+                </div>
+              </div>
+
+              <p className="font-body text-sm leading-relaxed mb-3" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
+                {item.content}
+              </p>
+
+              {item.status === 'replied' && item.admin_reply ? (
+                <div className="rounded-lg p-3" style={{ background: COLORS.cardElev, borderLeft: `3px solid ${COLORS.primary}` }}>
+                  <p className="font-mono text-[9px] font-bold tracking-widest uppercase mb-1" style={{ color: COLORS.primary }}>━━ 답변</p>
+                  <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
+                    {item.admin_reply}
+                  </p>
+                </div>
+              ) : selectedId === item.id ? (
+                <div>
+                  <textarea value={reply} onChange={(e) => setReply(e.target.value)}
+                    placeholder="답변을 작성해주세요..."
+                    className="w-full rounded-xl p-3 font-body text-sm focus:outline-none"
+                    rows={4}
+                    style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => { setSelectedId(null); setReply(''); }}
+                      className="flex-1 rounded-xl py-2 font-display text-sm font-bold"
+                      style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+                      취소
+                    </button>
+                    <button onClick={() => handleReply(item)} disabled={submitting}
+                      className="flex-1 rounded-xl py-2 font-display text-sm font-bold"
+                      style={{ background: COLORS.primary, color: COLORS.white }}>
+                      {submitting ? '전송...' : '답변 전송'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setSelectedId(item.id)}
+                  className="w-full rounded-xl py-2 font-display text-sm font-bold transition-transform active:scale-95"
+                  style={{ background: COLORS.primary, color: COLORS.white }}>
+                  답변하기
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </>
   );
@@ -4398,10 +5469,16 @@ function AdminDashboard({ setCurrentPage, canViewRevenue }) {
     : null;
 
   const quickActions = [
-    { id: 'admin-notice',   label: 'NOTICE',   ko: '공지 관리',   icon: Bell },
-    { id: 'admin-students', label: 'STUDENTS', ko: '수강생 관리', icon: UserCheck },
-    { id: 'admin-qna',      label: 'Q&A',      ko: 'Q&A 답변',    icon: MessageCircle },
-    { id: 'admin-cases',    label: 'CASES',    ko: '케이스 관리', icon: Camera },
+    { id: 'admin-approvals',    label: 'APPROVE',  ko: '가입 승인',     icon: UserPlus },
+    { id: 'admin-notice',       label: 'NOTICE',   ko: '학원공지',      icon: Bell },
+    { id: 'admin-students',     label: 'STUDENTS', ko: '수강생',        icon: UserCheck },
+    { id: 'admin-qna',          label: 'Q&A',      ko: 'Q&A 답변',      icon: MessageCircle },
+    { id: 'admin-improvements', label: 'FEEDBACK', ko: '개선 제안',     icon: Edit3 },
+    { id: 'admin-cases',        label: 'CASES',    ko: '개별피드백',    icon: Camera },
+    { id: 'admin-lectures',     label: 'LECTURES', ko: '강의 관리',     icon: PlayCircle },
+    { id: 'admin-products',     label: 'PRODUCTS', ko: '재료샵',        icon: ShoppingBag },
+    { id: 'admin-library',      label: 'LIBRARY',  ko: '자료실',        icon: FolderOpen },
+    { id: 'admin-courses',      label: 'COURSES',  ko: '클래스',        icon: BookOpen },
   ];
 
   return (
@@ -4671,7 +5748,7 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
 
   return (
     <>
-      <PageIntro ko="공지 관리" en="Notice Admin" />
+      <PageIntro ko="학원공지 관리" en="Notice Admin" />
       <div className="px-5 space-y-3">
         <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
           <Plus size={14} strokeWidth={2.5} />새 공지
@@ -4984,14 +6061,27 @@ function AdminApprovals({ user }) {
     setLoading(false);
   };
 
-  const approve = async (userId) => {
-    if (!confirm('이 회원을 승인하시겠습니까?')) return;
-    const { error } = await supabase.from('profiles').update({
+  const approve = async (userId, asGraduate = false) => {
+    const msg = asGraduate 
+      ? '🎓 졸업생으로 승인하시겠습니까?\n온보딩 미션이 면제됩니다.' 
+      : '이 회원을 일반 학생으로 승인하시겠습니까?\n온보딩 미션을 받게 됩니다.';
+    if (!confirm(msg)) return;
+    
+    const updates = {
       status: 'approved',
       approved_at: new Date().toISOString(),
       approved_by: user.id,
       rejected_reason: null,
-    }).eq('id', userId);
+      is_graduate: asGraduate,
+    };
+    
+    if (asGraduate) {
+      // 졸업생 승인 = 영상 미션만 면제 (인사/후기는 작성해야 함)
+      updates.onb_video = true;
+      // onb_greeting, onb_review는 false 유지 (작성 필수)
+    }
+    
+    const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
     if (error) {
       alert('승인 실패: ' + error.message);
     } else {
@@ -5080,6 +6170,26 @@ function AdminApprovals({ user }) {
                 {u.phone && <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>📞 {u.phone}</p>}
                 <p className="font-serif-italic text-xs mt-1" style={{ color: COLORS.primary }}>{u.course}</p>
                 <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>가입: {new Date(u.created_at).toLocaleDateString('ko-KR')}</p>
+                
+                {/* 🎓 졸업생 신청 표시 */}
+                {u.is_graduate && u.status === 'pending' && (
+                  <div className="mt-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid ${COLORS.primary}` }}>
+                    <span className="text-base">🎓</span>
+                    <p className="font-body text-xs font-semibold" style={{ color: COLORS.primary }}>
+                      졸업생이라고 신청했어요!<br/>
+                      <span className="font-mono text-[10px] font-normal" style={{ color: COLORS.deep }}>맞으면 "졸업생 승인" 눌러주세요</span>
+                    </p>
+                  </div>
+                )}
+                
+                {/* 졸업생 표시 (승인 후) */}
+                {u.is_graduate && u.status === 'approved' && (
+                  <div className="mt-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(255,92,31,0.08)' }}>
+                    <span className="text-sm">🎓</span>
+                    <p className="font-mono text-[10px] font-bold" style={{ color: COLORS.primary }}>졸업생 (미션 면제)</p>
+                  </div>
+                )}
+                
                 {u.rejected_reason && (
                   <div className="mt-2 p-2 rounded" style={{ background: COLORS.cream }}>
                     <p className="font-mono text-[9px]" style={{ color: COLORS.stone }}>거절 사유</p>
@@ -5090,18 +6200,26 @@ function AdminApprovals({ user }) {
             </div>
 
             {/* 액션 버튼 */}
-            <div className="flex gap-2 mt-3">
+            <div className="flex flex-col gap-2 mt-3">
               {u.status === 'pending' && (
                 <>
-                  <button onClick={() => approve(u.id)}
-                    className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1"
-                    style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
-                    <Check size={12} strokeWidth={3} />승인
-                  </button>
-                  <button onClick={() => reject(u.id)}
-                    className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1"
-                    style={{ background: COLORS.cream, color: COLORS.deep, border: `1px solid ${COLORS.light}` }}>
-                    <X size={12} strokeWidth={3} />거절
+                  <div className="flex gap-2">
+                    <button onClick={() => approve(u.id, false)}
+                      className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1"
+                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+                      <Check size={12} strokeWidth={3} />일반 승인
+                    </button>
+                    <button onClick={() => reject(u.id)}
+                      className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1"
+                      style={{ background: COLORS.cream, color: COLORS.deep, border: `1px solid ${COLORS.light}` }}>
+                      <X size={12} strokeWidth={3} />거절
+                    </button>
+                  </div>
+                  {/* 졸업생 승인 (별도 버튼) */}
+                  <button onClick={() => approve(u.id, true)}
+                    className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
+                    style={{ background: COLORS.cardElev, color: COLORS.primary, border: `1px solid ${COLORS.primary}` }}>
+                    🎓 졸업생으로 승인 (미션 면제)
                   </button>
                 </>
               )}
@@ -5663,6 +6781,7 @@ function AdminLectures({ user }) {
   const [form, setForm] = useState({
     title: '', instructor: '', category: '기초', level: 'Basic',
     duration: '', video_url: '', description: '', is_published: true,
+    is_orientation: false,
   });
 
   useEffect(() => { load(); }, []);
@@ -5695,6 +6814,7 @@ function AdminLectures({ user }) {
     setForm({
       title: '', instructor: '', category: '기초', level: 'Basic',
       duration: '', video_url: '', description: '', is_published: true,
+      is_orientation: false,
     });
     setEditingId(null);
     setShowForm(false);
@@ -5710,6 +6830,7 @@ function AdminLectures({ user }) {
       video_url: lecture.video_url || '',
       description: lecture.description || '',
       is_published: lecture.is_published !== false,
+      is_orientation: lecture.is_orientation || false,
     });
     setEditingId(lecture.id);
     setShowForm(true);
@@ -5891,6 +7012,13 @@ function AdminLectures({ user }) {
               <input type="checkbox" checked={form.is_published} onChange={e => setForm({...form, is_published: e.target.checked})}
                 className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
               <span>✨ 즉시 공개 (체크 해제하면 비공개로 등록)</span>
+            </label>
+
+            {/* 🎯 오리엔테이션 영상 지정 */}
+            <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: 'rgba(255,92,31,0.08)' }}>
+              <input type="checkbox" checked={form.is_orientation} onChange={e => setForm({...form, is_orientation: e.target.checked})}
+                className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+              <span>🎬 오리엔테이션 영상으로 지정 (신규 학생 필수 시청)</span>
             </label>
 
             {/* 저장 버튼 */}
@@ -6122,8 +7250,36 @@ function AdminProducts({ user }) {
 
   const remove = async (product) => {
     if (!confirm('이 상품을 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.')) return;
+    
+    // 🍊 1. 결제 내역 체크 (있으면 DB가 막음)
+    const { count: orderCount } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('product_id', product.id);
+    
+    if (orderCount > 0) {
+      if (!confirm(`⚠️ 이 상품은 ${orderCount}건의 결제 내역이 있어서 영구 삭제할 수 없어요.\n\n대신 "비활성화" 처리할까요?\n(학생에게 안 보이게 됩니다)`)) return;
+      const { error: deactivateError } = await supabase.from('products').update({ is_active: false }).eq('id', product.id);
+      if (deactivateError) {
+        alert('❌ 비활성화 실패: ' + deactivateError.message);
+        return;
+      }
+      alert('✅ 상품이 비활성화되었습니다');
+      await load();
+      return;
+    }
+    
+    // 🍊 2. 이미지 삭제
     if (product.image_url) await deleteProductImage(product.image_url);
-    await supabase.from('products').delete().eq('id', product.id);
+    
+    // 🍊 3. 상품 삭제
+    const { error } = await supabase.from('products').delete().eq('id', product.id);
+    if (error) {
+      alert('❌ 삭제 실패: ' + error.message);
+      return;
+    }
+    
+    alert('🗑️ 상품이 삭제되었습니다');
     await load();
   };
 
@@ -7136,9 +8292,13 @@ function AdminQna({ user }) {
             </button>
           </div>
         )}
-        {questions.length === 0 ? (
-          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>등록된 질문이 없습니다</p>
-        ) : questions.map(q => (
+        {filtered.length === 0 ? (
+          <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>
+            {qnaFilter === 'pending' ? '답변 대기 중인 질문이 없습니다' :
+             qnaFilter === 'answered' ? '답변 완료된 질문이 없습니다' :
+             '등록된 질문이 없습니다'}
+          </p>
+        ) : filtered.map(q => (
           <button key={q.id} onClick={() => { setSelected(q); setAnswer(q.answer || ''); }} className="w-full text-left rounded-2xl p-4 transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center gap-1.5 mb-2">
               <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
