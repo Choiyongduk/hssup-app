@@ -7305,30 +7305,22 @@ function AdminProducts({ user }) {
   };
 
   const remove = async (product) => {
-    if (!confirm('이 상품을 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.')) return;
-    
-    // 🍊 1. 결제 내역 체크 (있으면 DB가 막음)
+    // 🍊 1. 결제 내역 체크 (정보 제공용)
     const { count: orderCount } = await supabase
       .from('orders')
       .select('*', { count: 'exact', head: true })
       .eq('product_id', product.id);
     
-    if (orderCount > 0) {
-      if (!confirm(`⚠️ 이 상품은 ${orderCount}건의 결제 내역이 있어서 영구 삭제할 수 없어요.\n\n대신 "비활성화" 처리할까요?\n(학생에게 안 보이게 됩니다)`)) return;
-      const { error: deactivateError } = await supabase.from('products').update({ is_active: false }).eq('id', product.id);
-      if (deactivateError) {
-        alert('❌ 비활성화 실패: ' + deactivateError.message);
-        return;
-      }
-      alert('✅ 상품이 비활성화되었습니다');
-      await load();
-      return;
-    }
+    const msg = orderCount > 0 
+      ? `📦 이 상품은 ${orderCount}건의 결제 내역이 있어요.\n\n✅ 삭제해도 결제 내역은 그대로 보존돼요\n   (회계/세무용으로 필요)\n✅ 상품명도 결제 내역에 저장돼 있어 추적 가능\n\n정말 삭제하시겠습니까?`
+      : '이 상품을 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.';
+    
+    if (!confirm(msg)) return;
     
     // 🍊 2. 이미지 삭제
     if (product.image_url) await deleteProductImage(product.image_url);
     
-    // 🍊 3. 상품 삭제
+    // 🍊 3. 상품 삭제 (orders.product_id는 자동 NULL 처리됨)
     const { error } = await supabase.from('products').delete().eq('id', product.id);
     if (error) {
       alert('❌ 삭제 실패: ' + error.message);
@@ -7715,9 +7707,25 @@ function AdminCourses({ user }) {
   };
 
   const remove = async (course) => {
-    if (!confirm('이 클래스를 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.')) return;
+    // 🍊 결제 내역 체크
+    const { count: orderCount } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('course_id', course.id);
+    
+    const msg = orderCount > 0 
+      ? `📦 이 클래스는 ${orderCount}건의 결제 내역이 있어요.\n\n✅ 삭제해도 결제 내역은 그대로 보존돼요\n✅ 클래스명도 결제 내역에 저장돼 있어 추적 가능\n\n정말 삭제하시겠습니까?`
+      : '이 클래스를 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.';
+    
+    if (!confirm(msg)) return;
+    
     if (course.image_url) await deleteCourseImage(course.image_url);
-    await supabase.from('courses').delete().eq('id', course.id);
+    const { error } = await supabase.from('courses').delete().eq('id', course.id);
+    if (error) {
+      alert('❌ 삭제 실패: ' + error.message);
+      return;
+    }
+    alert('🗑️ 클래스가 삭제되었습니다');
     await load();
   };
 
