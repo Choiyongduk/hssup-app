@@ -2768,7 +2768,7 @@ function MyCasePage({ user }) {
 
         {/* 새 케이스 작성 폼 */}
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
               <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>새 시술 케이스</h3>
               <button onClick={() => {
@@ -3445,7 +3445,7 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
           <Plus size={16} strokeWidth={2.5} />질문하기
         </button>
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}
               className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }}>
               <option>시술</option><option>재료</option><option>수업</option><option>창업</option>
@@ -5958,12 +5958,12 @@ function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         { data: lastMonthOrders },
         { count: newStudents },
       ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student').neq('status', 'deleted'),
         supabase.from('lectures').select('*', { count: 'exact', head: true }).eq('is_published', true),
         supabase.from('questions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('orders').select('amount').eq('status', 'paid').gte('paid_at', thisMonthStart),
         supabase.from('orders').select('amount').eq('status', 'paid').gte('paid_at', lastMonthStart).lt('paid_at', lastMonthEnd),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student').gte('created_at', thisMonthStart),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student').neq('status', 'deleted').gte('created_at', thisMonthStart),
       ]);
       
       const monthRevenue = (thisMonthOrders || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
@@ -6293,7 +6293,7 @@ function AdminTrends({ user }) {
     });
     setEditingId(trend.id);
     setShowForm(true);
-    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => document.querySelector('.admin-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
   const submit = async () => {
@@ -6395,7 +6395,7 @@ function AdminTrends({ user }) {
         )}
 
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
               <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>{editingId ? '트렌드 수정' : '새 트렌드 속보'}</h3>
               <button onClick={resetForm}><X size={18} style={{ color: COLORS.stone }} /></button>
@@ -6652,7 +6652,7 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
           <Plus size={14} strokeWidth={2.5} />새 공지
         </button>
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <select value={form.tag} onChange={e => setForm({...form, tag: e.target.value})}
               className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }}>
               <option>필독</option><option>안내</option><option>이벤트</option>
@@ -7733,7 +7733,7 @@ function AdminLectures({ user }) {
     });
     setEditingId(lecture.id);
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => document.querySelector('.admin-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
   const submit = async () => {
@@ -7813,7 +7813,7 @@ function AdminLectures({ user }) {
 
         {/* 등록/수정 폼 */}
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
               <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>
                 {editingId ? '강의 수정' : '새 강의 등록'}
@@ -8097,7 +8097,7 @@ function AdminProducts({ user }) {
     });
     setEditingId(product.id);
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => document.querySelector('.admin-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
   const submit = async () => {
@@ -8214,7 +8214,7 @@ function AdminProducts({ user }) {
 
         {/* 등록/수정 폼 */}
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
               <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>
                 {editingId ? '상품 수정' : '새 상품 등록'}
@@ -8510,7 +8510,7 @@ function AdminCourses({ user }) {
     });
     setEditingId(course.id);
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => document.querySelector('.admin-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
   const submit = async () => {
@@ -8606,7 +8606,7 @@ function AdminCourses({ user }) {
 
         {/* 등록/수정 폼 */}
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
               <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>{editingId ? '클래스 수정' : '새 클래스 등록'}</h3>
               <button onClick={resetForm}><X size={18} style={{ color: COLORS.stone }} /></button>
@@ -8915,7 +8915,7 @@ function AdminLibrary({ user }) {
     });
     setEditingId(f.id);
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => document.querySelector('.admin-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
   const submit = async () => {
@@ -9006,7 +9006,7 @@ function AdminLibrary({ user }) {
 
         {/* 업로드/수정 폼 */}
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
               <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>
                 {editingId ? '자료 수정' : '새 자료 업로드'}
