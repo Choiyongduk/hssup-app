@@ -553,7 +553,7 @@ export default function HSSUPApp() {
     const SAVABLE_PAGES = [
       'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
       'best', 'mycase', 'library', 'market', 'community', 'freeboard',
-      'greetings', 'reviews', 'improvements',
+      'greetings', 'reviews', 'improvements', 'my-activity',
       'admin-approvals', 'admin-orders', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
       'admin-library', 'admin-courses', 'admin-improvements', 'admin-trends',
@@ -931,7 +931,7 @@ function calculateLevel(stats) {
 // =============================================================
 // ⭐ LevelCard - 등급 카드 (활동 + 매출 통합)
 // =============================================================
-function LevelCard({ userId, hideRevenue }) {
+function LevelCard({ userId, hideRevenue, setCurrentPage }) {
   const [stats, setStats] = useState({ cases: 0, posts: 0, comments: 0, likes: 0, orders: 0, totalSpent: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -1031,24 +1031,48 @@ function LevelCard({ userId, hideRevenue }) {
           <p className="font-serif-italic text-sm mt-3" style={{ color: level.color }}>✨ 최고 등급에 도달했습니다!</p>
         )}
 
-        {/* 활동 통계 */}
+        {/* 활동 통계 (클릭 가능) */}
         <div className="grid grid-cols-4 gap-1 mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-          <div className="text-center">
+          <button onClick={() => setCurrentPage && setCurrentPage('mycase')}
+            disabled={!setCurrentPage}
+            className="text-center rounded-lg p-2 transition-transform active:scale-95 disabled:active:scale-100"
+            style={{ background: setCurrentPage ? 'rgba(255,92,31,0.05)' : 'transparent' }}>
             <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.cases}</p>
-            <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>케이스</p>
-          </div>
-          <div className="text-center">
+            <p className="font-mono text-[9px] mt-0.5" style={{ color: setCurrentPage ? COLORS.primary : COLORS.stone }}>케이스</p>
+          </button>
+          <button onClick={() => {
+              if (!setCurrentPage) return;
+              sessionStorage.setItem('hssup_activity_tab', 'posts');
+              setCurrentPage('my-activity');
+            }}
+            disabled={!setCurrentPage}
+            className="text-center rounded-lg p-2 transition-transform active:scale-95 disabled:active:scale-100"
+            style={{ background: setCurrentPage ? 'rgba(255,92,31,0.05)' : 'transparent' }}>
             <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.posts}</p>
-            <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>게시글</p>
-          </div>
-          <div className="text-center">
+            <p className="font-mono text-[9px] mt-0.5" style={{ color: setCurrentPage ? COLORS.primary : COLORS.stone }}>게시글</p>
+          </button>
+          <button onClick={() => {
+              if (!setCurrentPage) return;
+              sessionStorage.setItem('hssup_activity_tab', 'comments');
+              setCurrentPage('my-activity');
+            }}
+            disabled={!setCurrentPage}
+            className="text-center rounded-lg p-2 transition-transform active:scale-95 disabled:active:scale-100"
+            style={{ background: setCurrentPage ? 'rgba(255,92,31,0.05)' : 'transparent' }}>
             <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.comments}</p>
-            <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>댓글</p>
-          </div>
-          <div className="text-center">
+            <p className="font-mono text-[9px] mt-0.5" style={{ color: setCurrentPage ? COLORS.primary : COLORS.stone }}>댓글</p>
+          </button>
+          <button onClick={() => {
+              if (!setCurrentPage) return;
+              sessionStorage.setItem('hssup_activity_tab', 'likes');
+              setCurrentPage('my-activity');
+            }}
+            disabled={!setCurrentPage}
+            className="text-center rounded-lg p-2 transition-transform active:scale-95 disabled:active:scale-100"
+            style={{ background: setCurrentPage ? 'rgba(255,92,31,0.05)' : 'transparent' }}>
             <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.likes}</p>
-            <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>좋아요</p>
-          </div>
+            <p className="font-mono text-[9px] mt-0.5" style={{ color: setCurrentPage ? COLORS.primary : COLORS.stone }}>좋아요</p>
+          </button>
         </div>
 
         {/* 결제 통계 (admin만 표시) */}
@@ -1606,26 +1630,42 @@ function AuthScreen() {
                   </select>
                 </div>
 
-                {/* 🎓 졸업생 체크박스 */}
-                <button type="button" onClick={() => setSignupForm({ ...signupForm, is_graduate: !signupForm.is_graduate })}
-                  className="w-full rounded-xl p-3 flex items-center gap-2 transition-all mt-2"
-                  style={{ 
-                    background: signupForm.is_graduate ? 'rgba(255,92,31,0.1)' : COLORS.card,
-                    border: `1px solid ${signupForm.is_graduate ? COLORS.primary : COLORS.light}` 
-                  }}>
-                  <div className="w-5 h-5 rounded border-2 flex items-center justify-center"
-                    style={{ borderColor: signupForm.is_graduate ? COLORS.primary : COLORS.stone, background: signupForm.is_graduate ? COLORS.primary : 'transparent' }}>
-                    {signupForm.is_graduate && <Check size={12} style={{ color: COLORS.white }} />}
+                {/* 🎓 신입생 / 졸업생 선택 */}
+                <div className="pt-2">
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>STUDENT TYPE *</label>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button type="button" onClick={() => setSignupForm({ ...signupForm, is_graduate: false })}
+                      className="rounded-xl p-3 transition-all text-center"
+                      style={{ 
+                        background: !signupForm.is_graduate ? 'rgba(255,92,31,0.1)' : COLORS.card,
+                        border: `1px solid ${!signupForm.is_graduate ? COLORS.primary : COLORS.light}`,
+                        boxShadow: !signupForm.is_graduate ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
+                      }}>
+                      <p className="text-xl mb-1">🌱</p>
+                      <p className="font-body text-xs font-semibold" style={{ color: !signupForm.is_graduate ? COLORS.primary : COLORS.ink }}>
+                        신입생
+                      </p>
+                      <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>
+                        처음 등록
+                      </p>
+                    </button>
+                    <button type="button" onClick={() => setSignupForm({ ...signupForm, is_graduate: true })}
+                      className="rounded-xl p-3 transition-all text-center"
+                      style={{ 
+                        background: signupForm.is_graduate ? 'rgba(255,92,31,0.1)' : COLORS.card,
+                        border: `1px solid ${signupForm.is_graduate ? COLORS.primary : COLORS.light}`,
+                        boxShadow: signupForm.is_graduate ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
+                      }}>
+                      <p className="text-xl mb-1">🎓</p>
+                      <p className="font-body text-xs font-semibold" style={{ color: signupForm.is_graduate ? COLORS.primary : COLORS.ink }}>
+                        졸업생
+                      </p>
+                      <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>
+                        영상 면제
+                      </p>
+                    </button>
                   </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>
-                      🎓 HSSUP 졸업생입니다
-                    </p>
-                    <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
-                      온보딩 미션 면제
-                    </p>
-                  </div>
-                </button>
+                </div>
 
                 <div className="pt-2">
                   <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>AVATAR COLOR</label>
@@ -1850,7 +1890,8 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'greetings') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="인사" pageTitle="가입 인사" pageEn="Greetings" pageDesc="신규 회원들을 따뜻하게 환영해주세요" />;
   if (currentPage === 'reviews') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="후기" pageTitle="수강후기" pageEn="Reviews" pageDesc="동료들의 수강 후기를 만나보세요" />;
   if (currentPage === 'freeboard') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="자유" pageTitle="자유게시판" pageEn="Free Board" pageDesc="자유롭게 이야기 나눠보세요" />;
-  if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
+  if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} />;
+  if (currentPage === 'my-activity') return <MyActivityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} />;
   if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
   if (currentPage === 'admin-improvements') return <AdminImprovements user={user} />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} />;
@@ -3446,6 +3487,9 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
   );
 }
  
+// =============================================================
+// 📚 LibraryPage - 자료실 (학생용 - 보기 + 다운로드만)
+// =============================================================
 function LibraryPage() {
   const [files, setFiles] = useState([]);
   const [filter, setFilter] = useState('전체');
@@ -3469,7 +3513,7 @@ function LibraryPage() {
 
   return (
     <>
-      <PageIntro ko="자료실" en="Library" desc="언제든 다운로드 받으세요" />
+      <PageIntro ko="자료실" en="Library" />
 
       {/* 카테고리 탭 */}
       <div className="px-5 mb-4">
@@ -4678,12 +4722,17 @@ function PaymentFailPage({ setCurrentPage }) {
 }
 
 function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, pageTitle, pageEn, pageDesc }) {
+  const POSTS_PER_PAGE = 20;
   const [posts, setPosts] = useState([]);
   const [newPost, setNewPost] = useState('');
   const [loading, setLoading] = useState(false);
+  const [displayCount, setDisplayCount] = useState(POSTS_PER_PAGE);
   const isAdmin = user?.role === 'admin';
 
-  useEffect(() => { load(); }, [fixedCategory]);
+  useEffect(() => { 
+    load();
+    setDisplayCount(POSTS_PER_PAGE);  // 카테고리 바꾸면 초기화
+  }, [fixedCategory]);
 
   const load = async () => {
     let query = supabase.from('community_posts').select('*').order('created_at', { ascending: false });
@@ -4813,7 +4862,7 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
             <Users size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
             <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>{emptyMsg}</p>
           </div>
-        ) : posts.map(p => (
+        ) : posts.slice(0, displayCount).map(p => (
           <div key={p.id} onClick={() => openDetail(p)}
             className="rounded-2xl p-4 cursor-pointer transition-transform active:scale-[0.99]"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -4846,12 +4895,211 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
             </div>
           </div>
         ))}
+        
+        {/* 🍊 더 보기 버튼 */}
+        {posts.length > displayCount && (
+          <button onClick={() => setDisplayCount(c => c + POSTS_PER_PAGE)}
+            className="w-full rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
+            style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+            더 보기 ({posts.length - displayCount}개 남음) <ChevronRight size={12} />
+          </button>
+        )}
+        
+        {posts.length > 0 && posts.length <= displayCount && (
+          <p className="text-center font-mono text-[10px] py-2" style={{ color: COLORS.stone }}>
+            ━━ 마지막 게시글 ━━
+          </p>
+        )}
       </div>
     </>
   );
 }
- 
-function MyPage({ user, handleLogout }) {
+
+// =============================================================
+// 📋 MyActivityPage - 내가 쓴 게시글/댓글/좋아요
+// =============================================================
+function MyActivityPage({ user, setCurrentPage, setSelectedPost }) {
+  const [tab, setTab] = useState(() => {
+    const savedTab = sessionStorage.getItem('hssup_activity_tab');
+    if (savedTab && ['posts', 'comments', 'likes'].includes(savedTab)) {
+      sessionStorage.removeItem('hssup_activity_tab');
+      return savedTab;
+    }
+    return 'posts';
+  });
+  const [posts, setPosts] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [likedPosts, setLikedPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    load();
+  }, [user?.id]);
+
+  const load = async () => {
+    setLoading(true);
+    
+    // 내 게시글
+    const { data: postsData } = await supabase
+      .from('community_posts')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    
+    // 내 댓글 (어디에 단 건지도 표시)
+    const { data: commentsData } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    
+    // 내가 좋아요 누른 게시글
+    const { data: likesData } = await supabase
+      .from('likes')
+      .select('target_id, target_type, created_at')
+      .eq('user_id', user.id)
+      .eq('target_type', 'community_post')
+      .order('created_at', { ascending: false });
+    
+    // 좋아요 누른 게시글 정보 가져오기
+    let likedPostsData = [];
+    if (likesData && likesData.length > 0) {
+      const postIds = likesData.map(l => l.target_id);
+      const { data: postsInfo } = await supabase
+        .from('community_posts')
+        .select('*')
+        .in('id', postIds);
+      
+      likedPostsData = (postsInfo || []).map(p => {
+        const like = likesData.find(l => l.target_id === p.id);
+        return { ...p, liked_at: like?.created_at };
+      }).sort((a, b) => new Date(b.liked_at) - new Date(a.liked_at));
+    }
+    
+    setPosts(postsData || []);
+    setComments(commentsData || []);
+    setLikedPosts(likedPostsData);
+    setLoading(false);
+  };
+
+  const openPost = async (postId) => {
+    const { data } = await supabase.from('community_posts').select('*').eq('id', postId).maybeSingle();
+    if (data) {
+      setSelectedPost(data);
+      setCurrentPage('post-detail');
+    } else {
+      alert('이 게시글은 삭제되었어요');
+    }
+  };
+
+  return (
+    <>
+      <PageIntro ko="내 활동" en="My Activity" />
+      
+      <div className="px-5">
+        {/* 탭 */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {[
+            { id: 'posts', label: '게시글', count: posts.length },
+            { id: 'comments', label: '댓글', count: comments.length },
+            { id: 'likes', label: '좋아요', count: likedPosts.length },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className="rounded-2xl py-3 font-heading text-xs transition-transform active:scale-95"
+              style={{
+                background: tab === t.id ? COLORS.primary : COLORS.card,
+                color: tab === t.id ? COLORS.white : COLORS.ink,
+                border: `1px solid ${tab === t.id ? COLORS.primary : COLORS.light}`,
+                boxShadow: tab === t.id ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
+              }}>
+              {t.label} <span className="font-mono text-[10px]">({t.count})</span>
+            </button>
+          ))}
+        </div>
+
+        {/* 콘텐츠 */}
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {/* 게시글 탭 */}
+            {tab === 'posts' && (posts.length === 0 ? (
+              <div className="text-center py-10">
+                <Users size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+                <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>아직 작성한 게시글이 없어요</p>
+              </div>
+            ) : posts.map(p => (
+              <button key={p.id} onClick={() => openPost(p.id)}
+                className="w-full text-left rounded-2xl p-4 transition-transform active:scale-[0.98]"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" 
+                    style={{ background: COLORS.peach, color: COLORS.deep }}>
+                    {p.category || '자유'}
+                  </span>
+                  <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+                    {new Date(p.created_at).toLocaleDateString('ko-KR')}
+                  </span>
+                </div>
+                <p className="font-body text-sm line-clamp-2 leading-relaxed" style={{ color: COLORS.ink }}>{p.content}</p>
+              </button>
+            )))}
+
+            {/* 댓글 탭 */}
+            {tab === 'comments' && (comments.length === 0 ? (
+              <div className="text-center py-10">
+                <MessageCircle size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+                <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>아직 작성한 댓글이 없어요</p>
+              </div>
+            ) : comments.map(c => (
+              <div key={c.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" 
+                    style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+                    {c.target_type === 'community_post' ? '게시글' : c.target_type === 'qna' ? 'Q&A' : c.target_type === 'notice' ? '공지' : c.target_type === 'trend' ? '트렌드' : c.target_type === 'product' ? '재료샵' : c.target_type === 'lecture' ? '강의' : '기타'}
+                  </span>
+                  <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+                    {new Date(c.created_at).toLocaleDateString('ko-KR')}
+                  </span>
+                </div>
+                <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink }}>{c.content}</p>
+              </div>
+            )))}
+
+            {/* 좋아요 탭 */}
+            {tab === 'likes' && (likedPosts.length === 0 ? (
+              <div className="text-center py-10">
+                <Heart size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+                <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>아직 좋아요 누른 글이 없어요</p>
+              </div>
+            ) : likedPosts.map(p => (
+              <button key={p.id} onClick={() => openPost(p.id)}
+                className="w-full text-left rounded-2xl p-4 transition-transform active:scale-[0.98]"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Heart size={11} fill={COLORS.primary} strokeWidth={2.5} style={{ color: COLORS.primary }} />
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" 
+                    style={{ background: COLORS.peach, color: COLORS.deep }}>
+                    {p.category || '자유'}
+                  </span>
+                  <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+                    {new Date(p.liked_at).toLocaleDateString('ko-KR')}
+                  </span>
+                </div>
+                <p className="font-body text-sm line-clamp-2 leading-relaxed" style={{ color: COLORS.ink }}>{p.content}</p>
+              </button>
+            )))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function MyPage({ user, handleLogout, setCurrentPage }) {
   const isAdmin = user.role === 'admin';
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [currentColor, setCurrentColor] = useState(user.avatar_color || 'orange');
@@ -4957,7 +5205,23 @@ function MyPage({ user, handleLogout }) {
         </section>
 
         {/* ⭐ 등급 카드 (admin 제외) */}
-        {!isAdmin && <LevelCard userId={user.id} />}
+        {!isAdmin && <LevelCard userId={user.id} setCurrentPage={setCurrentPage} />}
+
+        {/* 📋 내 활동 바로가기 */}
+        {!isAdmin && (
+          <button onClick={() => setCurrentPage('my-activity')}
+            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+              <BookOpen size={18} style={{ color: COLORS.primary }} />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>내 활동</p>
+              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>게시글 · 댓글 · 좋아요 모아보기</p>
+            </div>
+            <ChevronRight size={16} style={{ color: COLORS.stone }} />
+          </button>
+        )}
 
         {/* 컬러 선택 (펼침/접힘) */}
         {showColorPicker && (
@@ -8545,11 +8809,16 @@ function AdminCourses({ user }) {
   );
 }
 
+// =============================================================
+// 📚 AdminLibrary - 자료실 관리 (업로드 + 수정 + 삭제 + 드래그앤드롭)
+// =============================================================
 function AdminLibrary({ user }) {
   const [files, setFiles] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [filter, setFilter] = useState('전체');
   const [form, setForm] = useState({
     name: '', category: '시술 가이드', description: '',
@@ -8573,16 +8842,39 @@ function AdminLibrary({ user }) {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
+  const setFileFromInput = (file) => {
     if (!file) return;
-    setForm({
-      ...form,
+    setForm(prev => ({
+      ...prev,
       file,
-      name: form.name || file.name.replace(/\.[^/.]+$/, ''),
+      name: prev.name || file.name.replace(/\.[^/.]+$/, ''),
       file_type: file.name.split('.').pop().toUpperCase(),
       file_size: formatFileSize(file.size),
-    });
+    }));
+  };
+
+  const handleFileSelect = (e) => {
+    setFileFromInput(e.target.files[0]);
+  };
+
+  // 🎯 드래그앤드롭 핸들러
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    setFileFromInput(e.dataTransfer.files[0]);
   };
 
   const uploadLibraryFile = async (file) => {
@@ -8603,43 +8895,79 @@ function AdminLibrary({ user }) {
       const pathParts = url.pathname.split('/library-files/');
       if (pathParts.length < 2) return;
       await supabase.storage.from('library-files').remove([pathParts[1]]);
-    } catch (e) {
-      console.error('파일 삭제 에러:', e);
-    }
+    } catch (e) { console.error('파일 삭제 에러:', e); }
   };
 
   const resetForm = () => {
-    setForm({
-      name: '', category: '시술 가이드', description: '',
-      file: null, file_type: '', file_size: '',
-    });
+    setForm({ name: '', category: '시술 가이드', description: '', file: null, file_type: '', file_size: '' });
+    setEditingId(null);
     setShowForm(false);
+  };
+
+  const startEdit = (f) => {
+    setForm({
+      name: f.name || '',
+      category: f.category || '시술 가이드',
+      description: f.description || '',
+      file: null,
+      file_type: f.file_type || '',
+      file_size: f.file_size || '',
+    });
+    setEditingId(f.id);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const submit = async () => {
     if (!form.name.trim()) return alert('자료명을 입력해주세요');
-    if (!form.file) return alert('파일을 선택해주세요');
+    if (!editingId && !form.file) return alert('파일을 선택해주세요');
 
-    setLoading(true);
-    setUploading(true);
+    setSubmitLoading(true);
     try {
-      const fileUrl = await uploadLibraryFile(form.file);
-      const { error } = await supabase.from('library_files').insert({
-        name: form.name,
-        category: form.category,
-        description: form.description,
-        file_url: fileUrl,
-        file_type: form.file_type,
-        file_size: form.file_size,
-      });
-      if (error) throw error;
+      if (editingId) {
+        // 🍊 수정 모드
+        const updateData = {
+          name: form.name.trim(),
+          category: form.category,
+          description: form.description.trim(),
+        };
+        // 새 파일 업로드한 경우만 파일 교체
+        if (form.file) {
+          setUploading(true);
+          const oldFile = files.find(f => f.id === editingId);
+          if (oldFile?.file_url) await deleteLibraryFile(oldFile.file_url);
+          const fileUrl = await uploadLibraryFile(form.file);
+          updateData.file_url = fileUrl;
+          updateData.file_type = form.file_type;
+          updateData.file_size = form.file_size;
+          setUploading(false);
+        }
+        const { error } = await supabase.from('library_files').update(updateData).eq('id', editingId);
+        if (error) throw error;
+        alert('✏️ 수정 완료!');
+      } else {
+        // 🍊 새 등록
+        setUploading(true);
+        const fileUrl = await uploadLibraryFile(form.file);
+        const { error } = await supabase.from('library_files').insert({
+          name: form.name.trim(),
+          category: form.category,
+          description: form.description.trim(),
+          file_url: fileUrl,
+          file_type: form.file_type,
+          file_size: form.file_size,
+        });
+        if (error) throw error;
+        setUploading(false);
+        alert('✅ 업로드 완료!');
+      }
       resetForm();
       await load();
     } catch (err) {
       console.error(err);
-      alert('업로드 실패: ' + err.message);
+      alert('저장 실패: ' + err.message);
     }
-    setLoading(false);
+    setSubmitLoading(false);
     setUploading(false);
   };
 
@@ -8676,19 +9004,21 @@ function AdminLibrary({ user }) {
           </button>
         )}
 
-        {/* 업로드 폼 */}
+        {/* 업로드/수정 폼 */}
         {showForm && (
           <div className="rounded-2xl p-4 space-y-3 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
-              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>새 자료 업로드</h3>
-              <button onClick={resetForm}>
-                <X size={18} style={{ color: COLORS.stone }} />
-              </button>
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>
+                {editingId ? '자료 수정' : '새 자료 업로드'}
+              </h3>
+              <button onClick={resetForm}><X size={18} style={{ color: COLORS.stone }} /></button>
             </div>
 
-            {/* 파일 선택 */}
+            {/* 🎯 파일 선택 (드래그앤드롭 지원) */}
             <div>
-              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>파일 *</label>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>
+                {editingId ? '파일 (선택, 새 파일이면 교체)' : '파일 *'}
+              </label>
               {form.file ? (
                 <div className="mt-2 flex items-center gap-3 p-3 rounded-xl" style={{ background: COLORS.cream }}>
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: COLORS.peach }}>
@@ -8698,15 +9028,27 @@ function AdminLibrary({ user }) {
                     <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>{form.file.name}</p>
                     <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{form.file_type} · {form.file_size}</p>
                   </div>
-                  <button onClick={() => setForm({ ...form, file: null, file_type: '', file_size: '' })}
+                  <button onClick={() => setForm({ ...form, file: null, file_type: editingId ? form.file_type : '', file_size: editingId ? form.file_size : '' })}
                     className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
                     <X size={12} style={{ color: COLORS.white }} />
                   </button>
                 </div>
               ) : (
-                <label className="mt-2 rounded-xl flex flex-col items-center justify-center cursor-pointer py-8" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
-                  <Upload size={24} style={{ color: COLORS.stone }} />
-                  <span className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>파일 선택 (모든 형식)</span>
+                <label
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className="mt-2 rounded-xl flex flex-col items-center justify-center cursor-pointer py-10 transition-all"
+                  style={{
+                    background: dragOver ? 'rgba(255,92,31,0.1)' : COLORS.cream,
+                    border: `2px dashed ${dragOver ? COLORS.primary : COLORS.light}`,
+                    transform: dragOver ? 'scale(1.02)' : 'scale(1)',
+                  }}>
+                  <Upload size={28} style={{ color: dragOver ? COLORS.primary : COLORS.stone }} />
+                  <span className="font-heading text-sm mt-2" style={{ color: dragOver ? COLORS.primary : COLORS.ink }}>
+                    {dragOver ? '🎯 여기에 놓으세요!' : '📁 파일을 드래그하거나 클릭'}
+                  </span>
+                  <span className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>모든 파일 형식 가능</span>
                   <input type="file" onChange={handleFileSelect} className="hidden" />
                 </label>
               )}
@@ -8740,11 +9082,11 @@ function AdminLibrary({ user }) {
                 style={{ background: COLORS.cream, color: COLORS.ink }} />
             </div>
 
-            <button onClick={submit} disabled={loading || uploading}
+            <button onClick={submit} disabled={submitLoading || uploading}
               className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
               style={{ background: COLORS.cardElev, color: COLORS.white }}>
-              {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
-              {uploading ? '업로드 중...' : '등록하기'}
+              {(submitLoading || uploading) && <Loader2 size={14} className="animate-spin" />}
+              {uploading ? '업로드 중...' : editingId ? '수정 저장' : '등록하기'}
             </button>
           </div>
         )}
@@ -8781,10 +9123,18 @@ function AdminLibrary({ user }) {
               <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>{f.category || '기타'}</p>
               <p className="font-heading text-xs mt-0.5 truncate" style={{ color: COLORS.ink }}>{f.name}</p>
               <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{f.file_type} · {f.file_size}</p>
+              {f.description && (
+                <p className="font-body text-[11px] mt-1 line-clamp-1" style={{ color: COLORS.stone }}>{f.description}</p>
+              )}
             </div>
-            <button onClick={() => remove(f)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.cream }}>
-              <Trash2 size={12} style={{ color: COLORS.deep }} />
-            </button>
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <button onClick={() => startEdit(f)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
+                <Edit3 size={11} style={{ color: COLORS.white }} />
+              </button>
+              <button onClick={() => remove(f)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.cream }}>
+                <Trash2 size={12} style={{ color: COLORS.deep }} />
+              </button>
+            </div>
           </div>
         ))}
       </div>
