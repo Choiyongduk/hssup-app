@@ -6293,7 +6293,7 @@ function AdminTrends({ user }) {
     });
     setEditingId(trend.id);
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const submit = async () => {
