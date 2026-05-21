@@ -6516,7 +6516,7 @@ function AdminTrends({ user }) {
             <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>등록된 트렌드가 없습니다</p>
           </div>
         ) : filtered.map(t => (
-          <div key={t.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: t.is_active ? 1 : 0.6 }}>
+          <div key={t.id} onClick={() => startEdit(t)} className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: t.is_active ? 1 : 0.6 }}>
             {t.image_url && (
               <div className="aspect-video relative">
                 <SkeletonImage src={t.image_url} alt={t.title} className="w-full h-full" />
@@ -6536,7 +6536,7 @@ function AdminTrends({ user }) {
               <h4 className="font-heading text-sm" style={{ color: COLORS.ink }}>{t.title}</h4>
               <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{new Date(t.created_at).toLocaleDateString('ko-KR')}</p>
               {t.content && <p className="font-body text-xs mt-1.5 line-clamp-2" style={{ color: COLORS.stone }}>{t.content}</p>}
-              <div className="flex gap-1 mt-3">
+              <div onClick={e => e.stopPropagation()} className="flex gap-1 mt-3">
                 <button onClick={() => toggleActive(t)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full"
                   style={{ background: t.is_active ? COLORS.cream : COLORS.primary, color: t.is_active ? COLORS.stone : COLORS.white }}>
                   {t.is_active ? '숨김' : '공개'}
@@ -7938,7 +7938,7 @@ function AdminLectures({ user }) {
             <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>첫 강의를 등록해보세요!</p>
           </div>
         ) : lectures.map(l => (
-          <div key={l.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: l.is_published ? 1 : 0.6 }}>
+          <div key={l.id} onClick={() => startEdit(l)} className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: l.is_published ? 1 : 0.6 }}>
             <div className="relative aspect-video">
               {l.thumbnail_url ? (
                 <SkeletonImage src={l.thumbnail_url} alt={l.title} className="w-full h-full" />
@@ -7976,7 +7976,7 @@ function AdminLectures({ user }) {
                 </p>
               )}
 
-              <div className="flex gap-2 mt-3">
+              <div onClick={e => e.stopPropagation()} className="flex gap-2 mt-3">
                 <button onClick={() => togglePublish(l)}
                   className="flex-1 font-heading text-[11px] py-2 rounded-full"
                   style={{
@@ -8368,7 +8368,7 @@ function AdminProducts({ user }) {
             </p>
           </div>
         ) : filtered.map(p => (
-          <div key={p.id} className="rounded-2xl overflow-hidden flex" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: p.is_active ? 1 : 0.55 }}>
+          <div key={p.id} onClick={() => startEdit(p)} className="rounded-2xl overflow-hidden flex cursor-pointer transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: p.is_active ? 1 : 0.55 }}>
             <div className="relative w-24 h-24 shrink-0">
               {p.image_url ? (
                 <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
@@ -8393,7 +8393,7 @@ function AdminProducts({ user }) {
                 {p.price?.toLocaleString()}<span className="font-body text-[10px]" style={{ color: COLORS.stone }}>원</span>
                 <span className="font-mono text-[10px] ml-2" style={{ color: COLORS.stone }}>재고 {p.stock || 0}</span>
               </p>
-              <div className="flex gap-1 mt-2">
+              <div onClick={e => e.stopPropagation()} className="flex gap-1 mt-2">
                 <button onClick={() => toggleActive(p)}
                   className="flex-1 font-heading text-[10px] py-1.5 rounded-full"
                   style={{
@@ -8765,7 +8765,7 @@ function AdminCourses({ user }) {
             <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>등록된 클래스가 없습니다</p>
           </div>
         ) : courses.map(c => (
-          <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: c.is_active ? 1 : 0.55 }}>
+          <div key={c.id} onClick={() => startEdit(c)} className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: c.is_active ? 1 : 0.55 }}>
             {c.image_url && (
               <div className="aspect-video relative overflow-hidden">
                 <SkeletonImage src={c.image_url} alt={c.title} className="w-full h-full" />
@@ -8784,8 +8784,8 @@ function AdminCourses({ user }) {
               </p>
               {c.description && <p className="font-body text-xs mt-1.5 line-clamp-1" style={{ color: COLORS.stone }}>{c.description}</p>}
 
-              <div className="flex gap-1 mt-3">
-                <button onClick={() => toggleActive(c)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full"
+              <div onClick={e => e.stopPropagation()} className="flex gap-1 mt-3">
+                <button onClick={() => toggleActive(c)}
                   style={{ background: c.is_active ? COLORS.cream : COLORS.primary, color: c.is_active ? COLORS.stone : COLORS.white }}>
                   {c.is_active ? '비활성' : '활성'}
                 </button>
@@ -9115,7 +9115,7 @@ function AdminLibrary({ user }) {
             </p>
           </div>
         ) : filtered.map(f => (
-          <div key={f.id} className="rounded-2xl p-3 flex items-center gap-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div key={f.id} onClick={() => startEdit(f)} className="rounded-2xl p-3 flex items-center gap-3 cursor-pointer transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl" style={{ background: COLORS.peach }}>
               <FolderOpen size={20} style={{ color: COLORS.primary }} />
             </div>
@@ -9127,7 +9127,7 @@ function AdminLibrary({ user }) {
                 <p className="font-body text-[11px] mt-1 line-clamp-1" style={{ color: COLORS.stone }}>{f.description}</p>
               )}
             </div>
-            <div className="flex flex-col gap-1.5 shrink-0">
+            <div onClick={e => e.stopPropagation()} className="flex flex-col gap-1.5 shrink-0">
               <button onClick={() => startEdit(f)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
                 <Edit3 size={11} style={{ color: COLORS.white }} />
               </button>
