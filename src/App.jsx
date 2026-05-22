@@ -267,6 +267,80 @@ const COLORS = {
   white: '#FFFFFF',
 };
  
+// =============================================================
+// 📝 useDraft - 작성 중 글 자동 저장 (localStorage)
+// =============================================================
+function useDraft(key, initialValue, excludeKeys = []) {
+  const storageKey = `hssup_draft_${key}`;
+  const [value, setValue] = useState(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (typeof initialValue === 'object' && initialValue !== null && !Array.isArray(initialValue)) {
+          return { ...initialValue, ...parsed };
+        }
+        return parsed;
+      }
+    } catch (e) { /* 무시 */ }
+    return initialValue;
+  });
+
+  useEffect(() => {
+    try {
+      let toSave = value;
+      if (typeof value === 'object' && value !== null && !Array.isArray(value) && excludeKeys.length > 0) {
+        toSave = { ...value };
+        excludeKeys.forEach(k => delete toSave[k]);
+      }
+      const isEmpty = toSave === '' || toSave === null || toSave === undefined ||
+        (typeof toSave === 'object' && toSave !== null && Object.values(toSave).every(v => !v));
+      if (isEmpty) {
+        localStorage.removeItem(storageKey);
+      } else {
+        localStorage.setItem(storageKey, JSON.stringify(toSave));
+      }
+    } catch (e) { /* 무시 */ }
+  }, [storageKey, value]);
+
+  const clearDraft = () => {
+    setValue(initialValue);
+    try { localStorage.removeItem(storageKey); } catch (e) { /* 무시 */ }
+  };
+
+  return [value, setValue, clearDraft];
+}
+
+// =============================================================
+// 🔴 useNewPages - 최근 3일 새 글 있는 메뉴 감지
+// =============================================================
+function useNewPages() {
+  const [newPages, setNewPages] = useState([]);
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+        const [n, t, ti, l, lf] = await Promise.all([
+          supabase.from('notices').select('id', { count: 'exact', head: true }).gte('created_at', since),
+          supabase.from('trends').select('id', { count: 'exact', head: true }).eq('is_active', true).gte('created_at', since),
+          supabase.from('tips').select('id', { count: 'exact', head: true }).eq('is_active', true).gte('created_at', since),
+          supabase.from('lectures').select('id', { count: 'exact', head: true }).eq('is_published', true).gte('created_at', since),
+          supabase.from('library_files').select('id', { count: 'exact', head: true }).gte('created_at', since),
+        ]);
+        const s = [];
+        if ((n.count || 0) > 0) s.push('notice');
+        if ((t.count || 0) > 0) s.push('trends');
+        if ((ti.count || 0) > 0) s.push('tips');
+        if ((l.count || 0) > 0) s.push('online');
+        if ((lf.count || 0) > 0) s.push('library');
+        setNewPages(s);
+      } catch (e) { console.error('NEW 체크 실패:', e); }
+    };
+    check();
+  }, []);
+  return newPages;
+}
+
 export default function HSSUPApp() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
@@ -300,6 +374,7 @@ export default function HSSUPApp() {
 
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedTrend, setSelectedTrend] = useState(null);
+  const [selectedTip, setSelectedTip] = useState(null);
 
   // 자동 업데이트 상태
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -557,7 +632,7 @@ export default function HSSUPApp() {
       'admin-approvals', 'admin-orders', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
       'admin-library', 'admin-courses', 'admin-improvements', 'admin-trends',
-      'trends'
+      'trends', 'tips', 'admin-tips'
     ];
     if (SAVABLE_PAGES.includes(currentPage)) {
       sessionStorage.setItem('hssup_last_page', currentPage);
@@ -608,6 +683,7 @@ export default function HSSUPApp() {
       { id: 'home', label: '홈', icon: Home },
       { id: 'course', label: '클래스', icon: BookOpen },
       { id: 'online', label: '온라인 강의', icon: PlayCircle },
+      { id: 'tips', label: '수업·꿀팁', icon: Sparkles },
     ]},
     { section: 'PRACTICE', items: [
       { id: 'mycase', label: '개별피드백', icon: Camera },
@@ -641,6 +717,7 @@ export default function HSSUPApp() {
       { id: 'admin-improvements', label: '개선 제안 답변', icon: Edit3 },
       { id: 'admin-notice', label: '학원공지 관리', icon: Bell },
       { id: 'admin-trends', label: '트렌드 속보 관리', icon: Sparkles },
+      { id: 'admin-tips', label: '수업·꿀팁 관리', icon: Sparkles },
       { id: 'admin-cases', label: '케이스 관리', icon: Camera },
       { id: 'admin-lectures', label: '강의 관리', icon: PlayCircle },
       { id: 'admin-products', label: '재료샵 관리', icon: ShoppingBag },
@@ -770,6 +847,7 @@ export default function HSSUPApp() {
                     selectedProduct={selectedProduct} setSelectedProduct={setSelectedProduct}
                     selectedStudent={selectedStudent} setSelectedStudent={setSelectedStudent}
                     selectedTrend={selectedTrend} setSelectedTrend={setSelectedTrend}
+                    selectedTip={selectedTip} setSelectedTip={setSelectedTip}
                     user={profile} handleLogout={handleLogout} isAdmin={isAdmin} canViewRevenue={canViewRevenue} />
                 </div>
               </main>
@@ -1782,6 +1860,8 @@ function BottomTabBar({ tabs, currentPage, setCurrentPage, setDrawerOpen }) {
 }
  
 function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose, handleLogout }) {
+  const newPages = useNewPages();
+
   return (
     <div className="absolute inset-0 z-50 animate-fade-in">
       <div onClick={onClose} className="absolute inset-0" style={{ background: 'rgba(26, 26, 26, 0.6)', backdropFilter: 'blur(8px)' }}></div>
@@ -1816,7 +1896,11 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
                 return (
                   <button key={item.id} onClick={() => setCurrentPage(item.id)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-body text-sm font-medium transition-transform active:scale-[0.98]"
                     style={{ background: isActive ? COLORS.primary : 'transparent', color: isActive ? COLORS.white : COLORS.ink, boxShadow: isActive ? '0 0 12px rgba(255, 92, 31, 0.3)' : 'none' }}>
-                    <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />{item.label}
+                    <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
+                    {item.label}
+                    {newPages.includes(item.id) && (
+                      <span className="ml-auto w-2 h-2 rounded-full animate-pulse" style={{ background: isActive ? COLORS.white : '#FF3B30' }} />
+                    )}
                   </button>
                 );
               })}
@@ -1832,7 +1916,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, user, handleLogout, isAdmin, canViewRevenue }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, user, handleLogout, isAdmin, canViewRevenue }) {
   // 🍊 온보딩 체크 - 졸업생은 인사+후기, 신입생은 전부 필요
   const needsOnboarding = !isAdmin && user && (
     user.is_graduate 
@@ -1883,6 +1967,9 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'trends') return <TrendsPage user={user} setCurrentPage={setCurrentPage} setSelectedTrend={setSelectedTrend} />;
   if (currentPage === 'trend-detail') return <TrendDetailPage trend={selectedTrend} user={user} />;
   if (currentPage === 'admin-trends') return <AdminTrends user={user} />;
+  if (currentPage === 'tips') return <TipsPage user={user} setCurrentPage={setCurrentPage} setSelectedTip={setSelectedTip} />;
+  if (currentPage === 'tip-detail') return <TipDetailPage tip={selectedTip} user={user} />;
+  if (currentPage === 'admin-tips') return <AdminTips user={user} />;
   if (currentPage === 'library') return <LibraryPage />;
   if (currentPage === 'market') return <MarketPage setCurrentPage={setCurrentPage} setSelectedProduct={setSelectedProduct} />;
   if (currentPage === 'online') return <OnlineLecturePage setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
@@ -2262,6 +2349,14 @@ function NoticeDetailPage({ notice, user }) {
         </div>
         <h1 className="font-display text-2xl mt-3 tracking-tight leading-tight" style={{ color: COLORS.ink }}>{notice.title}</h1>
       </div>
+
+      {notice.image_url && (
+        <div className="px-5 mb-3">
+          <div className="aspect-video w-full rounded-2xl overflow-hidden" style={{ background: COLORS.cream }}>
+            <SkeletonImage src={notice.image_url} alt={notice.title} className="w-full h-full" />
+          </div>
+        </div>
+      )}
 
       <div className="px-5">
         <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -3359,7 +3454,7 @@ function TrendDetailPage({ trend, user }) {
 function QnaPage({ user, setCurrentPage, setSelectedQna }) {
   const [questions, setQuestions] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: '', content: '', category: '시술' });
+  const [form, setForm, clearForm] = useDraft('qna', { title: '', content: '', category: '시술' });
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('전체');
  
@@ -3397,7 +3492,7 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
       });
     } catch (e) { console.error('알림 발송 실패:', e); }
 
-    setForm({ title: '', content: '', category: '시술' });
+    clearForm();
     setShowForm(false);
     await load();
     setLoading(false);
@@ -4724,7 +4819,7 @@ function PaymentFailPage({ setCurrentPage }) {
 function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, pageTitle, pageEn, pageDesc }) {
   const POSTS_PER_PAGE = 20;
   const [posts, setPosts] = useState([]);
-  const [newPost, setNewPost] = useState('');
+  const [newPost, setNewPost, clearNewPost] = useDraft(`community_${fixedCategory || 'free'}`, '');
   const [loading, setLoading] = useState(false);
   const [displayCount, setDisplayCount] = useState(POSTS_PER_PAGE);
   const isAdmin = user?.role === 'admin';
@@ -4789,7 +4884,7 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
       }
       if (missionDone) {
         alert('🎉 미션 완료! 온보딩으로 돌아갑니다.');
-        setNewPost('');
+        clearNewPost();
         await load();
         setLoading(false);
         setTimeout(() => window.location.reload(), 500);
@@ -5489,7 +5584,7 @@ function ImprovementsPage({ user }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [content, setContent] = useState('');
+  const [content, setContent, clearContent] = useDraft('improvement', '');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -5521,7 +5616,7 @@ function ImprovementsPage({ user }) {
     if (error) {
       alert('등록 실패: ' + error.message);
     } else {
-      setContent('');
+      clearContent();
       setIsAnonymous(false);
       setShowForm(false);
       loadItems();
@@ -5932,7 +6027,9 @@ function NoPermissionScreen({ setCurrentPage }) {
 }
 
 function AdminDashboard({ setCurrentPage, canViewRevenue }) {
-  const [stats, setStats] = useState({ 
+  const newDays = 3;
+  const [recentUpdates, setRecentUpdates] = useState([]);
+  const [stats, setStats] = useState({
     students: 0, 
     lectures: 0, 
     pendingQna: 0, 
@@ -6004,6 +6101,28 @@ function AdminDashboard({ setCurrentPage, canViewRevenue }) {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    const loadUpdates = async () => {
+      const since = new Date(Date.now() - newDays * 24 * 60 * 60 * 1000).toISOString();
+      const [notices, trends, tips, lectures, library] = await Promise.all([
+        supabase.from('notices').select('id, title, created_at').gte('created_at', since).order('created_at', { ascending: false }),
+        supabase.from('trends').select('id, title, created_at').eq('is_active', true).gte('created_at', since).order('created_at', { ascending: false }),
+        supabase.from('tips').select('id, title, created_at').eq('is_active', true).gte('created_at', since).order('created_at', { ascending: false }),
+        supabase.from('lectures').select('id, title, created_at').eq('is_published', true).gte('created_at', since).order('created_at', { ascending: false }),
+        supabase.from('library_files').select('id, name, created_at').gte('created_at', since).order('created_at', { ascending: false }),
+      ]);
+      const all = [
+        ...(notices.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '공지', page: 'admin-notice' })),
+        ...(trends.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '트렌드', page: 'admin-trends' })),
+        ...(tips.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '꿀팁', page: 'admin-tips' })),
+        ...(lectures.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '강의', page: 'admin-lectures' })),
+        ...(library.data || []).map(x => ({ id: x.id, title: x.name, created_at: x.created_at, type: '자료', page: 'admin-library' })),
+      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setRecentUpdates(all);
+    };
+    loadUpdates();
+  }, [newDays]);
 
   const formatRevenue = (n) => {
     if (!n || n === 0) return '0';
@@ -6130,6 +6249,28 @@ function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </section>
       )}
 
+      {/* 🆕 최근 업데이트 (NEW) */}
+      <section className="px-5 mb-3">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ NEW 업데이트</p>
+          <span className="font-mono text-[9px]" style={{ color: COLORS.stone }}>최근 3일</span>
+        </div>
+        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          {recentUpdates.length === 0 ? (
+            <p className="font-body text-xs text-center py-6" style={{ color: COLORS.stone }}>최근 {newDays}일간 새 글이 없어요</p>
+          ) : recentUpdates.slice(0, 10).map((u, i) => (
+            <button key={`${u.type}-${u.id}`} onClick={() => setCurrentPage(u.page)}
+              className="w-full text-left flex items-center gap-2.5 p-3 transition-transform active:scale-[0.98]"
+              style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
+              <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-1 rounded shrink-0" style={{ background: COLORS.peach, color: COLORS.deep }}>{u.type}</span>
+              <p className="font-body text-xs flex-1 truncate" style={{ color: COLORS.ink }}>{u.title}</p>
+              <span className="font-mono text-[9px] shrink-0" style={{ color: COLORS.stone }}>{new Date(u.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}</span>
+              <ChevronRight size={12} style={{ color: COLORS.stone }} />
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* 📅 이번 달 통계 - 3개 카드 */}
       <section className="px-5 mb-3">
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ This Month</p>
@@ -6220,12 +6361,12 @@ function AdminTrends({ user }) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [filter, setFilter] = useState('전체');
-  const [form, setForm] = useState({
+  const [form, setForm, clearForm] = useDraft('trend_form', {
     category: '트렌드', title: '', content: '',
     link_url: '', video_url: '',
     image_url: '', imageFile: null, imagePreview: null,
     is_active: true, sendPush: true,
-  });
+  }, ['imageFile', 'imagePreview']);
 
   useEffect(() => { load(); }, []);
 
@@ -6268,12 +6409,7 @@ function AdminTrends({ user }) {
 
   const resetForm = () => {
     if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
-    setForm({
-      category: '트렌드', title: '', content: '',
-      link_url: '', video_url: '',
-      image_url: '', imageFile: null, imagePreview: null,
-      is_active: true, sendPush: true,
-    });
+    clearForm();
     setEditingId(null);
     setShowForm(false);
   };
@@ -6557,11 +6693,570 @@ function AdminTrends({ user }) {
   );
 }
 
+// =============================================================
+// 💡 TipsPage - 수업·꿀팁 공유방 (학생용)
+// =============================================================
+function TipsPage({ user, setCurrentPage, setSelectedTip }) {
+  const [tips, setTips] = useState([]);
+  const [filter, setFilter] = useState('전체');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('tips')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+    setTips(data || []);
+    setLoading(false);
+  };
+
+  const categories = ['전체', '수업노트', '시술꿀팁', '운영꿀팁', '기타'];
+  const filtered = filter === '전체' ? tips : tips.filter(t => t.category === filter);
+
+  return (
+    <>
+      <PageIntro ko="수업·꿀팁" en="Tips" />
+
+      <div className="px-5 mb-4">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilter(cat)}
+              className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold transition-transform active:scale-95"
+              style={{
+                background: filter === cat ? COLORS.primary : COLORS.card,
+                color: filter === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
+                boxShadow: filter === cat ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
+              }}>
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 mb-4">
+        <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+          {filter === '전체' ? '총 ' : `${filter} `}
+          <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>{filtered.length}개</span>
+        </p>
+      </div>
+
+      <div className="px-5 space-y-3">
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <Sparkles size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+              {filter === '전체' ? '아직 공유된 꿀팁이 없어요' : `${filter} 카테고리 글이 없어요`}
+            </p>
+          </div>
+        ) : filtered.map(t => (
+          <button key={t.id} onClick={() => { setSelectedTip(t); setCurrentPage('tip-detail'); }}
+            className="w-full text-left rounded-3xl overflow-hidden transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            {t.image_url && (
+              <div className="relative aspect-[16/9] overflow-hidden">
+                <SkeletonImage src={t.image_url} alt={t.title} className="w-full h-full" />
+                <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap">
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
+                    background: COLORS.card, color: COLORS.ink, backdropFilter: 'blur(8px)'
+                  }}>
+                    {t.category}
+                  </span>
+                </div>
+                {t.video_url && (
+                  <div className="absolute bottom-3 right-3 w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                    <Play size={14} fill={COLORS.white} style={{ color: COLORS.white }} className="ml-0.5" />
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="p-4">
+              {!t.image_url && (
+                <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded inline-block mb-2" style={{
+                  background: COLORS.peach, color: COLORS.deep
+                }}>
+                  {t.category}
+                </span>
+              )}
+              <h4 className="font-heading text-base leading-snug" style={{ color: COLORS.ink }}>{t.title}</h4>
+              {t.content && (
+                <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2" style={{ color: COLORS.stone }}>
+                  {t.content}
+                </p>
+              )}
+              <div className="flex items-center justify-between mt-3">
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+                  {new Date(t.created_at).toLocaleDateString('ko-KR')}
+                </p>
+                <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.primary }}>
+                  자세히 보기 <ChevronRight size={11} />
+                </div>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// =============================================================
+// 💡 TipDetailPage - 수업·꿀팁 상세
+// =============================================================
+function TipDetailPage({ tip, user }) {
+  if (!tip) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <p className="font-body text-sm" style={{ color: COLORS.stone }}>글을 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  const getYouTubeId = (url) => {
+    if (!url) return null;
+    const patterns = [
+      /youtube\.com\/watch\?v=([^&\s]+)/,
+      /youtu\.be\/([^?\s]+)/,
+      /youtube\.com\/embed\/([^?\s]+)/,
+      /youtube\.com\/shorts\/([^?\s]+)/,
+    ];
+    for (const p of patterns) {
+      const match = url.match(p);
+      if (match) return match[1];
+    }
+    return null;
+  };
+
+  const videoId = tip.video_url ? getYouTubeId(tip.video_url) : null;
+
+  return (
+    <div className="pb-6">
+      {tip.image_url && (
+        <div className="aspect-[16/9] w-full overflow-hidden" style={{ background: COLORS.cream }}>
+          <SkeletonImage src={tip.image_url} alt={tip.title} className="w-full h-full" />
+        </div>
+      )}
+
+      <div className="px-5 pt-5">
+        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+          <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>
+            {tip.category}
+          </span>
+          <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+            {new Date(tip.created_at).toLocaleDateString('ko-KR')}
+          </span>
+        </div>
+        <h1 className="font-display text-2xl tracking-tight leading-tight" style={{ color: COLORS.ink }}>{tip.title}</h1>
+      </div>
+
+      {tip.content && (
+        <div className="px-5 mt-4">
+          <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+              {tip.content}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {videoId && (
+        <div className="px-5 mt-3">
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.primary }}>━━ 관련 영상</p>
+          <div className="relative aspect-video rounded-2xl overflow-hidden" style={{ background: '#000' }}>
+            <iframe
+              src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+              title={tip.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="w-full h-full"
+              style={{ border: 'none' }}
+            />
+          </div>
+        </div>
+      )}
+
+      {tip.link_url && (
+        <div className="px-5 mt-3">
+          <a href={tip.link_url} target="_blank" rel="noopener noreferrer"
+            className="rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.primary}` }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: COLORS.peach }}>
+              <ArrowUpRight size={16} style={{ color: COLORS.primary }} strokeWidth={2.5} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 외부 링크</p>
+              <p className="font-body text-xs mt-0.5 truncate" style={{ color: COLORS.ink }}>{tip.link_url}</p>
+            </div>
+          </a>
+        </div>
+      )}
+
+      <div className="px-5 mt-3">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <LikeButton targetType="tip" targetId={tip.id} userId={user.id} size={16} />
+          <CommentSection targetType="tip" targetId={tip.id} user={user} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// 💡 AdminTips - 수업·꿀팁 관리 (원장님·운영진)
+// =============================================================
+function AdminTips({ user }) {
+  const [tips, setTips] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [filter, setFilter] = useState('전체');
+  const [form, setForm, clearForm] = useDraft('tip_form', {
+    category: '수업노트', title: '', content: '',
+    link_url: '', video_url: '',
+    image_url: '', imageFile: null, imagePreview: null,
+    is_active: true, sendPush: true,
+  }, ['imageFile', 'imagePreview']);
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    const { data } = await supabase.from('tips').select('*').order('created_at', { ascending: false });
+    setTips(data || []);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({ ...form, imageFile: file, imagePreview: URL.createObjectURL(file) });
+  };
+
+  const removePreview = () => {
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({ ...form, imageFile: null, imagePreview: null });
+  };
+
+  const uploadTipImage = async (file) => {
+    const compressed = await compressImage(file, 1600, 0.85);
+    const fileExt = compressed.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const { error } = await supabase.storage.from('tip-images').upload(fileName, compressed);
+    if (error) throw error;
+    const { data } = supabase.storage.from('tip-images').getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
+  const deleteTipImage = async (imageUrl) => {
+    if (!imageUrl) return;
+    try {
+      const url = new URL(imageUrl);
+      const pathParts = url.pathname.split('/tip-images/');
+      if (pathParts.length < 2) return;
+      await supabase.storage.from('tip-images').remove([pathParts[1]]);
+    } catch (e) { console.error('이미지 삭제 에러:', e); }
+  };
+
+  const resetForm = () => {
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    clearForm();
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const startEdit = (tip) => {
+    setForm({
+      category: tip.category || '수업노트',
+      title: tip.title || '',
+      content: tip.content || '',
+      link_url: tip.link_url || '',
+      video_url: tip.video_url || '',
+      image_url: tip.image_url || '',
+      imageFile: null,
+      imagePreview: null,
+      is_active: tip.is_active !== false,
+      sendPush: false,
+    });
+    setEditingId(tip.id);
+    setShowForm(true);
+    setTimeout(() => document.querySelector('.admin-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  };
+
+  const submit = async () => {
+    if (!form.title.trim()) return alert('제목을 입력해주세요');
+    setLoading(true);
+    try {
+      let imageUrl = form.image_url;
+      if (form.imageFile) {
+        setUploading(true);
+        if (editingId && form.image_url) await deleteTipImage(form.image_url);
+        imageUrl = await uploadTipImage(form.imageFile);
+        setUploading(false);
+      }
+      const tipData = {
+        category: form.category,
+        title: form.title.trim(),
+        content: form.content.trim() || null,
+        link_url: form.link_url.trim() || null,
+        video_url: form.video_url.trim() || null,
+        image_url: imageUrl || null,
+        is_active: form.is_active,
+      };
+      if (editingId) {
+        const { error } = await supabase.from('tips').update(tipData).eq('id', editingId);
+        if (error) throw error;
+      } else {
+        tipData.created_by = user.id;
+        const { error } = await supabase.from('tips').insert(tipData);
+        if (error) throw error;
+
+        if (form.sendPush) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                title: `[${form.category}] 새 꿀팁이 올라왔어요!`,
+                body: form.title,
+                url: '/',
+                targetRole: 'student',
+              }),
+            });
+          } catch (e) { console.error('알림 발송 실패:', e); }
+        }
+
+        await notifyAdminsOfStaffActivity(user, `수업·꿀팁 등록`, form.title);
+      }
+      resetForm();
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert('저장 실패: ' + err.message);
+    }
+    setLoading(false);
+    setUploading(false);
+  };
+
+  const remove = async (tip) => {
+    if (!confirm('이 글을 삭제하시겠습니까?')) return;
+    if (tip.image_url) await deleteTipImage(tip.image_url);
+    await supabase.from('tips').delete().eq('id', tip.id);
+    await load();
+  };
+
+  const toggleActive = async (tip) => {
+    await supabase.from('tips').update({ is_active: !tip.is_active }).eq('id', tip.id);
+    await load();
+  };
+
+  const categories = ['전체', '수업노트', '시술꿀팁', '운영꿀팁', '기타'];
+  const filtered = filter === '전체' ? tips : tips.filter(t => t.category === filter);
+
+  return (
+    <>
+      <PageIntro ko="수업·꿀팁 관리" en="Tips Admin" />
+      <div className="px-5 space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl p-3" style={{ background: COLORS.primary }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>공개 중</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>{tips.filter(t => t.is_active).length}</p>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>숨김</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{tips.filter(t => !t.is_active).length}</p>
+          </div>
+        </div>
+
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+            <Plus size={14} strokeWidth={2.5} />새 꿀팁 공유
+          </button>
+        )}
+
+        {showForm && (
+          <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>{editingId ? '꿀팁 수정' : '새 꿀팁 공유'}</h3>
+              <button onClick={resetForm}><X size={18} style={{ color: COLORS.stone }} /></button>
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>카테고리 *</label>
+              <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                <option>수업노트</option><option>시술꿀팁</option><option>운영꿀팁</option><option>기타</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>제목 *</label>
+              <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})}
+                placeholder="예: 엠보 시술 시 통증 줄이는 꿀팁"
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>대표 이미지 (선택)</label>
+              <div className="mt-2">
+                {form.imagePreview ? (
+                  <div className="relative aspect-video w-full rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
+                    <img src={form.imagePreview} alt="미리보기" className="w-full h-full object-cover" />
+                    <button onClick={removePreview} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={14} style={{ color: COLORS.white }} />
+                    </button>
+                  </div>
+                ) : form.image_url ? (
+                  <div className="relative aspect-video w-full rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
+                    <img src={form.image_url} alt="기존" className="w-full h-full object-cover" />
+                    <label className="absolute inset-0 flex items-center justify-center cursor-pointer" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                      <span className="font-heading text-xs" style={{ color: COLORS.white }}>이미지 변경</span>
+                      <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="aspect-video w-full rounded-xl flex flex-col items-center justify-center cursor-pointer" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
+                    <Upload size={24} style={{ color: COLORS.stone }} />
+                    <span className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>이미지 업로드 (16:9 권장)</span>
+                    <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>내용</label>
+              <textarea value={form.content} onChange={e => setForm({...form, content: e.target.value})}
+                placeholder="수업 내용이나 꿀팁을 자세히 적어주세요" rows={5}
+                className="w-full font-body text-xs font-medium p-2 mt-1 outline-none resize-none rounded"
+                style={{ background: COLORS.cream, color: COLORS.ink }} />
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>유튜브 URL (선택)</label>
+              <input type="url" value={form.video_url} onChange={e => setForm({...form, video_url: e.target.value})}
+                placeholder="https://youtube.com/watch?v=..."
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>💡 youtube.com, youtu.be, shorts 모두 가능</p>
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>외부 링크 (선택)</label>
+              <input type="url" value={form.link_url} onChange={e => setForm({...form, link_url: e.target.value})}
+                placeholder="https://..."
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer p-2 rounded" style={{ background: COLORS.cream }}>
+              <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})}
+                className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+              <span className="font-body text-xs" style={{ color: COLORS.ink }}>✨ 즉시 공개 (체크 해제 시 숨김)</span>
+            </label>
+
+            {!editingId && (
+              <label className="flex items-center gap-2 cursor-pointer p-2 rounded" style={{ background: COLORS.cream }}>
+                <input type="checkbox" checked={form.sendPush} onChange={e => setForm({...form, sendPush: e.target.checked})}
+                  className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                <span className="font-body text-xs" style={{ color: COLORS.ink }}>📢 푸시 알림 발송</span>
+              </label>
+            )}
+
+            <button onClick={submit} disabled={loading || uploading}
+              className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
+              {uploading ? '이미지 업로드 중...' : editingId ? '수정 저장' : '공유하기'}
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 py-1">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilter(cat)}
+              className="shrink-0 px-3 py-1.5 rounded-full font-body text-xs font-semibold"
+              style={{
+                background: filter === cat ? COLORS.primary : COLORS.card,
+                color: filter === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
+              }}>
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <Sparkles size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>공유된 꿀팁이 없습니다</p>
+          </div>
+        ) : filtered.map(t => (
+          <div key={t.id} onClick={() => startEdit(t)} className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: t.is_active ? 1 : 0.6 }}>
+            {t.image_url && (
+              <div className="aspect-video relative">
+                <SkeletonImage src={t.image_url} alt={t.title} className="w-full h-full" />
+                <span className="absolute top-2 left-2 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>{t.category}</span>
+                {!t.is_active && (
+                  <span className="absolute top-2 right-2 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>숨김</span>
+                )}
+              </div>
+            )}
+            <div className="p-3">
+              {!t.image_url && (
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>{t.category}</span>
+                  {!t.is_active && <span className="font-mono text-[8px] px-1.5 py-0.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>숨김</span>}
+                </div>
+              )}
+              <h4 className="font-heading text-sm" style={{ color: COLORS.ink }}>{t.title}</h4>
+              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{new Date(t.created_at).toLocaleDateString('ko-KR')}</p>
+              {t.content && <p className="font-body text-xs mt-1.5 line-clamp-2" style={{ color: COLORS.stone }}>{t.content}</p>}
+              <div onClick={e => e.stopPropagation()} className="flex gap-1 mt-3">
+                <button onClick={() => toggleActive(t)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full"
+                  style={{ background: t.is_active ? COLORS.cream : COLORS.primary, color: t.is_active ? COLORS.stone : COLORS.white }}>
+                  {t.is_active ? '숨김' : '공개'}
+                </button>
+                <button onClick={() => startEdit(t)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full flex items-center justify-center gap-1"
+                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  <Edit3 size={10} />수정
+                </button>
+                <button onClick={() => remove(t)} className="px-2 py-1.5 rounded-full" style={{ background: COLORS.cream }}>
+                  <Trash2 size={10} style={{ color: COLORS.deep }} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   const [notices, setNotices] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: '', content: '', tag: '안내', urgent: false, sendPush: true });
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm, clearForm] = useDraft('notice_form', { 
+    title: '', content: '', tag: '안내', urgent: false, sendPush: true,
+    image_url: '', imageFile: null, imagePreview: null,
+  }, ['imageFile', 'imagePreview']);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState(0);
 
   useEffect(() => { 
@@ -6581,65 +7276,138 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
     setSubscriberCount(count || 0);
   };
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({ ...form, imageFile: file, imagePreview: URL.createObjectURL(file) });
+  };
+
+  const removePreview = () => {
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm({ ...form, imageFile: null, imagePreview: null });
+  };
+
+  const uploadNoticeImage = async (file) => {
+    const compressed = await compressImage(file, 1600, 0.85);
+    const fileExt = compressed.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const { error } = await supabase.storage.from('notice-images').upload(fileName, compressed);
+    if (error) throw error;
+    const { data } = supabase.storage.from('notice-images').getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
+  const deleteNoticeImage = async (imageUrl) => {
+    if (!imageUrl) return;
+    try {
+      const url = new URL(imageUrl);
+      const pathParts = url.pathname.split('/notice-images/');
+      if (pathParts.length < 2) return;
+      await supabase.storage.from('notice-images').remove([pathParts[1]]);
+    } catch (e) { console.error('이미지 삭제 에러:', e); }
+  };
+
+  const resetForm = () => {
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    clearForm();
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const startEdit = (notice) => {
+    setForm({
+      title: notice.title || '',
+      content: notice.content || '',
+      tag: notice.tag || '안내',
+      urgent: notice.urgent || false,
+      sendPush: false,
+      image_url: notice.image_url || '',
+      imageFile: null,
+      imagePreview: null,
+    });
+    setEditingId(notice.id);
+    setShowForm(true);
+    setTimeout(() => document.querySelector('.admin-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  };
+
   const submit = async () => {
     if (!form.title.trim()) return;
     setLoading(true);
-
     try {
-      const { error: insertError } = await supabase.from('notices').insert({
+      let imageUrl = form.image_url;
+      if (form.imageFile) {
+        setUploading(true);
+        if (editingId && form.image_url) await deleteNoticeImage(form.image_url);
+        imageUrl = await uploadNoticeImage(form.imageFile);
+        setUploading(false);
+      }
+
+      const noticeData = {
         title: form.title,
         content: form.content,
         tag: form.tag,
         urgent: form.urgent,
-        author_id: user.id
-      });
-      if (insertError) throw insertError;
+        image_url: imageUrl || null,
+      };
 
-      // 🍊 운영진이면 원장님께 별도 알림
-      await notifyAdminsOfStaffActivity(user, `공지 등록: ${form.title}`, form.content?.substring(0, 60) || '');
-
-      if (form.sendPush && subscriberCount > 0) {
-        const { data: { session } } = await supabase.auth.getSession();
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              title: `${form.urgent ? '🔴 ' : ''}[${form.tag}] ${form.title}`,
-              body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
-              url: '/',
-              targetRole: 'student',
-              excludeUserId: user.id,
-            }),
-          }
-        );
-        const result = await response.json();
-        if (result.sent > 0) {
-          alert(`✅ 공지 등록 완료!\n📢 ${result.sent}명에게 알림 전송됨`);
-        } else {
-          alert('공지 등록 완료! (알림 전송 실패 또는 구독자 없음)');
-        }
+      if (editingId) {
+        const { error } = await supabase.from('notices').update(noticeData).eq('id', editingId);
+        if (error) throw error;
+        alert('✏️ 공지 수정 완료!');
       } else {
-        alert('공지 등록 완료!');
+        noticeData.author_id = user.id;
+        const { error: insertError } = await supabase.from('notices').insert(noticeData);
+        if (insertError) throw insertError;
+
+        await notifyAdminsOfStaffActivity(user, `공지 등록: ${form.title}`, form.content?.substring(0, 60) || '');
+
+        if (form.sendPush && subscriberCount > 0) {
+          const { data: { session } } = await supabase.auth.getSession();
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                title: `${form.urgent ? '🔴 ' : ''}[${form.tag}] ${form.title}`,
+                body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
+                url: '/',
+                targetRole: 'student',
+                excludeUserId: user.id,
+              }),
+            }
+          );
+          const result = await response.json();
+          if (result.sent > 0) {
+            alert(`✅ 공지 등록 완료!\n📢 ${result.sent}명에게 알림 전송됨`);
+          } else {
+            alert('공지 등록 완료! (알림 전송 실패 또는 구독자 없음)');
+          }
+        } else {
+          alert('공지 등록 완료!');
+        }
       }
 
-      setForm({ title: '', content: '', tag: '안내', urgent: false, sendPush: true });
-      setShowForm(false);
+      resetForm();
       await load();
     } catch (err) {
       console.error(err);
-      alert('등록 실패: ' + err.message);
+      alert('저장 실패: ' + err.message);
     }
     setLoading(false);
+    setUploading(false);
   };
 
-  const remove = async (id) => {
+  const remove = async (id, e) => {
+    e?.stopPropagation();
     if (!confirm('정말 삭제하시겠습니까?')) return;
+    const notice = notices.find(n => n.id === id);
+    if (notice?.image_url) await deleteNoticeImage(notice.image_url);
     await supabase.from('notices').delete().eq('id', id);
     await load();
   };
@@ -6648,11 +7416,18 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
     <>
       <PageIntro ko="학원공지 관리" en="Notice Admin" />
       <div className="px-5 space-y-3">
-        <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
-          <Plus size={14} strokeWidth={2.5} />새 공지
-        </button>
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+            <Plus size={14} strokeWidth={2.5} />새 공지
+          </button>
+        )}
         {showForm && (
           <div className="rounded-2xl p-4 space-y-3 animate-fade-in admin-edit-form" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>{editingId ? '공지 수정' : '새 공지'}</h3>
+              <button onClick={resetForm}><X size={18} style={{ color: COLORS.stone }} /></button>
+            </div>
+
             <select value={form.tag} onChange={e => setForm({...form, tag: e.target.value})}
               className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }}>
               <option>필독</option><option>안내</option><option>이벤트</option>
@@ -6661,51 +7436,95 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
               placeholder="공지 제목" className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }} />
             <textarea value={form.content} onChange={e => setForm({...form, content: e.target.value})}
               placeholder="공지 내용" rows={4} className="w-full font-body text-xs font-medium p-2 outline-none resize-none rounded" style={{ background: COLORS.cream, color: COLORS.ink }} />
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>이미지 (선택)</label>
+              <div className="mt-2">
+                {form.imagePreview ? (
+                  <div className="relative aspect-video w-full rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
+                    <img src={form.imagePreview} alt="미리보기" className="w-full h-full object-cover" />
+                    <button onClick={removePreview} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={14} style={{ color: COLORS.white }} />
+                    </button>
+                  </div>
+                ) : form.image_url ? (
+                  <div className="relative aspect-video w-full rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
+                    <img src={form.image_url} alt="기존" className="w-full h-full object-cover" />
+                    <label className="absolute inset-0 flex items-center justify-center cursor-pointer" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                      <span className="font-heading text-xs" style={{ color: COLORS.white }}>이미지 변경</span>
+                      <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="aspect-video w-full rounded-xl flex flex-col items-center justify-center cursor-pointer" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
+                    <Upload size={24} style={{ color: COLORS.stone }} />
+                    <span className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>이미지 업로드 (선택)</span>
+                    <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                  </label>
+                )}
+              </div>
+            </div>
+
             <label className="flex items-center gap-2 font-body text-xs" style={{ color: COLORS.stone }}>
               <input type="checkbox" checked={form.urgent} onChange={e => setForm({...form, urgent: e.target.checked})} />
               긴급 공지로 표시
             </label>
 
-            <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: COLORS.cream }}>
-              <label className="flex items-center gap-2 cursor-pointer flex-1">
-                <input type="checkbox" checked={form.sendPush}
-                  onChange={e => setForm({...form, sendPush: e.target.checked})}
-                  className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-                <div>
-                  <p className="font-heading text-xs flex items-center gap-1.5" style={{ color: COLORS.ink }}>
-                    <Bell size={11} strokeWidth={2.5} />
-                    푸시 알림 전송
-                  </p>
-                  <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
-                    {subscriberCount > 0 ? `${subscriberCount}명의 구독자에게 알림 발송` : '아직 구독자가 없습니다'}
-                  </p>
-                </div>
-              </label>
-            </div>
+            {!editingId && (
+              <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: COLORS.cream }}>
+                <label className="flex items-center gap-2 cursor-pointer flex-1">
+                  <input type="checkbox" checked={form.sendPush}
+                    onChange={e => setForm({...form, sendPush: e.target.checked})}
+                    className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                  <div>
+                    <p className="font-heading text-xs flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                      <Bell size={11} strokeWidth={2.5} />
+                      푸시 알림 전송
+                    </p>
+                    <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
+                      {subscriberCount > 0 ? `${subscriberCount}명의 구독자에게 알림 발송` : '아직 구독자가 없습니다'}
+                    </p>
+                  </div>
+                </label>
+              </div>
+            )}
 
-            <button onClick={submit} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.white }}>
-              {loading && <Loader2 size={12} className="animate-spin" />}발행
+            <button onClick={submit} disabled={loading || uploading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              {(loading || uploading) && <Loader2 size={12} className="animate-spin" />}
+              {uploading ? '이미지 업로드 중...' : editingId ? '수정 저장' : '발행'}
             </button>
           </div>
         )}
         {notices.map(n => (
-          <div key={n.id} onClick={() => { setSelectedNotice(n); setCurrentPage('notice-detail'); }}
-            className="rounded-2xl p-4 cursor-pointer transition-transform active:scale-[0.98]"
+          <div key={n.id} onClick={() => startEdit(n)}
+            className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
-                background: n.urgent ? COLORS.primary : COLORS.peach,
-                color: n.urgent ? COLORS.white : COLORS.deep
-              }}>{n.tag}</span>
-              <button onClick={(e) => { e.stopPropagation(); remove(n.id); }} className="p-1">
-                <Trash2 size={12} style={{ color: COLORS.stone }} />
-              </button>
-            </div>
-            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{n.title}</p>
-            <div className="flex items-center justify-between mt-1">
-              <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(n.created_at).toLocaleDateString('ko-KR')}</p>
-              <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.primary }}>
-                자세히 보기 <ChevronRight size={11} />
+            {n.image_url && (
+              <div className="aspect-video relative overflow-hidden">
+                <SkeletonImage src={n.image_url} alt={n.title} className="w-full h-full" />
+              </div>
+            )}
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
+                  background: n.urgent ? COLORS.primary : COLORS.peach,
+                  color: n.urgent ? COLORS.white : COLORS.deep
+                }}>{n.tag}</span>
+                <div onClick={e => e.stopPropagation()} className="flex gap-1">
+                  <button onClick={() => startEdit(n)} className="p-1.5 rounded-full" style={{ background: COLORS.cardElev }}>
+                    <Edit3 size={11} style={{ color: COLORS.white }} />
+                  </button>
+                  <button onClick={(e) => remove(n.id, e)} className="p-1.5 rounded-full" style={{ background: COLORS.cream }}>
+                    <Trash2 size={12} style={{ color: COLORS.deep }} />
+                  </button>
+                </div>
+              </div>
+              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{n.title}</p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(n.created_at).toLocaleDateString('ko-KR')}</p>
+                <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.primary }}>
+                  탭해서 수정 <Edit3 size={10} />
+                </div>
               </div>
             </div>
           </div>
