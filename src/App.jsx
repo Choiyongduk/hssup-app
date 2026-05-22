@@ -404,6 +404,7 @@ export default function HSSUPApp() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [currentPage, setCurrentPage] = useState('home');
+  const isPoppingRef = useRef(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -677,6 +678,10 @@ export default function HSSUPApp() {
   // 페이지가 바뀔 때마다 브라우저 히스토리에 자동 기록
   useEffect(() => {
     if (!profile) return; // 로그인 전에는 작동 안 함
+    if (isPoppingRef.current) {
+      isPoppingRef.current = false;
+      return; // 🍊 뒤로가기로 바뀐 거면 기록 다시 안 쌓음
+    }
     window.history.pushState({ page: currentPage }, '', '');
   }, [currentPage, profile]);
 
@@ -707,6 +712,7 @@ export default function HSSUPApp() {
         return;
       }
       // 페이지 이동
+      isPoppingRef.current = true;
       if (e.state && e.state.page) {
         setCurrentPage(e.state.page);
       } else {
@@ -6219,7 +6225,7 @@ function AdminDashboard({ setCurrentPage, canViewRevenue }) {
   const quickActions = [
     { id: 'admin-approvals',    label: 'APPROVE',  ko: '가입 승인',     icon: UserPlus },
     { id: 'admin-notice',       label: 'NOTICE',   ko: '학원공지',      icon: Bell },
-    { id: 'admin-trends',       label: 'TRENDS',   ko: '🔥 트렌드',     icon: Sparkles },
+    { id: 'admin-trends',       label: 'TRENDS',   ko: '트렌드',     icon: Sparkles },
     { id: 'admin-students',     label: 'STUDENTS', ko: '수강생',        icon: UserCheck },
     { id: 'admin-qna',          label: 'Q&A',      ko: 'Q&A 답변',      icon: MessageCircle },
     { id: 'admin-improvements', label: 'FEEDBACK', ko: '개선 제안',     icon: Edit3 },
