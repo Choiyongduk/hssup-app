@@ -341,6 +341,33 @@ function useNewPages() {
   return newPages;
 }
 
+// =============================================================
+// 🎬 useLatestLecture - 최신 강의 + 최근 3일 새 강의 여부
+// =============================================================
+function useLatestLecture() {
+  const [heroLecture, setHeroLecture] = useState({ latest: null, isNew: false });
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from('lectures')
+          .select('id, title, created_at')
+          .eq('is_published', true)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (data && data[0]) {
+          const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+          setHeroLecture({
+            latest: data[0],
+            isNew: new Date(data[0].created_at).getTime() > threeDaysAgo,
+          });
+        }
+      } catch (e) { console.error('최신 강의 조회 실패:', e); }
+    };
+    load();
+  }, []);
+  return heroLecture;
+}
+
 export default function HSSUPApp() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
@@ -592,7 +619,7 @@ export default function HSSUPApp() {
       setProfile(data);
       // 🍊 마지막 페이지 복원 (앱 재진입 시)
       const lastPage = sessionStorage.getItem('hssup_last_page');
-      const defaultPage = data.role === 'admin' ? 'dashboard' : 'home';
+      const defaultPage = (data.role === 'admin' || data.role === 'staff') ? 'dashboard' : 'home';
       setCurrentPage(lastPage || defaultPage);
     }
     setLoading(false);
@@ -2234,6 +2261,8 @@ function HomePage({ user, setCurrentPage, setSelectedNotice }) {
     { id: 'market',    label: 'STORE',        ko: '재료샵',      icon: ShoppingBag },
   ];
 
+  const heroLecture = useLatestLecture();
+
   return (
     <div className="pb-6">
       {/* 환영 메시지 */}
@@ -2252,17 +2281,15 @@ function HomePage({ user, setCurrentPage, setSelectedNotice }) {
           <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
           <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(0,0,0,0.15)' }}></div>
           <div className="relative" style={{ color: COLORS.white }}>
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">━━ ONLINE CLASS</p>
-            <h3 className="font-display text-2xl mt-2 leading-tight tracking-tight">새로운 강의가<br />업데이트 되었습니다</h3>
-            <div className="flex items-center justify-between mt-5">
-              <p className="font-body text-xs font-medium opacity-90">03 / 10</p>
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">━━ ONLINE CLASS{heroLecture.isNew && ' · NEW'}</p>
+            <h3 className="font-display text-2xl mt-2 leading-tight tracking-tight">{heroLecture.isNew ? <>새로운 강의가<br />업데이트 되었습니다</> : <>온라인 강의로<br />실력을 키워보세요</>}</h3>
+            {heroLecture.latest && (
+              <p className="font-body text-xs mt-2 opacity-90 truncate">{heroLecture.isNew ? '🆕 ' : '최신 · '}{heroLecture.latest.title}</p>
+            )}
+            <div className="flex items-center justify-end mt-5">
               <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
                 <Play size={15} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
               </div>
-            </div>
-            {/* 진도 바 */}
-            <div className="mt-4 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.25)' }}>
-              <div className="h-full rounded-full" style={{ width: '30%', background: COLORS.white }}></div>
             </div>
           </div>
         </button>
