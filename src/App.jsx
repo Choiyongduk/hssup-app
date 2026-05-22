@@ -2298,13 +2298,13 @@ function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   return (
     <div className="pb-6">
       {/* 환영 메시지 */}
-      <section className="px-5 pt-6 pb-6">
-        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Today</p>
-        <h2 className="font-display text-[42px] leading-[1] mt-3 tracking-tighter" style={{ color: COLORS.ink }}>
+      <section className="px-5 pt-6 pb-6 relative overflow-hidden">
+        <div className="absolute -top-12 -right-16 w-52 h-52 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,92,31,0.4), rgba(255,92,31,0.12) 35%, transparent 70%)' }}></div>
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase relative" style={{ color: COLORS.primary }}>━━ Today</p>
+        <h2 className="font-display text-[42px] leading-[1] mt-3 tracking-tighter relative" style={{ color: COLORS.ink }}>
           Hello,<br />
-          <span style={{ color: COLORS.primary }} className="glow-text">{user.name}</span>
+          <span style={{ color: COLORS.primary }} className="glow-text">{user.name?.length > 1 ? user.name.slice(1) : user.name}님</span>
         </h2>
-        <p className="font-serif-italic text-lg mt-3" style={{ color: COLORS.stone }}>Where craft meets artistry.</p>
       </section>
 
       {/* 🆕 NEW 업데이트 (수강생) */}
@@ -6405,24 +6405,21 @@ function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </div>
       </section>
 
-      {/* ⚡ Quick Action 2x2 그리드 */}
+      {/* ⚡ Quick Action 3열 그리드 */}
       <section className="px-5">
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-3 px-1" style={{ color: COLORS.primary }}>━━ Quick Action</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           {quickActions.map(item => {
             const Icon = item.icon;
             return (
               <button key={item.id} onClick={() => setCurrentPage(item.id)}
-                className="aspect-square rounded-3xl p-5 flex flex-col justify-between transition-transform active:scale-95 text-left relative overflow-hidden"
+                className="rounded-2xl p-3 flex flex-col items-center text-center transition-transform active:scale-95"
                 style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,92,31,0.2), transparent 70%)` }}></div>
-                <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
-                  <Icon size={22} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2 glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+                  <Icon size={19} strokeWidth={1.8} style={{ color: COLORS.primary }} />
                 </div>
-                <div className="relative">
-                  <p className="font-display text-base tracking-tight" style={{ color: COLORS.ink }}>{item.label}</p>
-                  <p className="font-mono text-[10px] mt-0.5 tracking-widest" style={{ color: COLORS.stone }}>{item.ko}</p>
-                </div>
+                <p className="font-heading text-xs leading-tight" style={{ color: COLORS.ink }}>{item.ko}</p>
+                <p className="font-mono text-[8px] mt-1 tracking-widest" style={{ color: COLORS.stone }}>{item.label}</p>
               </button>
             );
           })}
