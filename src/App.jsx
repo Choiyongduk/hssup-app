@@ -368,6 +368,37 @@ function useLatestLecture() {
   return heroLecture;
 }
 
+// =============================================================
+// 🆕 useRecentUpdates - 홈 화면 최근 3일 업데이트 (수강생용)
+// =============================================================
+function useRecentUpdates() {
+  const [updates, setUpdates] = useState([]);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+        const [notices, trends, tips, lectures, library] = await Promise.all([
+          supabase.from('notices').select('id, title, created_at').gte('created_at', since).order('created_at', { ascending: false }),
+          supabase.from('trends').select('id, title, created_at').eq('is_active', true).gte('created_at', since).order('created_at', { ascending: false }),
+          supabase.from('tips').select('id, title, created_at').eq('is_active', true).gte('created_at', since).order('created_at', { ascending: false }),
+          supabase.from('lectures').select('id, title, created_at').eq('is_published', true).gte('created_at', since).order('created_at', { ascending: false }),
+          supabase.from('library_files').select('id, name, created_at').gte('created_at', since).order('created_at', { ascending: false }),
+        ]);
+        const all = [
+          ...(notices.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '공지', page: 'notice' })),
+          ...(trends.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '트렌드', page: 'trends' })),
+          ...(tips.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '꿀팁', page: 'tips' })),
+          ...(lectures.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '강의', page: 'online' })),
+          ...(library.data || []).map(x => ({ id: x.id, title: x.name, created_at: x.created_at, type: '자료', page: 'library' })),
+        ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        setUpdates(all);
+      } catch (e) { console.error('홈 업데이트 조회 실패:', e); }
+    };
+    load();
+  }, []);
+  return updates;
+}
+
 export default function HSSUPApp() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
@@ -2262,6 +2293,7 @@ function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   ];
 
   const heroLecture = useLatestLecture();
+  const homeUpdates = useRecentUpdates();   // ← 이 줄 추가!
 
   return (
     <div className="pb-6">
@@ -2274,6 +2306,28 @@ function HomePage({ user, setCurrentPage, setSelectedNotice }) {
         </h2>
         <p className="font-serif-italic text-lg mt-3" style={{ color: COLORS.stone }}>Where craft meets artistry.</p>
       </section>
+
+      {/* 🆕 NEW 업데이트 (수강생) */}
+      {homeUpdates.length > 0 && (
+        <section className="px-5 mb-5">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ NEW 업데이트</p>
+            <span className="font-mono text-[9px]" style={{ color: COLORS.stone }}>최근 3일</span>
+          </div>
+          <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            {homeUpdates.slice(0, 5).map((u, i) => (
+              <button key={`${u.type}-${u.id}`} onClick={() => setCurrentPage(u.page)}
+                className="w-full text-left flex items-center gap-2.5 p-3 transition-transform active:scale-[0.98]"
+                style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
+                <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-1 rounded shrink-0" style={{ background: COLORS.peach, color: COLORS.deep }}>{u.type}</span>
+                <p className="font-body text-xs flex-1 truncate" style={{ color: COLORS.ink }}>{u.title}</p>
+                <span className="font-mono text-[9px] shrink-0" style={{ color: COLORS.stone }}>{new Date(u.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}</span>
+                <ChevronRight size={12} style={{ color: COLORS.stone }} />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 히어로 카드 - 최신 강의 */}
       <section className="px-5 mb-5">
