@@ -125,6 +125,33 @@ const deleteCaseImage = async (imageUrl) => {
   if (error) console.error('Delete error:', error);
 };
 
+// 🎥 유튜브 URL 판별
+const isYouTubeUrl = (url) => !!url && (url.includes('youtube.com') || url.includes('youtu.be'));
+
+// 🎥 영상 파일 업로드 (공지·꿀팁 공용, bucket: 'post-videos')
+const uploadPostVideo = async (file, bucket = 'post-videos') => {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+  const { error } = await supabase.storage.from(bucket).upload(fileName, file, {
+    contentType: file.type || 'video/mp4',
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+  return data.publicUrl;
+};
+
+// 🎥 영상 파일 삭제 (유튜브 URL이면 스킵)
+const deletePostVideo = async (videoUrl, bucket = 'post-videos') => {
+  if (!videoUrl || isYouTubeUrl(videoUrl)) return;
+  try {
+    const url = new URL(videoUrl);
+    const pathParts = url.pathname.split(`/${bucket}/`);
+    if (pathParts.length < 2) return;
+    await supabase.storage.from(bucket).remove([pathParts[1]]);
+  } catch (e) { console.error('영상 삭제 에러:', e); }
+};
+
 // ============================================
 // 푸시 알림 관련 함수
 // ============================================
@@ -733,8 +760,8 @@ export default function HSSUPApp() {
   { id: 'mypage', label: 'MY', icon: User },
   ];
   const adminTabs = [
-    { id: 'dashboard', label: '대시보드', icon: BarChart3 },
     { id: 'MENU', label: '메뉴', icon: Menu, isMenu: true },
+    { id: 'dashboard', label: '대시보드', icon: BarChart3 },
     { id: 'admin-students', label: '수강생', icon: UserCheck },
     { id: 'admin-qna', label: 'Q&A', icon: MessageCircle },
     { id: 'admin-notice', label: '공지', icon: Bell },
@@ -2423,6 +2450,14 @@ function NoticeDetailPage({ notice, user }) {
     );
   }
 
+  const getYouTubeId = (url) => {
+    if (!url) return null;
+    const patterns = [/youtube\.com\/watch\?v=([^&\s]+)/, /youtu\.be\/([^?\s]+)/, /youtube\.com\/embed\/([^?\s]+)/, /youtube\.com\/shorts\/([^?\s]+)/];
+    for (const p of patterns) { const m = url.match(p); if (m) return m[1]; }
+    return null;
+  };
+  const ytId = notice.video_url && isYouTubeUrl(notice.video_url) ? getYouTubeId(notice.video_url) : null;
+
   return (
     <div className="pb-6">
       <div className="px-5 pt-5 pb-4">
@@ -2442,6 +2477,18 @@ function NoticeDetailPage({ notice, user }) {
           <div className="aspect-video w-full rounded-2xl overflow-hidden" style={{ background: COLORS.cream }}>
             <SkeletonImage src={notice.image_url} alt={notice.title} className="w-full h-full" />
           </div>
+        </div>
+      )}
+
+      {notice.video_url && (
+        <div className="px-5 mb-3">
+          {ytId ? (
+            <div className="relative aspect-video w-full rounded-2xl overflow-hidden" style={{ background: '#000' }}>
+              <iframe src={`https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1`} title={notice.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" style={{ border: 'none' }} />
+            </div>
+          ) : (
+            <video src={notice.video_url} controls playsInline className="w-full rounded-2xl" style={{ background: '#000', maxHeight: '70vh' }} />
+          )}
         </div>
       )}
 
@@ -6226,6 +6273,7 @@ function AdminDashboard({ setCurrentPage, canViewRevenue }) {
     { id: 'admin-approvals',    label: 'APPROVE',  ko: '가입 승인',     icon: UserPlus },
     { id: 'admin-notice',       label: 'NOTICE',   ko: '학원공지',      icon: Bell },
     { id: 'admin-trends',       label: 'TRENDS',   ko: '트렌드',     icon: Sparkles },
+    { id: 'admin-tips',         label: 'TIPS',     ko: '수업·꿀팁',     icon: Sparkles },
     { id: 'admin-students',     label: 'STUDENTS', ko: '수강생',        icon: UserCheck },
     { id: 'admin-qna',          label: 'Q&A',      ko: 'Q&A 답변',      icon: MessageCircle },
     { id: 'admin-improvements', label: 'FEEDBACK', ko: '개선 제안',     icon: Edit3 },
@@ -6967,6 +7015,13 @@ function TipDetailPage({ tip, user }) {
         </div>
       )}
 
+      {tip.video_url && !videoId && (
+        <div className="px-5 mt-3">
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.primary }}>━━ 관련 영상</p>
+          <video src={tip.video_url} controls playsInline className="w-full rounded-2xl" style={{ background: '#000', maxHeight: '70vh' }} />
+        </div>
+      )}
+
       {tip.link_url && (
         <div className="px-5 mt-3">
           <a href={tip.link_url} target="_blank" rel="noopener noreferrer"
@@ -7007,8 +7062,9 @@ function AdminTips({ user }) {
     category: '수업노트', title: '', content: '',
     link_url: '', video_url: '',
     image_url: '', imageFile: null, imagePreview: null,
+    videoFile: null, videoPreview: null,
     is_active: true, sendPush: true,
-  }, ['imageFile', 'imagePreview']);
+  }, ['imageFile', 'imagePreview', 'videoFile', 'videoPreview']);
 
   useEffect(() => { load(); }, []);
 
@@ -7027,6 +7083,21 @@ function AdminTips({ user }) {
   const removePreview = () => {
     if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
     setForm({ ...form, imageFile: null, imagePreview: null });
+  };
+
+  const handleVideoSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 100 * 1024 * 1024) {
+      if (!confirm('⚠️ 영상이 100MB가 넘어요.\n업로드가 오래 걸리고 저장공간을 많이 차지해요.\n긴 영상은 유튜브 URL을 추천해요!\n\n그래도 이 파일을 올릴까요?')) return;
+    }
+    if (form.videoPreview) URL.revokeObjectURL(form.videoPreview);
+    setForm({ ...form, videoFile: file, videoPreview: URL.createObjectURL(file), video_url: '' });
+  };
+
+  const removeVideo = () => {
+    if (form.videoPreview) URL.revokeObjectURL(form.videoPreview);
+    setForm({ ...form, videoFile: null, videoPreview: null });
   };
 
   const uploadTipImage = async (file) => {
@@ -7066,6 +7137,8 @@ function AdminTips({ user }) {
       image_url: tip.image_url || '',
       imageFile: null,
       imagePreview: null,
+      videoFile: null,
+      videoPreview: null,
       is_active: tip.is_active !== false,
       sendPush: false,
     });
@@ -7085,12 +7158,22 @@ function AdminTips({ user }) {
         imageUrl = await uploadTipImage(form.imageFile);
         setUploading(false);
       }
+
+      // 🎥 영상 처리 (유튜브 URL 또는 파일 업로드)
+      let videoUrl = form.video_url;
+      if (form.videoFile) {
+        setUploading(true);
+        if (editingId && form.video_url && !isYouTubeUrl(form.video_url)) await deletePostVideo(form.video_url);
+        videoUrl = await uploadPostVideo(form.videoFile);
+        setUploading(false);
+      }
+
       const tipData = {
         category: form.category,
         title: form.title.trim(),
         content: form.content.trim() || null,
         link_url: form.link_url.trim() || null,
-        video_url: form.video_url.trim() || null,
+        video_url: (typeof videoUrl === 'string' ? videoUrl.trim() : videoUrl) || null,
         image_url: imageUrl || null,
         is_active: form.is_active,
       };
@@ -7137,6 +7220,7 @@ function AdminTips({ user }) {
   const remove = async (tip) => {
     if (!confirm('이 글을 삭제하시겠습니까?')) return;
     if (tip.image_url) await deleteTipImage(tip.image_url);
+    if (tip.video_url) await deletePostVideo(tip.video_url);
     await supabase.from('tips').delete().eq('id', tip.id);
     await load();
   };
@@ -7225,18 +7309,44 @@ function AdminTips({ user }) {
             <div>
               <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>내용</label>
               <textarea value={form.content} onChange={e => setForm({...form, content: e.target.value})}
-                placeholder="수업 내용이나 꿀팁을 자세히 적어주세요" rows={5}
-                className="w-full font-body text-xs font-medium p-2 mt-1 outline-none resize-none rounded"
+                placeholder="수업 내용이나 꿀팁을 자세히 적어주세요" rows={10}
+                className="w-full font-body text-sm font-medium p-3 mt-1 outline-none resize-none rounded leading-relaxed"
                 style={{ background: COLORS.cream, color: COLORS.ink }} />
             </div>
 
+            {/* 🎥 동영상 (선택) - 파일 업로드 또는 유튜브 URL */}
             <div>
-              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>유튜브 URL (선택)</label>
-              <input type="url" value={form.video_url} onChange={e => setForm({...form, video_url: e.target.value})}
-                placeholder="https://youtube.com/watch?v=..."
-                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
-                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
-              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>💡 youtube.com, youtu.be, shorts 모두 가능</p>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>동영상 (선택)</label>
+              <div className="mt-2 space-y-2">
+                {form.videoPreview ? (
+                  <div className="relative w-full rounded-xl overflow-hidden" style={{ background: '#000' }}>
+                    <video src={form.videoPreview} controls className="w-full max-h-64" />
+                    <button onClick={removeVideo} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center z-10" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={14} style={{ color: COLORS.white }} />
+                    </button>
+                  </div>
+                ) : form.video_url && !isYouTubeUrl(form.video_url) ? (
+                  <div className="relative w-full rounded-xl overflow-hidden" style={{ background: '#000' }}>
+                    <video src={form.video_url} controls className="w-full max-h-64" />
+                    <button onClick={() => setForm({ ...form, video_url: '' })} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center z-10" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={14} style={{ color: COLORS.white }} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <label className="w-full rounded-xl flex items-center justify-center gap-2 cursor-pointer py-3" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
+                      <Upload size={18} style={{ color: COLORS.primary }} />
+                      <span className="font-heading text-xs" style={{ color: COLORS.ink }}>📱 영상 파일 올리기 (짧은 클립용)</span>
+                      <input type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
+                    </label>
+                    <input type="url" value={isYouTubeUrl(form.video_url) ? form.video_url : ''} onChange={e => setForm({...form, video_url: e.target.value, videoFile: null, videoPreview: null})}
+                      placeholder="▶️ 또는 유튜브 주소 붙여넣기 (긴 영상용)"
+                      className="w-full font-body text-sm font-medium border-b py-2 bg-transparent outline-none"
+                      style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                  </>
+                )}
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>💡 짧은 클립은 파일, 긴 영상은 유튜브를 추천해요</p>
+              </div>
             </div>
 
             <div>
@@ -7338,7 +7448,8 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   const [form, setForm, clearForm] = useDraft('notice_form', { 
     title: '', content: '', tag: '안내', urgent: false, sendPush: true,
     image_url: '', imageFile: null, imagePreview: null,
-  }, ['imageFile', 'imagePreview']);
+    video_url: '', videoFile: null, videoPreview: null,
+  }, ['imageFile', 'imagePreview', 'videoFile', 'videoPreview']);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState(0);
@@ -7370,6 +7481,21 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   const removePreview = () => {
     if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
     setForm({ ...form, imageFile: null, imagePreview: null });
+  };
+
+  const handleVideoSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 100 * 1024 * 1024) {
+      if (!confirm('⚠️ 영상이 100MB가 넘어요.\n업로드가 오래 걸리고 저장공간을 많이 차지해요.\n긴 영상은 유튜브 URL을 추천해요!\n\n그래도 이 파일을 올릴까요?')) return;
+    }
+    if (form.videoPreview) URL.revokeObjectURL(form.videoPreview);
+    setForm({ ...form, videoFile: file, videoPreview: URL.createObjectURL(file), video_url: '' });
+  };
+
+  const removeVideo = () => {
+    if (form.videoPreview) URL.revokeObjectURL(form.videoPreview);
+    setForm({ ...form, videoFile: null, videoPreview: null });
   };
 
   const uploadNoticeImage = async (file) => {
@@ -7409,6 +7535,9 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
       image_url: notice.image_url || '',
       imageFile: null,
       imagePreview: null,
+      video_url: notice.video_url || '',
+      videoFile: null,
+      videoPreview: null,
     });
     setEditingId(notice.id);
     setShowForm(true);
@@ -7427,12 +7556,22 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
         setUploading(false);
       }
 
+      // 🎥 영상 처리 (유튜브 URL 또는 파일 업로드)
+      let videoUrl = form.video_url;
+      if (form.videoFile) {
+        setUploading(true);
+        if (editingId && form.video_url && !isYouTubeUrl(form.video_url)) await deletePostVideo(form.video_url);
+        videoUrl = await uploadPostVideo(form.videoFile);
+        setUploading(false);
+      }
+
       const noticeData = {
         title: form.title,
         content: form.content,
         tag: form.tag,
         urgent: form.urgent,
         image_url: imageUrl || null,
+        video_url: videoUrl || null,
       };
 
       if (editingId) {
@@ -7492,6 +7631,7 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
     if (!confirm('정말 삭제하시겠습니까?')) return;
     const notice = notices.find(n => n.id === id);
     if (notice?.image_url) await deleteNoticeImage(notice.image_url);
+    if (notice?.video_url) await deletePostVideo(notice.video_url);
     await supabase.from('notices').delete().eq('id', id);
     await load();
   };
@@ -7519,7 +7659,7 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
             <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})}
               placeholder="공지 제목" className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }} />
             <textarea value={form.content} onChange={e => setForm({...form, content: e.target.value})}
-              placeholder="공지 내용" rows={4} className="w-full font-body text-xs font-medium p-2 outline-none resize-none rounded" style={{ background: COLORS.cream, color: COLORS.ink }} />
+              placeholder="공지 내용" rows={10} className="w-full font-body text-sm font-medium p-3 outline-none resize-none rounded leading-relaxed" style={{ background: COLORS.cream, color: COLORS.ink }} />
 
             <div>
               <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>이미지 (선택)</label>
@@ -7546,6 +7686,42 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                     <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                   </label>
                 )}
+              </div>
+            </div>
+
+            {/* 🎥 동영상 (선택) - 파일 업로드 또는 유튜브 URL */}
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>동영상 (선택)</label>
+              <div className="mt-2 space-y-2">
+                {form.videoPreview ? (
+                  <div className="relative w-full rounded-xl overflow-hidden" style={{ background: '#000' }}>
+                    <video src={form.videoPreview} controls className="w-full max-h-64" />
+                    <button onClick={removeVideo} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center z-10" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={14} style={{ color: COLORS.white }} />
+                    </button>
+                  </div>
+                ) : form.video_url && !isYouTubeUrl(form.video_url) ? (
+                  <div className="relative w-full rounded-xl overflow-hidden" style={{ background: '#000' }}>
+                    <video src={form.video_url} controls className="w-full max-h-64" />
+                    <button onClick={() => setForm({ ...form, video_url: '' })} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center z-10" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={14} style={{ color: COLORS.white }} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* 파일 업로드 버튼 */}
+                    <label className="w-full rounded-xl flex items-center justify-center gap-2 cursor-pointer py-3" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
+                      <Upload size={18} style={{ color: COLORS.primary }} />
+                      <span className="font-heading text-xs" style={{ color: COLORS.ink }}>📱 영상 파일 올리기 (짧은 클립용)</span>
+                      <input type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
+                    </label>
+                    {/* 유튜브 URL */}
+                    <input type="url" value={isYouTubeUrl(form.video_url) ? form.video_url : ''} onChange={e => setForm({...form, video_url: e.target.value, videoFile: null, videoPreview: null})}
+                      placeholder="▶️ 또는 유튜브 주소 붙여넣기 (긴 영상용)"
+                      className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                  </>
+                )}
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>💡 짧은 클립은 파일, 긴 영상은 유튜브를 추천해요</p>
               </div>
             </div>
 
