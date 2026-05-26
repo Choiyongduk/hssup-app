@@ -909,7 +909,7 @@ export default function HSSUPApp() {
               <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-hide relative" style={{ 
                 background: COLORS.cream, 
                 overscrollBehavior: 'contain',
-                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)',
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 70px)',
                 transform: pullDistance > 0 ? `translateY(${pullDistance}px)` : 'none',
                 transition: pullDistance === 0 && !refreshing ? 'transform 0.3s ease' : 'none'
               }}>
