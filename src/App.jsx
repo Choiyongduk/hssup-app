@@ -1930,7 +1930,7 @@ function BottomTabBar({ tabs, currentPage, setCurrentPage, setDrawerOpen }) {
   return (
     <nav className="absolute bottom-0 left-0 right-0 shrink-0 grid grid-cols-6" style={{
       background: 'rgba(10, 10, 10, 0.85)', backdropFilter: 'blur(20px)',
-      borderTop: `1px solid ${COLORS.light}`, paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)'
+      borderTop: `1px solid ${COLORS.light}`, paddingBottom: 'env(safe-area-inset-bottom, 0px)'
     }}>
       {tabs.map(tab => {
         const Icon = tab.icon;
