@@ -461,6 +461,7 @@ export default function HSSUPApp() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedTrend, setSelectedTrend] = useState(null);
   const [selectedTip, setSelectedTip] = useState(null);
+  const [selectedLibrary, setSelectedLibrary] = useState(null);
 
   // 자동 업데이트 상태
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -941,6 +942,7 @@ export default function HSSUPApp() {
                     selectedStudent={selectedStudent} setSelectedStudent={setSelectedStudent}
                     selectedTrend={selectedTrend} setSelectedTrend={setSelectedTrend}
                     selectedTip={selectedTip} setSelectedTip={setSelectedTip}
+                    selectedLibrary={selectedLibrary} setSelectedLibrary={setSelectedLibrary}
                     user={profile} handleLogout={handleLogout} isAdmin={isAdmin} canViewRevenue={canViewRevenue} />
                 </div>
               </main>
@@ -2009,7 +2011,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, user, handleLogout, isAdmin, canViewRevenue }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue }) {
   // Debug route removed
   // 🍊 온보딩 체크 - 졸업생은 인사+후기, 신입생은 전부 필요
   const needsOnboarding = !isAdmin && user && (
@@ -2064,7 +2066,8 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'tips') return <TipsPage user={user} setCurrentPage={setCurrentPage} setSelectedTip={setSelectedTip} />;
   if (currentPage === 'tip-detail') return <TipDetailPage tip={selectedTip} user={user} />;
   if (currentPage === 'admin-tips') return <AdminTips user={user} />;
-  if (currentPage === 'library') return <LibraryPage />;
+  if (currentPage === 'library') return <LibraryPage setCurrentPage={setCurrentPage} setSelectedLibrary={setSelectedLibrary} />;
+  if (currentPage === 'library-detail') return <LibraryDetailPage file={selectedLibrary} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'market') return <MarketPage setCurrentPage={setCurrentPage} setSelectedProduct={setSelectedProduct} />;
   if (currentPage === 'online') return <OnlineLecturePage setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
   if (currentPage === 'community') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="자유" pageTitle="자유게시판" pageEn="Free Board" pageDesc="자유롭게 이야기 나눠보세요" />;
@@ -3772,7 +3775,7 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
 // =============================================================
 // 📚 LibraryPage - 자료실 (학생용 - 보기 + 다운로드만)
 // =============================================================
-function LibraryPage() {
+function LibraryPage({ setCurrentPage, setSelectedLibrary }) {
   const [files, setFiles] = useState([]);
   const [filter, setFilter] = useState('전체');
   const [loading, setLoading] = useState(true);
@@ -3785,12 +3788,9 @@ function LibraryPage() {
   const categories = ['전체', '시술 가이드', '색소 차트', '매뉴얼', '템플릿', '기타'];
   const filtered = filter === '전체' ? files : files.filter(f => f.category === filter);
 
-  const handleDownload = (file) => {
-    if (!file.file_url) {
-      alert('파일을 찾을 수 없습니다');
-      return;
-    }
-    window.open(file.file_url, '_blank');
+  const openDetail = (file) => {
+    setSelectedLibrary(file);
+    setCurrentPage('library-detail');
   };
 
   return (
@@ -3829,7 +3829,7 @@ function LibraryPage() {
         ) : (
           <div className="space-y-2">
             {filtered.map(f => (
-              <button key={f.id} onClick={() => handleDownload(f)}
+              <button key={f.id} onClick={() => openDetail(f)}
                 className="w-full rounded-2xl p-4 flex items-center gap-3 text-left transition-transform active:scale-[0.98]"
                 style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
                 <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
@@ -3843,11 +3843,13 @@ function LibraryPage() {
                   {f.description && (
                     <p className="font-body text-[11px] mt-1 line-clamp-1" style={{ color: COLORS.stone }}>{f.description}</p>
                   )}
-                  <p className="font-mono text-[10px] font-medium mt-1" style={{ color: COLORS.stone }}>{f.file_type} · {f.file_size}</p>
+                  {f.file_url && (
+                    <p className="font-mono text-[10px] font-medium mt-1 flex items-center gap-1" style={{ color: COLORS.primary }}>
+                      <Download size={10} /> {f.file_type} · {f.file_size}
+                    </p>
+                  )}
                 </div>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
-                  <Download size={14} style={{ color: COLORS.white }} />
-                </div>
+                <ChevronRight size={18} style={{ color: COLORS.stone }} className="shrink-0" />
               </button>
             ))}
           </div>
@@ -3857,6 +3859,69 @@ function LibraryPage() {
   );
 }
  
+// =============================================================
+// 📄 LibraryDetailPage - 자료 상세 (내용 보기 + 파일 다운로드)
+// =============================================================
+function LibraryDetailPage({ file, setCurrentPage }) {
+  if (!file) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <p className="font-body text-sm" style={{ color: COLORS.stone }}>자료를 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  const handleDownload = () => {
+    if (!file.file_url) { alert('첨부파일이 없습니다'); return; }
+    window.open(file.file_url, '_blank');
+  };
+
+  return (
+    <div className="pb-6">
+      <div className="px-5 pt-5 pb-4">
+        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Library</p>
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>{file.category || '기타'}</span>
+          <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(file.created_at).toLocaleDateString('ko-KR')}</span>
+        </div>
+        <h1 className="font-display text-2xl mt-3 tracking-tight leading-tight" style={{ color: COLORS.ink }}>{file.name}</h1>
+      </div>
+
+      <div className="px-5">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+            {file.description || '내용이 없습니다.'}
+          </p>
+        </div>
+      </div>
+
+      {file.file_url ? (
+        <div className="px-5 mt-4">
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.primary }}>━━ 첨부파일</p>
+          <button onClick={handleDownload}
+            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.primary}` }}>
+            <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+              <FolderOpen size={20} style={{ color: COLORS.primary }} />
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>{file.name}</p>
+              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{file.file_type} · {file.file_size}</p>
+            </div>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+              <Download size={14} style={{ color: COLORS.white }} />
+            </div>
+          </button>
+        </div>
+      ) : (
+        <div className="px-5 mt-4">
+          <p className="font-mono text-[11px] text-center" style={{ color: COLORS.muted }}>📎 첨부파일이 없는 자료입니다</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MarketPage({ setCurrentPage, setSelectedProduct }) {
   const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState('전체');
