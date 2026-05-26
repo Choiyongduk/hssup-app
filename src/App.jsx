@@ -909,7 +909,7 @@ export default function HSSUPApp() {
               <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-hide relative" style={{ 
                 background: COLORS.cream, 
                 overscrollBehavior: 'contain',
-                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 70px)',
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 56px)',
                 transform: pullDistance > 0 ? `translateY(${pullDistance}px)` : 'none',
                 transition: pullDistance === 0 && !refreshing ? 'transform 0.3s ease' : 'none'
               }}>
@@ -1943,7 +1943,7 @@ function BottomTabBar({ tabs, currentPage, setCurrentPage, setDrawerOpen }) {
             } else {
               setCurrentPage(tab.id);
             }
-          }} className="py-2.5 flex flex-col items-center gap-1 relative">
+          }} className="pt-2 pb-0.5 flex flex-col items-center gap-1 relative">
             {isActive && <span className="absolute top-0 w-8 h-0.5 rounded-full glow-dot" style={{ background: COLORS.primary }}></span>}
             <Icon size={19} strokeWidth={isActive ? 2.5 : 1.8} style={{ color: isActive ? COLORS.ink : COLORS.stone }} />
             <span className="font-body text-[10px]" style={{ color: isActive ? COLORS.ink : COLORS.stone, fontWeight: isActive ? 700 : 500 }}>{tab.label}</span>
