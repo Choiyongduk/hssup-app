@@ -845,7 +845,7 @@ export default function HSSUPApp() {
   const fullMenu = isAdmin ? adminMenu : studentMenu;
  
   return (
-    <div className="flex items-center justify-center" style={{ background: COLORS.cream, height: '100dvh', overflow: 'hidden' }}>
+    <div className="flex justify-center" style={{ background: COLORS.cream, position: 'fixed', inset: 0, overflow: 'hidden' }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
@@ -892,7 +892,7 @@ export default function HSSUPApp() {
         }
       `}</style>
 
-<div className="app-container relative w-full overflow-hidden flex flex-col" style={{ background: COLORS.cream, height: '100dvh' }}>
+<div className="app-container relative w-full overflow-hidden flex flex-col" style={{ background: COLORS.cream, height: '100%' }}>
  
           {loading ? <LoadingScreen /> :
            !session || !profile ? <AuthScreen /> :
@@ -909,7 +909,7 @@ export default function HSSUPApp() {
               <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-hide relative" style={{ 
                 background: COLORS.cream, 
                 overscrollBehavior: 'contain',
-                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 56px)',
+                paddingBottom: '16px',
                 transform: pullDistance > 0 ? `translateY(${pullDistance}px)` : 'none',
                 transition: pullDistance === 0 && !refreshing ? 'transform 0.3s ease' : 'none'
               }}>
@@ -1928,7 +1928,7 @@ function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, sh
 
 function BottomTabBar({ tabs, currentPage, setCurrentPage, setDrawerOpen }) {
   return (
-    <nav className="absolute bottom-0 left-0 right-0 shrink-0 grid grid-cols-6" style={{
+    <nav className="shrink-0 grid grid-cols-6" style={{
       background: 'rgba(10, 10, 10, 0.85)', backdropFilter: 'blur(20px)',
       borderTop: `1px solid ${COLORS.light}`, paddingBottom: 'env(safe-area-inset-bottom, 0px)'
     }}>
