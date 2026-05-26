@@ -2010,10 +2010,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
 }
  
 function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, user, handleLogout, isAdmin, canViewRevenue }) {
-  // Debug route: visit `/?debug=qna` to view anonymity test (no network required)
-  if (typeof window !== 'undefined' && window.location.search.includes('debug=qna')) {
-    return <DebugQnaTest />;
-  }
+  // Debug route removed
   // 🍊 온보딩 체크 - 졸업생은 인사+후기, 신입생은 전부 필요
   const needsOnboarding = !isAdmin && user && (
     user.is_graduate 
@@ -2515,13 +2512,18 @@ function NoticeDetailPage({ notice, user }) {
         <h1 className="font-display text-2xl mt-3 tracking-tight leading-tight" style={{ color: COLORS.ink }}>{notice.title}</h1>
       </div>
 
-      {notice.image_url && (
-        <div className="px-5 mb-3">
-          <div className="aspect-video w-full rounded-2xl overflow-hidden" style={{ background: COLORS.cream }}>
-            <SkeletonImage src={notice.image_url} alt={notice.title} className="w-full h-full" />
+      {(() => {
+        const images = notice.image_urls && notice.image_urls.length ? notice.image_urls : (notice.image_url ? [notice.image_url] : []);
+        return images.length > 0 && (
+          <div className="px-5 mb-3 space-y-2">
+            {images.map((url, i) => (
+              <div key={i} className="aspect-video w-full rounded-2xl overflow-hidden" style={{ background: COLORS.cream }}>
+                <SkeletonImage src={url} alt={notice.title} className="w-full h-full" />
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {notice.video_url && (
         <div className="px-5 mb-3">
@@ -3343,7 +3345,7 @@ function QnaDetailPage({ qna, user, setCurrentPage }) {
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center gap-2">
               {(() => {
-                const showRealName = isAdmin;
+                const showRealName = user?.role === 'admin' || user?.role === 'staff';
                 const displayAuthor = showRealName ? author : { name: '익명', avatar_color: 'charcoal' };
                 return (
                   <>
@@ -7498,9 +7500,9 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm, clearForm] = useDraft('notice_form', { 
     title: '', content: '', tag: '안내', urgent: false, sendPush: true,
-    image_url: '', imageFile: null, imagePreview: null,
+    image_urls: [], imageFiles: [], imagePreviews: [],
     video_url: '', videoFile: null, videoPreview: null,
-  }, ['imageFile', 'imagePreview', 'videoFile', 'videoPreview']);
+  }, ['imageFiles', 'imagePreviews', 'videoFile', 'videoPreview']);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState(0);
@@ -7523,15 +7525,25 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   };
 
   const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
-    setForm({ ...form, imageFile: file, imagePreview: URL.createObjectURL(file) });
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const newPreviews = files.map(f => URL.createObjectURL(f));
+    setForm({ ...form,
+      imageFiles: [...form.imageFiles, ...files],
+      imagePreviews: [...form.imagePreviews, ...newPreviews],
+    });
   };
 
-  const removePreview = () => {
-    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
-    setForm({ ...form, imageFile: null, imagePreview: null });
+  const removeNewImage = (i) => {
+    if (form.imagePreviews[i]) URL.revokeObjectURL(form.imagePreviews[i]);
+    setForm({ ...form,
+      imageFiles: form.imageFiles.filter((_, idx) => idx !== i),
+      imagePreviews: form.imagePreviews.filter((_, idx) => idx !== i),
+    });
+  };
+
+  const removeExistingImage = (i) => {
+    setForm({ ...form, image_urls: form.image_urls.filter((_, idx) => idx !== i) });
   };
 
   const handleVideoSelect = (e) => {
@@ -7583,9 +7595,9 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
       tag: notice.tag || '안내',
       urgent: notice.urgent || false,
       sendPush: false,
-      image_url: notice.image_url || '',
-      imageFile: null,
-      imagePreview: null,
+      image_urls: notice.image_urls && notice.image_urls.length ? notice.image_urls : (notice.image_url ? [notice.image_url] : []),
+      imageFiles: [],
+      imagePreviews: [],
       video_url: notice.video_url || '',
       videoFile: null,
       videoPreview: null,
@@ -7599,11 +7611,14 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
     if (!form.title.trim()) return;
     setLoading(true);
     try {
-      let imageUrl = form.image_url;
-      if (form.imageFile) {
+      // 여러 이미지 업로드 (기존 유지된 것 + 새로 추가된 것)
+      let imageUrls = [...form.image_urls];
+      if (form.imageFiles.length > 0) {
         setUploading(true);
-        if (editingId && form.image_url) await deleteNoticeImage(form.image_url);
-        imageUrl = await uploadNoticeImage(form.imageFile);
+        for (const file of form.imageFiles) {
+          const url = await uploadNoticeImage(file);
+          imageUrls.push(url);
+        }
         setUploading(false);
       }
 
@@ -7621,7 +7636,8 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
         content: form.content,
         tag: form.tag,
         urgent: form.urgent,
-        image_url: imageUrl || null,
+        image_urls: imageUrls,
+        image_url: imageUrls[0] || null,
         video_url: videoUrl || null,
       };
 
@@ -7681,7 +7697,8 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
     e?.stopPropagation();
     if (!confirm('정말 삭제하시겠습니까?')) return;
     const notice = notices.find(n => n.id === id);
-    if (notice?.image_url) await deleteNoticeImage(notice.image_url);
+    const imgs = notice?.image_urls && notice.image_urls.length ? notice.image_urls : (notice?.image_url ? [notice.image_url] : []);
+    for (const u of imgs) await deleteNoticeImage(u);
     if (notice?.video_url) await deletePostVideo(notice.video_url);
     await supabase.from('notices').delete().eq('id', id);
     await load();
@@ -7713,31 +7730,31 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
               placeholder="공지 내용" rows={10} className="w-full font-body text-sm font-medium p-3 outline-none resize-none rounded leading-relaxed" style={{ background: COLORS.cream, color: COLORS.ink }} />
 
             <div>
-              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>이미지 (선택)</label>
-              <div className="mt-2">
-                {form.imagePreview ? (
-                  <div className="relative aspect-video w-full rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
-                    <img src={form.imagePreview} alt="미리보기" className="w-full h-full object-cover" />
-                    <button onClick={removePreview} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
-                      <X size={14} style={{ color: COLORS.white }} />
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>이미지 (선택, 여러 장 가능)</label>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {form.image_urls.map((url, i) => (
+                  <div key={`ex-${i}`} className="relative aspect-square rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    <button onClick={() => removeExistingImage(i)} className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={12} style={{ color: COLORS.white }} />
                     </button>
                   </div>
-                ) : form.image_url ? (
-                  <div className="relative aspect-video w-full rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
-                    <img src={form.image_url} alt="기존" className="w-full h-full object-cover" />
-                    <label className="absolute inset-0 flex items-center justify-center cursor-pointer" style={{ background: 'rgba(0,0,0,0.5)' }}>
-                      <span className="font-heading text-xs" style={{ color: COLORS.white }}>이미지 변경</span>
-                      <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-                    </label>
+                ))}
+                {form.imagePreviews.map((url, i) => (
+                  <div key={`new-${i}`} className="relative aspect-square rounded-xl overflow-hidden" style={{ background: COLORS.cream }}>
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    <button onClick={() => removeNewImage(i)} className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                      <X size={12} style={{ color: COLORS.white }} />
+                    </button>
                   </div>
-                ) : (
-                  <label className="aspect-video w-full rounded-xl flex flex-col items-center justify-center cursor-pointer" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
-                    <Upload size={24} style={{ color: COLORS.stone }} />
-                    <span className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>이미지 업로드 (선택)</span>
-                    <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-                  </label>
-                )}
+                ))}
+                <label className="aspect-square rounded-xl flex flex-col items-center justify-center cursor-pointer" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
+                  <Upload size={20} style={{ color: COLORS.stone }} />
+                  <span className="font-mono text-[9px] mt-1" style={{ color: COLORS.stone }}>추가</span>
+                  <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
+                </label>
               </div>
+              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>💡 여러 장 선택 가능 (탭해서 계속 추가)</p>
             </div>
 
             {/* 🎥 동영상 (선택) - 파일 업로드 또는 유튜브 URL */}
