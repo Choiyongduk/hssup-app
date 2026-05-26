@@ -844,10 +844,11 @@ export default function HSSUPApp() {
   const fullMenu = isAdmin ? adminMenu : studentMenu;
  
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: COLORS.cream }}>
+    <div className="flex items-center justify-center" style={{ background: COLORS.cream, height: '100dvh', overflow: 'hidden' }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+        html, body, #root { height: 100%; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; }
         .font-display { font-family: 'Pretendard', sans-serif; font-weight: 800; letter-spacing: -0.03em; }
         .font-heading { font-family: 'Pretendard', sans-serif; font-weight: 700; letter-spacing: -0.025em; }
         .font-body { font-family: 'Pretendard', sans-serif; letter-spacing: -0.01em; }
@@ -906,6 +907,7 @@ export default function HSSUPApp() {
                 onBackClick={() => window.history.back()} />
               <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-hide relative" style={{ 
                 background: COLORS.cream, 
+                overscrollBehavior: 'contain',
                 paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)',
                 transform: pullDistance > 0 ? `translateY(${pullDistance}px)` : 'none',
                 transition: pullDistance === 0 && !refreshing ? 'transform 0.3s ease' : 'none'
@@ -2008,6 +2010,10 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
 }
  
 function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, user, handleLogout, isAdmin, canViewRevenue }) {
+  // Debug route: visit `/?debug=qna` to view anonymity test (no network required)
+  if (typeof window !== 'undefined' && window.location.search.includes('debug=qna')) {
+    return <DebugQnaTest />;
+  }
   // 🍊 온보딩 체크 - 졸업생은 인사+후기, 신입생은 전부 필요
   const needsOnboarding = !isAdmin && user && (
     user.is_graduate 
@@ -2080,6 +2086,43 @@ function PageIntro({ ko, en, desc }) {
     <div className="px-5 pt-5 pb-6">
       <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ {en}</p>
       <h1 className="font-display text-4xl mt-3 tracking-tighter" style={{ color: COLORS.ink }}>{ko}<span className="glow-text" style={{ color: COLORS.primary }}>.</span></h1>
+    </div>
+  );
+}
+
+// =============================================================
+// Debug component to demonstrate anonymity behavior
+// =============================================================
+function DebugQnaTest() {
+  const mockAuthor = { name: '홍길동', avatar_color: 'orange' };
+  const anonAuthor = { name: '익명', avatar_color: 'charcoal' };
+  const now = new Date().toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+
+  return (
+    <div className="p-5">
+      <h2 className="font-display text-2xl mb-4" style={{ color: COLORS.ink }}>Debug: Q&A 익명 표시 테스트</h2>
+
+      <div className="mb-6">
+        <p className="font-mono text-sm" style={{ color: COLORS.stone }}>일반 사용자 표시 (should be 익명)</p>
+        <div className="flex items-center gap-3 mt-2 p-4 rounded-2xl" style={{ background: COLORS.card }}>
+          <Avatar user={anonAuthor} size="sm" />
+          <div>
+            <p style={{ color: COLORS.ink }}>{anonAuthor.name}</p>
+            <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{now}</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="font-mono text-sm" style={{ color: COLORS.stone }}>운영진 표시 (should show real name)</p>
+        <div className="flex items-center gap-3 mt-2 p-4 rounded-2xl" style={{ background: COLORS.card }}>
+          <Avatar user={mockAuthor} size="sm" />
+          <div>
+            <p style={{ color: COLORS.ink }}>{mockAuthor.name}</p>
+            <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{now}</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3299,11 +3342,19 @@ function QnaDetailPage({ qna, user, setCurrentPage }) {
         {author && (
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center gap-2">
-              <Avatar user={author} size="sm" />
-              <div>
-                <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{author.name}</p>
-                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(qna.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric' })}</p>
-              </div>
+              {(() => {
+                const showRealName = isAdmin;
+                const displayAuthor = showRealName ? author : { name: '익명', avatar_color: 'charcoal' };
+                return (
+                  <>
+                    <Avatar user={displayAuthor} size="sm" />
+                    <div>
+                      <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{displayAuthor.name}</p>
+                      <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(qna.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric' })}</p>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* 🍊 수정/삭제 버튼 (본인 또는 관리자) */}
@@ -9999,7 +10050,6 @@ function AdminLibrary({ user }) {
 
   const submit = async () => {
     if (!form.name.trim()) return alert('자료명을 입력해주세요');
-    if (!editingId && !form.file) return alert('파일을 선택해주세요');
 
     setSubmitLoading(true);
     try {
@@ -10025,20 +10075,23 @@ function AdminLibrary({ user }) {
         if (error) throw error;
         alert('✏️ 수정 완료!');
       } else {
-        // 🍊 새 등록
-        setUploading(true);
-        const fileUrl = await uploadLibraryFile(form.file);
-        const { error } = await supabase.from('library_files').insert({
+        // 🍊 새 등록 (파일은 선택사항)
+        const insertData = {
           name: form.name.trim(),
           category: form.category,
           description: form.description.trim(),
-          file_url: fileUrl,
-          file_type: form.file_type,
-          file_size: form.file_size,
-        });
+        };
+        if (form.file) {
+          setUploading(true);
+          const fileUrl = await uploadLibraryFile(form.file);
+          insertData.file_url = fileUrl;
+          insertData.file_type = form.file_type;
+          insertData.file_size = form.file_size;
+          setUploading(false);
+        }
+        const { error } = await supabase.from('library_files').insert(insertData);
         if (error) throw error;
-        setUploading(false);
-        alert('✅ 업로드 완료!');
+        alert('✅ 등록 완료!');
       }
       resetForm();
       await load();
