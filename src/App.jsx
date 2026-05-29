@@ -222,6 +222,25 @@ const unsubscribeFromNotifications = async (userId) => {
   }
 };
 
+// 🍊 푸시 알림 전송 헬퍼 (세션 없으면 차단)
+const sendPushNotification = async (payload) => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;  // 인증된 사용자만 푸시 발송 가능
+    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    console.error('푸시 알림 실패:', e);
+  }
+};
+
 // 🍊 운영진 활동 → 원장님께 별도 알림
 const notifyAdminsOfStaffActivity = async (user, title, body) => {
   if (user?.role !== 'staff') return;  // staff만 해당
@@ -231,23 +250,14 @@ const notifyAdminsOfStaffActivity = async (user, title, body) => {
       .select('id')
       .eq('role', 'admin');
     if (!admins || admins.length === 0) return;
-    const { data: { session } } = await supabase.auth.getSession();
     for (const admin of admins) {
       if (admin.id === user.id) continue;
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: `👮 [운영진] ${title}`,
-          body: `${user.name}: ${body}`,
-          url: '/',
-          targetUserId: admin.id,
-        }),
-      }).catch(e => console.error('관리자 알림 실패:', e));
+      sendPushNotification({
+        title: `👮 [운영진] ${title}`,
+        body: `${user.name}: ${body}`,
+        url: '/',
+        targetUserId: admin.id,
+      });
     }
   } catch (e) {
     console.error('관리자 알림 헬퍼 에러:', e);
@@ -565,20 +575,21 @@ export default function HSSUPApp() {
 
     let registration;
     let intervalId;
+    const UPDATE_INTERVAL_MS = 10 * 60 * 1000; // 10분 (배터리/대역폭 절약)
 
     navigator.serviceWorker.ready.then((reg) => {
       registration = reg;
-      
-      // 1분마다 업데이트 확인
+
+      // 10분마다 + 탭이 포그라운드로 돌아올 때 업데이트 확인
       intervalId = setInterval(() => {
-        reg.update();
-      }, 60 * 1000);
-      
+        if (document.visibilityState === 'visible') reg.update();
+      }, UPDATE_INTERVAL_MS);
+
       // 새 SW 발견 시 알림
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         if (!newWorker) return;
-        
+
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
             setWaitingWorker(newWorker);
@@ -587,7 +598,13 @@ export default function HSSUPApp() {
         });
       });
     });
-    
+
+    // 탭이 포그라운드로 돌아올 때 즉시 한 번 체크
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && registration) registration.update();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     // 새 SW 활성화되면 자동 새로고침
     let refreshing = false;
     const onControllerChange = () => {
@@ -596,9 +613,10 @@ export default function HSSUPApp() {
       window.location.reload();
     };
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-    
+
     return () => {
       if (intervalId) clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
     };
   }, []);
@@ -649,10 +667,28 @@ export default function HSSUPApp() {
       }
     };
 
+    const hasDirtyInput = () => {
+      const active = document.activeElement;
+      if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT') && active.value?.trim()) {
+        return true;
+      }
+      // 화면 위 모든 textarea/input 중 작성 중 텍스트가 남아 있는지 검사 (포커스 잃은 경우 대비)
+      const fields = container.querySelectorAll('textarea, input[type="text"], input[type="search"]');
+      for (const f of fields) {
+        if (f.value?.trim()) return true;
+      }
+      return false;
+    };
+
     const onTouchEnd = () => {
       if (!isPulling) return;
       isPulling = false;
       if (currentDist > 60) {
+        if (hasDirtyInput() && !confirm('작성 중인 내용이 있어요. 새로고침할까요?')) {
+          setPullDistance(0);
+          currentDist = 0;
+          return;
+        }
         setRefreshing(true);
         setTimeout(() => window.location.reload(), 300);
       } else {
@@ -2044,7 +2080,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'admin-products') return <AdminProducts user={user} />;
     if (currentPage === 'admin-library') return <AdminLibrary user={user} />;
     if (currentPage === 'admin-courses') return <AdminCourses user={user} />;
-    if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
+    if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} />;
   }
   if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} />;
   if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} setCurrentPage={setCurrentPage} />;
@@ -2053,10 +2089,10 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'payment') return <PaymentPage course={selectedCourse} product={selectedProduct} user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'payment-success') return <PaymentSuccessPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'payment-fail') return <PaymentFailPage setCurrentPage={setCurrentPage} />;
-  if (currentPage === 'product-detail') return <ProductDetailPage product={selectedProduct} user={user} setCurrentPage={setCurrentPage} />;
+  if (currentPage === 'product-detail') return <ProductDetailPage product={selectedProduct} user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} />;
   if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'notice') return <NoticePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
-  if (currentPage === 'course') return <CoursePage user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} />;
+  if (currentPage === 'course') return <CoursePage user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} setSelectedProduct={setSelectedProduct} />;
   if (currentPage === 'best') return <BestCasePage />;
   if (currentPage === 'mycase') return <MyCasePage user={user} />;
   if (currentPage === 'qna') return <QnaPage user={user} setCurrentPage={setCurrentPage} setSelectedQna={setSelectedQna} />;
@@ -2600,7 +2636,7 @@ function NoticePage({ user, setCurrentPage, setSelectedNotice }) {
   );
 }
  
-function CoursePage({ user, setCurrentPage, setSelectedCourse }) {
+function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelectedProduct }) {
   const [courses, setCourses] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('order');
@@ -2806,6 +2842,7 @@ function CoursePage({ user, setCurrentPage, setSelectedCourse }) {
                       alert('📞 자세한 안내를 위해 원장님께 문의해주세요!');
                       return;
                     }
+                    setSelectedProduct(null);
                     setSelectedCourse(c);
                     setCurrentPage('payment');
                   }}
@@ -2989,9 +3026,10 @@ function MyCasePage({ user }) {
     if (form.imageFiles.length === 0) return alert('이미지를 1장 이상 업로드해주세요');
 
     setUploading(true);
+    let uploadedUrls = [];
     try {
       // 모든 이미지 업로드
-      const imageUrls = await Promise.all(
+      uploadedUrls = await Promise.all(
         form.imageFiles.map(file => uploadCaseImage(file, user.id))
       );
 
@@ -3001,7 +3039,7 @@ function MyCasePage({ user }) {
         title: form.title,
         category: form.category,
         memo: form.memo,
-        image_urls: imageUrls
+        image_urls: uploadedUrls
       });
 
       if (error) throw error;
@@ -3013,6 +3051,10 @@ function MyCasePage({ user }) {
       await load();
     } catch (err) {
       console.error(err);
+      // 🧹 insert 실패 시 업로드한 Storage 이미지 롤백
+      if (uploadedUrls.length > 0) {
+        await Promise.all(uploadedUrls.map(url => deleteCaseImage(url).catch(() => {}))).catch(() => {});
+      }
       alert('업로드 실패: ' + err.message);
     }
     setUploading(false);
@@ -3190,14 +3232,19 @@ function QnaDetailPage({ qna, user, setCurrentPage }) {
 
   useEffect(() => {
     if (!qna?.user_id) return;
-    supabase.from('profiles').select('name, avatar_color, role').eq('id', qna.user_id).maybeSingle()
-      .then(({ data }) => setAuthor(data));
-    setEditForm({ 
-      title: qna.title || '', 
-      content: qna.content || '', 
-      category: qna.category || '시술' 
+    const canSeeRealName = user?.role === 'admin' || user?.role === 'staff' || qna.user_id === user?.id;
+    if (canSeeRealName) {
+      supabase.from('profiles').select('name, avatar_color, role').eq('id', qna.user_id).maybeSingle()
+        .then(({ data }) => setAuthor(data));
+    } else {
+      setAuthor({ name: '익명', avatar_color: 'charcoal', role: 'student' });
+    }
+    setEditForm({
+      title: qna.title || '',
+      content: qna.content || '',
+      category: qna.category || '시술'
     });
-  }, [qna]);
+  }, [qna, user?.id, user?.role]);
 
   if (!qna) {
     return (
@@ -3233,40 +3280,39 @@ function QnaDetailPage({ qna, user, setCurrentPage }) {
   const handleDelete = async () => {
     if (!confirm('이 질문을 삭제하시겠습니까?\n답변과 댓글도 함께 삭제됩니다.')) return;
     setActionLoading(true);
-    
+
     try {
-      // 1. 댓글 삭제
-      const { error: commentsError } = await supabase.from('comments')
-        .delete()
-        .eq('target_type', 'qna')
-        .eq('target_id', qna.id);
-      if (commentsError) console.warn('댓글 삭제 경고:', commentsError);
-      
-      // 2. 좋아요 삭제
-      const { error: likesError } = await supabase.from('likes')
-        .delete()
-        .eq('target_type', 'qna')
-        .eq('target_id', qna.id);
-      if (likesError) console.warn('좋아요 삭제 경고:', likesError);
-      
-      // 3. 질문 삭제
+      // 1. 본문 삭제를 먼저 시도 (권한 없으면 여기서 차단 — 댓글·좋아요는 보존)
       const { error, count } = await supabase.from('questions')
         .delete({ count: 'exact' })
         .eq('id', qna.id);
-      
+
       if (error) {
         console.error('삭제 에러:', error);
         alert('❌ 삭제 실패: ' + error.message);
         setActionLoading(false);
         return;
       }
-      
+
       if (count === 0) {
         alert('⚠️ 삭제 권한이 없습니다.\n본인이 작성한 질문만 삭제할 수 있어요.');
         setActionLoading(false);
         return;
       }
-      
+
+      // 2. 본문이 지워졌으면 종속 데이터(댓글·좋아요) 정리
+      const { error: commentsError } = await supabase.from('comments')
+        .delete()
+        .eq('target_type', 'qna')
+        .eq('target_id', qna.id);
+      if (commentsError) console.warn('댓글 삭제 경고:', commentsError);
+
+      const { error: likesError } = await supabase.from('likes')
+        .delete()
+        .eq('target_type', 'qna')
+        .eq('target_id', qna.id);
+      if (likesError) console.warn('좋아요 삭제 경고:', likesError);
+
       alert('🗑️ 삭제되었습니다');
       setCurrentPage('qna');
     } catch (err) {
@@ -3663,24 +3709,13 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
     });
 
     // 📢 관리자에게 알림
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: `❓ [${form.category}] 새 질문이 등록되었어요`,
-          body: `${user.name}: ${form.title}`,
-          url: '/',
-          targetRole: 'admin',
-          excludeUserId: user.id,
-        }),
-      });
-    } catch (e) { console.error('알림 발송 실패:', e); }
+    await sendPushNotification({
+      title: `❓ [${form.category}] 새 질문이 등록되었어요`,
+      body: `${user.name}: ${form.title}`,
+      url: '/',
+      targetRole: 'admin',
+      excludeUserId: user.id,
+    });
 
     clearForm();
     setShowForm(false);
@@ -4330,25 +4365,27 @@ function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
 // 🎬 LectureDetailPage - 영상 강의 상세 (YouTube 임베드)
 // =============================================================
 function LectureDetailPage({ lecture, user }) {
-  // 🍊 오리엔테이션 영상이면 자동 미션 체크
+  // 🍊 오리엔테이션 영상이면 미션 체크 (자동 reload 제거 — 영상 재생 끊김 방지)
   useEffect(() => {
-    if (lecture?.is_orientation && user && !user.onb_video) {
-      supabase.from('profiles').update({ onb_video: true }).eq('id', user.id).then(() => {
-        // 3초 후 자동 새로고침 (영상 시청 시간 확보)
-        setTimeout(() => {
-          if (!user.onb_greeting || !user.onb_review) {
-            // 다른 미션 남았으면 알림
-            alert('🎬 오리엔테이션 시청 완료!');
-            window.location.reload();
-          } else {
-            // 마지막 미션이면 축하
-            alert('🎉 모든 미션 완료! HSSUP 시작!');
-            window.location.reload();
-          }
-        }, 3000);
-      });
-    }
-  }, [lecture, user]);
+    if (!lecture?.is_orientation || !user || user.onb_video) return;
+    let cancelled = false;
+    let timer = null;
+    supabase.from('profiles').update({ onb_video: true }).eq('id', user.id).then(() => {
+      if (cancelled) return;
+      // 30초 후 안내 (영상 재생 시간을 충분히 확보, reload는 사용자 액션으로 위임)
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        const msg = (!user.onb_greeting || !user.onb_review)
+          ? '🎬 오리엔테이션 시청 완료! 남은 미션을 진행해 주세요.'
+          : '🎉 모든 미션 완료! HSSUP 시작!';
+        alert(msg);
+      }, 30000);
+    });
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [lecture?.id, user?.id, user?.onb_video, user?.onb_greeting, user?.onb_review]);
 
   if (!lecture) {
     return (
@@ -4488,22 +4525,28 @@ function PostDetailPage({ post, user, setCurrentPage }) {
     if (!confirm('이 게시글을 삭제하시겠습니까?\n댓글과 좋아요도 함께 삭제됩니다.')) return;
     setActionLoading(true);
     try {
-      // 1. 댓글 삭제
+      // 1. 본문 삭제 먼저 (권한 없으면 여기서 차단 — 댓글·좋아요는 보존)
+      const { error, count } = await supabase.from('community_posts')
+        .delete({ count: 'exact' })
+        .eq('id', post.id);
+      if (error) throw error;
+      if (count === 0) {
+        alert('⚠️ 삭제 권한이 없습니다.');
+        setActionLoading(false);
+        return;
+      }
+
+      // 2. 본문 삭제 성공 시 종속 데이터 정리
       await supabase.from('comments')
         .delete()
         .eq('target_type', 'community_post')
         .eq('target_id', post.id);
-      
-      // 2. 좋아요 삭제
+
       await supabase.from('likes')
         .delete()
         .eq('target_type', 'community_post')
         .eq('target_id', post.id);
-      
-      // 3. 글 삭제
-      const { error } = await supabase.from('community_posts').delete().eq('id', post.id);
-      if (error) throw error;
-      
+
       alert('🗑️ 삭제되었습니다');
       const backPage = post.category === '인사' ? 'greetings'
                       : post.category === '후기' ? 'reviews'
@@ -4614,7 +4657,7 @@ function PostDetailPage({ post, user, setCurrentPage }) {
 // =============================================================
 // 🛍️ ProductDetailPage - 상품 상세 (이미지 + 설명 + 좋아요/댓글)
 // =============================================================
-function ProductDetailPage({ product, user, setCurrentPage }) {
+function ProductDetailPage({ product, user, setCurrentPage, setSelectedCourse }) {
   if (!product) {
     return (
       <div className="px-5 py-10 text-center">
@@ -4723,6 +4766,7 @@ function ProductDetailPage({ product, user, setCurrentPage }) {
       }}>
         <button onClick={() => {
                 if (product.stock === 0) { alert('품절된 상품입니다.'); return; }
+                setSelectedCourse(null);
                 setCurrentPage('payment');
               }}
           disabled={product.stock === 0}
@@ -4772,6 +4816,30 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
   const handlePayment = async () => {
     setLoading(true);
     try {
+      // 🔒 결제 직전 DB에서 최신 가격·재고 재확인 (가격 변조/품절 방지)
+      const table = isProduct ? 'products' : 'courses';
+      const { data: latest, error: fetchError } = await supabase
+        .from(table)
+        .select(isProduct ? 'price, stock, name' : 'price, title')
+        .eq('id', item.id)
+        .maybeSingle();
+      if (fetchError || !latest) {
+        alert('상품 정보를 확인할 수 없습니다. 다시 시도해주세요.');
+        setLoading(false);
+        return;
+      }
+      if (Number(latest.price) !== Number(itemPrice)) {
+        alert(`가격이 변경되었어요.\n현재 가격: ${Number(latest.price).toLocaleString()}원\n페이지를 새로고침해 주세요.`);
+        setLoading(false);
+        return;
+      }
+      if (isProduct && typeof latest.stock === 'number' && latest.stock <= 0) {
+        alert('품절된 상품입니다.');
+        setLoading(false);
+        return;
+      }
+
+      const verifiedAmount = Number(latest.price);
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
       // DB에 주문 정보 저장 (course 또는 product)
@@ -4782,7 +4850,7 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
         product_id: isProduct ? product.id : null,
         course_title: itemName,
         item_type: isProduct ? 'product' : 'course',
-        amount: itemPrice,
+        amount: verifiedAmount,
         status: 'pending',
         buyer_name: user.name,
         buyer_phone: user.phone,
@@ -4800,7 +4868,7 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
       const validPhone = (phoneOnly.length === 10 || phoneOnly.length === 11) ? phoneOnly : undefined;
 
       const paymentParams = {
-        amount: itemPrice,
+        amount: verifiedAmount,
         orderId: orderId,
         orderName: itemName,
         customerName: user.name || '고객',
@@ -4939,12 +5007,17 @@ function PaymentSuccessPage({ user, setCurrentPage }) {
       }
 
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setError('로그인 정보가 만료되었습니다. 다시 로그인해주세요.');
+        setVerifying(false);
+        return;
+      }
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-payment`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
             'Content-Type': 'application/json',
           },
@@ -5074,7 +5147,7 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
   const [newPost, setNewPost, clearNewPost] = useDraft(`community_${fixedCategory || 'free'}`, '');
   const [loading, setLoading] = useState(false);
   const [displayCount, setDisplayCount] = useState(POSTS_PER_PAGE);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'staff';
 
   useEffect(() => { 
     load();
@@ -5143,30 +5216,18 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
         return;
       }
       // 📢 알림 발송 (학생→관리자, 관리자→학생)
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const categoryEmoji = fixedCategory === '인사' ? '👋' : fixedCategory === '후기' ? '⭐' : '💬';
-        const targetRole = isAdmin ? 'student' : 'admin';
-        const titlePrefix = isAdmin 
-          ? `${categoryEmoji} [${pageTitle || '게시판'}] 원장님이 글을 남겼어요`
-          : `${categoryEmoji} [${pageTitle || '게시판'}] 새 글이 등록됐어요`;
-        
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: titlePrefix,
-            body: `${user.name}: ${newPost.substring(0, 80)}`,
-            url: '/',
-            targetRole,
-            excludeUserId: user.id,
-          }),
-        });
-      } catch (e) { console.error('알림 발송 실패:', e); }
+      const categoryEmoji = fixedCategory === '인사' ? '👋' : fixedCategory === '후기' ? '⭐' : '💬';
+      const targetRole = isAdmin ? 'student' : 'admin';
+      const titlePrefix = isAdmin
+        ? `${categoryEmoji} [${pageTitle || '게시판'}] 원장님이 글을 남겼어요`
+        : `${categoryEmoji} [${pageTitle || '게시판'}] 새 글이 등록됐어요`;
+      await sendPushNotification({
+        title: titlePrefix,
+        body: `${user.name}: ${newPost.substring(0, 80)}`,
+        url: '/',
+        targetRole,
+        excludeUserId: user.id,
+      });
 
       setNewPost('');
       await load();
@@ -5447,7 +5508,7 @@ function MyActivityPage({ user, setCurrentPage, setSelectedPost }) {
 }
 
 function MyPage({ user, handleLogout, setCurrentPage }) {
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' || user.role === 'staff';
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [currentColor, setCurrentColor] = useState(user.avatar_color || 'orange');
   const [saving, setSaving] = useState(false);
@@ -6685,12 +6746,14 @@ function AdminTrends({ user }) {
   const submit = async () => {
     if (!form.title.trim()) return alert('제목을 입력해주세요');
     setLoading(true);
+    let newlyUploadedUrl = null;
     try {
       let imageUrl = form.image_url;
       if (form.imageFile) {
         setUploading(true);
         if (editingId && form.image_url) await deleteTrendImage(form.image_url);
         imageUrl = await uploadTrendImage(form.imageFile);
+        newlyUploadedUrl = imageUrl;
         setUploading(false);
       }
       const trendData = {
@@ -6712,23 +6775,12 @@ function AdminTrends({ user }) {
 
         // 푸시 알림 (신규 등록 + 체크 시)
         if (form.sendPush) {
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                title: `[${form.category}] 새 트렌드 속보!`,
-                body: form.title,
-                url: '/',
-                targetRole: 'student',
-              }),
-            });
-          } catch (e) { console.error('알림 발송 실패:', e); }
+          await sendPushNotification({
+            title: `[${form.category}] 새 트렌드 속보!`,
+            body: form.title,
+            url: '/',
+            targetRole: 'student',
+          });
         }
 
         // 운영진이면 원장님께 별도 알림
@@ -6738,6 +6790,8 @@ function AdminTrends({ user }) {
       await load();
     } catch (err) {
       console.error(err);
+      // 🧹 DB 저장 실패 시 새로 업로드한 이미지 롤백
+      if (newlyUploadedUrl) await deleteTrendImage(newlyUploadedUrl).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -7268,12 +7322,15 @@ function AdminTips({ user }) {
   const submit = async () => {
     if (!form.title.trim()) return alert('제목을 입력해주세요');
     setLoading(true);
+    let newlyUploadedImage = null;
+    let newlyUploadedVideo = null;
     try {
       let imageUrl = form.image_url;
       if (form.imageFile) {
         setUploading(true);
         if (editingId && form.image_url) await deleteTipImage(form.image_url);
         imageUrl = await uploadTipImage(form.imageFile);
+        newlyUploadedImage = imageUrl;
         setUploading(false);
       }
 
@@ -7283,6 +7340,7 @@ function AdminTips({ user }) {
         setUploading(true);
         if (editingId && form.video_url && !isYouTubeUrl(form.video_url)) await deletePostVideo(form.video_url);
         videoUrl = await uploadPostVideo(form.videoFile);
+        newlyUploadedVideo = videoUrl;
         setUploading(false);
       }
 
@@ -7304,23 +7362,12 @@ function AdminTips({ user }) {
         if (error) throw error;
 
         if (form.sendPush) {
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                title: `[${form.category}] 새 꿀팁이 올라왔어요!`,
-                body: form.title,
-                url: '/',
-                targetRole: 'student',
-              }),
-            });
-          } catch (e) { console.error('알림 발송 실패:', e); }
+          await sendPushNotification({
+            title: `[${form.category}] 새 꿀팁이 올라왔어요!`,
+            body: form.title,
+            url: '/',
+            targetRole: 'student',
+          });
         }
 
         await notifyAdminsOfStaffActivity(user, `수업·꿀팁 등록`, form.title);
@@ -7329,6 +7376,9 @@ function AdminTips({ user }) {
       await load();
     } catch (err) {
       console.error(err);
+      // 🧹 DB 저장 실패 시 새로 업로드한 미디어 롤백
+      if (newlyUploadedImage) await deleteTipImage(newlyUploadedImage).catch(() => {});
+      if (newlyUploadedVideo) await deletePostVideo(newlyUploadedVideo).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -7675,6 +7725,8 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   const submit = async () => {
     if (!form.title.trim()) return;
     setLoading(true);
+    const newlyUploadedImages = [];
+    let newlyUploadedVideo = null;
     try {
       // 여러 이미지 업로드 (기존 유지된 것 + 새로 추가된 것)
       let imageUrls = [...form.image_urls];
@@ -7683,6 +7735,7 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
         for (const file of form.imageFiles) {
           const url = await uploadNoticeImage(file);
           imageUrls.push(url);
+          newlyUploadedImages.push(url);
         }
         setUploading(false);
       }
@@ -7693,6 +7746,7 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
         setUploading(true);
         if (editingId && form.video_url && !isYouTubeUrl(form.video_url)) await deletePostVideo(form.video_url);
         videoUrl = await uploadPostVideo(form.videoFile);
+        newlyUploadedVideo = videoUrl;
         setUploading(false);
       }
 
@@ -7719,29 +7773,33 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
 
         if (form.sendPush && subscriberCount > 0) {
           const { data: { session } } = await supabase.auth.getSession();
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                title: `${form.urgent ? '🔴 ' : ''}[${form.tag}] ${form.title}`,
-                body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
-                url: '/',
-                targetRole: 'student',
-                excludeUserId: user.id,
-              }),
-            }
-          );
-          const result = await response.json();
-          if (result.sent > 0) {
-            alert(`✅ 공지 등록 완료!\n📢 ${result.sent}명에게 알림 전송됨`);
+          if (!session?.access_token) {
+            alert('공지 등록 완료! (알림 전송 실패 — 로그인 정보 만료)');
           } else {
-            alert('공지 등록 완료! (알림 전송 실패 또는 구독자 없음)');
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${session.access_token}`,
+                  'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  title: `${form.urgent ? '🔴 ' : ''}[${form.tag}] ${form.title}`,
+                  body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
+                  url: '/',
+                  targetRole: 'student',
+                  excludeUserId: user.id,
+                }),
+              }
+            );
+            const result = response.ok ? await response.json().catch(() => ({})) : {};
+            if (result.sent > 0) {
+              alert(`✅ 공지 등록 완료!\n📢 ${result.sent}명에게 알림 전송됨`);
+            } else {
+              alert('공지 등록 완료! (알림 전송 실패 또는 구독자 없음)');
+            }
           }
         } else {
           alert('공지 등록 완료!');
@@ -7752,6 +7810,9 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
       await load();
     } catch (err) {
       console.error(err);
+      // 🧹 DB 저장 실패 시 새로 업로드한 미디어 롤백
+      await Promise.all(newlyUploadedImages.map(url => deleteNoticeImage(url).catch(() => {})));
+      if (newlyUploadedVideo) await deletePostVideo(newlyUploadedVideo).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -8407,25 +8468,14 @@ function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) {
       alert('변경 실패: ' + error.message);
     } else {
       // 📢 임명된 본인에게 알림
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: newRole === 'staff' ? '🎉 운영진으로 임명되었어요!' : '운영진 권한이 해제되었어요',
-            body: newRole === 'staff' 
-              ? '이제 관리자 메뉴를 사용할 수 있어요. 환영합니다!' 
-              : '일반 수강생으로 돌아갔어요.',
-            url: '/',
-            targetUserId: student.id,
-          }),
-        });
-      } catch (e) { console.error('알림 발송 실패:', e); }
+      await sendPushNotification({
+        title: newRole === 'staff' ? '🎉 운영진으로 임명되었어요!' : '운영진 권한이 해제되었어요',
+        body: newRole === 'staff'
+          ? '이제 관리자 메뉴를 사용할 수 있어요. 환영합니다!'
+          : '일반 수강생으로 돌아갔어요.',
+        url: '/',
+        targetUserId: student.id,
+      });
 
       alert(newRole === 'staff' ? '✅ 운영진으로 임명되었습니다' : '✅ 운영진 권한이 해제되었습니다');
       setCurrentPage('admin-students');
@@ -9317,6 +9367,7 @@ function AdminProducts({ user }) {
     if (!form.price) return alert('판매가를 입력해주세요');
 
     setLoading(true);
+    let newlyUploadedImage = null;
     try {
       let imageUrl = form.image_url;
 
@@ -9326,6 +9377,7 @@ function AdminProducts({ user }) {
           await deleteProductImage(form.image_url);
         }
         imageUrl = await uploadProductImage(form.imageFile);
+        newlyUploadedImage = imageUrl;
         setUploading(false);
       }
 
@@ -9353,6 +9405,8 @@ function AdminProducts({ user }) {
       await load();
     } catch (err) {
       console.error(err);
+      // 🧹 DB 저장 실패 시 새로 업로드한 이미지 롤백
+      if (newlyUploadedImage) await deleteProductImage(newlyUploadedImage).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -9728,12 +9782,14 @@ function AdminCourses({ user }) {
   const submit = async () => {
     if (!form.title.trim()) return alert('클래스명을 입력해주세요');
     setLoading(true);
+    let newlyUploadedImage = null;
     try {
       let imageUrl = form.image_url;
       if (form.imageFile) {
         setUploading(true);
         if (editingId && form.image_url) await deleteCourseImage(form.image_url);
         imageUrl = await uploadCourseImage(form.imageFile);
+        newlyUploadedImage = imageUrl;
         setUploading(false);
       }
       const courseData = {
@@ -9755,6 +9811,8 @@ function AdminCourses({ user }) {
       await load();
     } catch (err) {
       console.error(err);
+      // 🧹 DB 저장 실패 시 새로 업로드한 이미지 롤백
+      if (newlyUploadedImage) await deleteCourseImage(newlyUploadedImage).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -10410,23 +10468,12 @@ function AdminQna({ user }) {
 
     // 📢 질문자에게 알림
     if (selected.user_id && selected.user_id !== user.id) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: `✅ 원장님이 답변을 남겼어요!`,
-            body: `Q. ${selected.title}`,
-            url: '/',
-            targetUserId: selected.user_id,
-          }),
-        });
-      } catch (e) { console.error('알림 발송 실패:', e); }
+      await sendPushNotification({
+        title: `✅ 원장님이 답변을 남겼어요!`,
+        body: `Q. ${selected.title}`,
+        url: '/',
+        targetUserId: selected.user_id,
+      });
     }
 
     // 🍊 운영진이면 원장님께 별도 알림
