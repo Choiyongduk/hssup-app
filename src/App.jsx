@@ -1091,6 +1091,7 @@ export default function HSSUPApp() {
       { id: 'home', label: '홈', icon: Home },
       { id: 'course', label: '클래스', icon: BookOpen },
       { id: 'online', label: '온라인 강의', icon: PlayCircle },
+      { id: 'tips', label: '수업·꿀팁', icon: Sparkles },
     ]},
     { section: 'PRACTICE', items: [
       { id: 'mycase', label: '개별피드백', icon: Camera },
