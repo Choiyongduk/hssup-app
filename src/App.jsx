@@ -7,7 +7,7 @@ import {
   Palette, BarChart3, Trash2, ChevronLeft, ShoppingCart,
   Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, Image as ImageIcon,
   ArrowRight, ArrowUpRight, Loader2,
-  User, LogOut, Menu, X, Search
+  User, LogOut, Menu, X, Search, FileText
 } from 'lucide-react';
 
 // 아바타 그라데이션 컬러 (반영구 시술 무드)
@@ -222,25 +222,6 @@ const unsubscribeFromNotifications = async (userId) => {
   }
 };
 
-// 🍊 푸시 알림 전송 헬퍼 (세션 없으면 차단)
-const sendPushNotification = async (payload) => {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return;  // 인증된 사용자만 푸시 발송 가능
-    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch (e) {
-    console.error('푸시 알림 실패:', e);
-  }
-};
-
 // 🍊 운영진 활동 → 원장님께 별도 알림
 const notifyAdminsOfStaffActivity = async (user, title, body) => {
   if (user?.role !== 'staff') return;  // staff만 해당
@@ -250,14 +231,23 @@ const notifyAdminsOfStaffActivity = async (user, title, body) => {
       .select('id')
       .eq('role', 'admin');
     if (!admins || admins.length === 0) return;
+    const { data: { session } } = await supabase.auth.getSession();
     for (const admin of admins) {
       if (admin.id === user.id) continue;
-      sendPushNotification({
-        title: `👮 [운영진] ${title}`,
-        body: `${user.name}: ${body}`,
-        url: '/',
-        targetUserId: admin.id,
-      });
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: `👮 [운영진] ${title}`,
+          body: `${user.name}: ${body}`,
+          url: '/',
+          targetUserId: admin.id,
+        }),
+      }).catch(e => console.error('관리자 알림 실패:', e));
     }
   } catch (e) {
     console.error('관리자 알림 헬퍼 에러:', e);
@@ -303,7 +293,273 @@ const COLORS = {
   // 진짜 흰색 (버튼 위 텍스트용)
   white: '#FFFFFF',
 };
- 
+
+// =============================================================
+// 📜 약관 콘텐츠 (이용약관, 개인정보처리방침, 환불정책)
+// =============================================================
+const LEGAL_TERMS = `본 약관은 히썹(이하 "학원")이 운영하는 HSSUP Beauty Academy 앱(이하 "서비스")의 이용과 관련하여, 학원과 회원의 권리·의무 및 책임사항을 규정함을 목적으로 합니다.
+
+
+제1조 (정의)
+
+1. "서비스"란 학원이 제공하는 반영구 시술 교육, 온라인 강의, 자료, 재료 판매 등 일체의 서비스를 의미합니다.
+2. "회원"이란 본 약관에 동의하고 서비스에 가입한 자를 말합니다.
+3. "콘텐츠"란 서비스에서 제공하는 강의 영상, 자료, 이미지, 텍스트 등을 말합니다.
+
+
+제2조 (약관의 효력 및 변경)
+
+1. 본 약관은 회원이 동의함으로써 효력이 발생합니다.
+2. 학원은 관련 법령을 위반하지 않는 범위에서 본 약관을 변경할 수 있으며, 변경된 약관은 앱 내 공지를 통해 효력이 발생합니다.
+3. 회원은 변경된 약관에 동의하지 않을 경우 회원 탈퇴를 요청할 수 있습니다.
+
+
+제3조 (회원가입)
+
+1. 회원가입은 이용자가 본 약관에 동의하고, 가입 정보를 정확히 입력함으로써 신청됩니다.
+2. 학원은 다음 각 호에 해당하는 경우 가입을 거부하거나 사후 자격을 상실시킬 수 있습니다.
+   • 타인의 정보를 도용한 경우
+   • 허위 정보를 제공한 경우
+   • 만 14세 미만이며 법정대리인 동의가 없는 경우
+   • 기타 학원이 정한 가입 요건을 충족하지 못한 경우
+
+
+제4조 (서비스 이용)
+
+1. 회원은 본 약관과 관련 법령을 준수하여 서비스를 이용해야 합니다.
+2. 학원은 운영상 또는 기술상 필요한 경우 서비스를 일시 중단할 수 있으며, 사전 또는 사후에 공지합니다.
+
+
+제5조 (회원의 의무)
+
+회원은 다음 행위를 하여서는 안 됩니다.
+1. 서비스에서 얻은 강의 영상, 자료, 이미지 등을 무단으로 복제·배포·전송하는 행위
+2. 다른 회원의 정보를 도용하거나 불법적으로 수집하는 행위
+3. 학원 또는 타인의 명예를 훼손하거나 권리를 침해하는 행위
+4. 서비스의 안정적 운영을 방해하는 행위
+
+
+제6조 (학원의 의무)
+
+1. 학원은 회원의 개인정보를 본 약관 및 개인정보처리방침에 따라 안전하게 관리합니다.
+2. 학원은 서비스 이용 중 발생한 회원의 의견 및 불만을 신속히 처리합니다.
+
+
+제7조 (회원 탈퇴 및 자격 상실)
+
+1. 회원은 언제든지 마이페이지에서 회원 탈퇴를 요청할 수 있으며, 학원은 즉시 처리합니다.
+2. 회원이 본 약관을 위반한 경우 학원은 사전 통보 후 회원 자격을 정지 또는 상실시킬 수 있습니다.
+
+
+제8조 (지적재산권)
+
+1. 서비스에서 제공하는 모든 콘텐츠(강의 영상, 교재, 자료, 이미지, 디자인 등)의 저작권은 학원에 있습니다.
+2. 회원은 학원의 사전 서면 동의 없이 콘텐츠를 복제·전송·배포·출판·방송·2차 가공할 수 없습니다.
+3. 회원이 서비스 내에 게시한 게시물의 저작권은 회원에게 있으나, 학원은 서비스 운영·홍보 등을 위해 해당 게시물을 사용할 수 있습니다.
+
+
+제9조 (면책)
+
+1. 학원은 천재지변, 통신 장애 등 불가항력으로 인한 서비스 중단에 대해 책임을 지지 않습니다.
+2. 학원은 회원이 서비스에서 얻은 정보를 이용하여 발생한 손해에 대해 책임을 지지 않습니다.
+
+
+제10조 (분쟁 해결)
+
+1. 본 약관에 명시되지 않은 사항은 관련 법령 및 상관습에 따릅니다.
+2. 서비스 이용으로 발생한 분쟁에 관한 소송은 학원 사업장 소재지 관할 법원을 전속 관할로 합니다.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+부칙
+본 약관은 2026년 6월 15일부터 시행합니다.
+
+[학원 정보]
+• 상호: 히썹
+• 대표자: 박민희
+• 사업자등록번호: 876-03-02463
+• 사업장 주소: 대전광역시 서구 둔산남로9번길 45, 4층 401호(둔산동)
+• 대표 전화: 010-6516-4556
+• 대표 이메일: pmhung9201@naver.com
+• 통신판매업 신고번호: (신고 진행 중)
+`;
+
+const LEGAL_PRIVACY = `히썹(이하 "학원")은 「개인정보 보호법」 등 관련 법령을 준수하며, 이용자의 개인정보를 안전하게 보호하기 위해 다음과 같이 개인정보처리방침을 수립·공개합니다.
+
+
+1. 수집하는 개인정보 항목
+
+가. 회원가입 시 수집 항목 (필수)
+   • 이름, 이메일, 비밀번호, 전화번호, 아이디
+   • 수강 과정 정보
+
+나. 결제 시 추가 수집 항목
+   • 구매자 이름, 전화번호, 이메일
+   • 결제 정보(카드사명, 영수증 URL)
+
+다. 서비스 이용 과정에서 자동 수집되는 항목
+   • 접속 로그, IP, 기기 정보(브라우저/OS)
+   • 푸시 알림 토큰
+
+
+2. 개인정보의 수집 및 이용 목적
+
+   • 회원 관리 (본인 확인, 부정 이용 방지)
+   • 서비스 제공 (수업·강의 수강, 자료 제공, Q&A 답변)
+   • 결제 처리 및 환불 대응
+   • 서비스 개선 및 통계 분석
+   • 공지사항 및 알림 전달
+
+
+3. 개인정보의 보유 및 이용 기간
+
+   • 회원 정보: 회원 탈퇴 시까지
+     (단, 관련 법령에 따른 보존 의무가 있는 경우 해당 기간까지)
+   • 결제 정보: 「전자상거래법」에 따라 결제일로부터 5년
+   • 소비자 불만 또는 분쟁 처리에 관한 기록: 3년
+   • 표시·광고에 관한 기록: 6개월
+
+
+4. 개인정보 제3자 제공
+
+학원은 이용자의 동의 없이 개인정보를 제3자에게 제공하지 않습니다. 다만 다음의 경우는 예외로 합니다.
+   • 이용자가 사전에 동의한 경우
+   • 법령에 의하거나 수사기관의 요청이 있는 경우
+
+
+5. 개인정보 처리 위탁
+
+학원은 원활한 서비스 제공을 위해 다음과 같이 개인정보 처리를 위탁합니다.
+   • Supabase Inc.: 회원 데이터 저장 및 관리
+   • 토스페이먼츠(주): 결제 처리
+
+
+6. 이용자의 권리·의무
+
+이용자는 언제든지 본인의 개인정보를 조회·수정·삭제 또는 처리 정지를 요청할 수 있습니다.
+   • 마이페이지에서 직접 수정/탈퇴 가능
+   • 대표 이메일(pmhung9201@naver.com)로 요청 가능
+
+
+7. 개인정보의 안전성 확보 조치
+
+   • 비밀번호 암호화 저장
+   • 데이터 전송 시 HTTPS 사용
+   • 접근 권한 최소화 운영
+
+
+8. 쿠키 운영
+
+서비스는 이용자에게 개별화된 서비스 제공을 위해 쿠키를 사용할 수 있으며, 이용자는 브라우저 설정에서 쿠키 저장을 거부할 수 있습니다.
+
+
+9. 개인정보 보호책임자
+
+   • 책임자: 박민희 (대표)
+   • 연락처: 010-6516-4556
+   • 이메일: pmhung9201@naver.com
+
+
+10. 권익 침해 구제 방법
+
+개인정보 침해 신고 및 상담은 다음 기관을 통해 가능합니다.
+   • 개인정보침해신고센터 (privacy.kisa.or.kr / 국번 없이 118)
+   • 개인정보분쟁조정위원회 (kopico.go.kr / 1833-6972)
+   • 대검찰청 사이버수사과 (cid.spo.go.kr / 02-3480-3573)
+   • 경찰청 사이버수사국 (ecrm.cyber.go.kr / 국번 없이 182)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+부칙
+본 개인정보처리방침은 2026년 6월 15일부터 시행됩니다.
+`;
+
+const LEGAL_REFUND = `히썹(이하 "학원")은 「학원의 설립·운영 및 과외교습에 관한 법률 시행령」 및 「전자상거래법」에 따라 다음과 같이 환불 정책을 운영합니다.
+
+
+1. 수업(클래스) 환불 기준
+
+가. 결제 후 7일 이내 + 수업 시작 전
+   → 결제액 전액 환불
+
+나. 수업 시작 후 1개월 이내
+   → 잔여 수업 일수에 비례한 금액 환불
+
+다. 수업 시작 후 1개월 초과
+   → 환불 불가
+
+※ 위 기준은 학원법 시행령 제18조에 따른 기준입니다.
+
+
+2. 온라인 강의 영상 환불 기준
+
+   • 강의 영상을 한 번이라도 재생한 경우 디지털 콘텐츠의 특성상 환불이 불가합니다.
+   • 단, 결제 후 7일 이내 + 영상 미재생 상태: 결제액 전액 환불
+
+
+3. 재료/상품 환불 기준
+
+가. 청약철회: 수령일로부터 7일 이내 (「전자상거래법」 제17조)
+
+나. 청약철회가 불가능한 경우
+   • 개봉되거나 사용된 위생용품(니들 등)
+   • 시간 경과로 재판매가 곤란한 제품
+   • 고객의 사용 또는 일부 소비로 가치가 현저히 감소한 경우
+
+다. 반품 배송비
+   • 제품 하자 또는 학원 귀책: 학원 부담
+   • 단순 변심: 고객 부담
+
+
+4. 환불 신청 방법
+
+다음 중 하나의 방법으로 신청해주세요.
+   • 마이페이지 → 결제 내역 → 환불 신청
+   • 대표 이메일: pmhung9201@naver.com
+   • 대표 전화: 010-6516-4556
+
+
+5. 환불 처리 기간
+
+환불 신청 후 영업일 기준 3~7일 이내에 결제 수단을 통해 환불 처리됩니다.
+(카드 결제의 경우 카드사 사정에 따라 추가 영업일이 소요될 수 있습니다)
+
+
+6. 기타
+
+본 정책에 명시되지 않은 사항은 관련 법령 및 공정거래위원회 표준약관에 따릅니다.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+부칙
+본 환불정책은 2026년 6월 15일부터 시행됩니다.
+`;
+
+// 약관 공통 페이지 컴포넌트
+function LegalPage({ ko, en, desc, content }) {
+  return (
+    <>
+      <PageIntro ko={ko} en={en} desc={desc} />
+      <div className="px-5 pb-20">
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <pre style={{
+            fontFamily: 'inherit',
+            color: COLORS.stone,
+            fontSize: '12px',
+            lineHeight: '1.75',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'keep-all',
+            margin: 0
+          }}>{content}</pre>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // =============================================================
 // 📝 useDraft - 작성 중 글 자동 저장 (localStorage)
 // =============================================================
@@ -575,21 +831,20 @@ export default function HSSUPApp() {
 
     let registration;
     let intervalId;
-    const UPDATE_INTERVAL_MS = 10 * 60 * 1000; // 10분 (배터리/대역폭 절약)
 
     navigator.serviceWorker.ready.then((reg) => {
       registration = reg;
-
-      // 10분마다 + 탭이 포그라운드로 돌아올 때 업데이트 확인
+      
+      // 1분마다 업데이트 확인
       intervalId = setInterval(() => {
-        if (document.visibilityState === 'visible') reg.update();
-      }, UPDATE_INTERVAL_MS);
-
+        reg.update();
+      }, 60 * 1000);
+      
       // 새 SW 발견 시 알림
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         if (!newWorker) return;
-
+        
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
             setWaitingWorker(newWorker);
@@ -598,13 +853,7 @@ export default function HSSUPApp() {
         });
       });
     });
-
-    // 탭이 포그라운드로 돌아올 때 즉시 한 번 체크
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && registration) registration.update();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
+    
     // 새 SW 활성화되면 자동 새로고침
     let refreshing = false;
     const onControllerChange = () => {
@@ -613,10 +862,9 @@ export default function HSSUPApp() {
       window.location.reload();
     };
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-
+    
     return () => {
       if (intervalId) clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
     };
   }, []);
@@ -667,28 +915,10 @@ export default function HSSUPApp() {
       }
     };
 
-    const hasDirtyInput = () => {
-      const active = document.activeElement;
-      if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT') && active.value?.trim()) {
-        return true;
-      }
-      // 화면 위 모든 textarea/input 중 작성 중 텍스트가 남아 있는지 검사 (포커스 잃은 경우 대비)
-      const fields = container.querySelectorAll('textarea, input[type="text"], input[type="search"]');
-      for (const f of fields) {
-        if (f.value?.trim()) return true;
-      }
-      return false;
-    };
-
     const onTouchEnd = () => {
       if (!isPulling) return;
       isPulling = false;
       if (currentDist > 60) {
-        if (hasDirtyInput() && !confirm('작성 중인 내용이 있어요. 새로고침할까요?')) {
-          setPullDistance(0);
-          currentDist = 0;
-          return;
-        }
         setRefreshing(true);
         setTimeout(() => window.location.reload(), 300);
       } else {
@@ -831,6 +1061,11 @@ export default function HSSUPApp() {
       { id: 'library', label: '자료실', icon: FolderOpen },
       { id: 'market', label: '재료샵', icon: ShoppingBag },
     ]},
+    { section: 'LEGAL', items: [
+      { id: 'terms', label: '이용약관', icon: FileText },
+      { id: 'privacy', label: '개인정보처리방침', icon: FileText },
+      { id: 'refund', label: '환불정책', icon: FileText },
+    ]},
     { section: 'MY', items: [
       { id: 'mypage', label: '마이페이지', icon: User },
     ]},
@@ -873,6 +1108,11 @@ export default function HSSUPApp() {
     { section: 'RESOURCE', items: [
       { id: 'library', label: '자료실', icon: FolderOpen },
       { id: 'market', label: '재료샵', icon: ShoppingBag },
+    ]},
+    { section: 'LEGAL', items: [
+      { id: 'terms', label: '이용약관', icon: FileText },
+      { id: 'privacy', label: '개인정보처리방침', icon: FileText },
+      { id: 'refund', label: '환불정책', icon: FileText },
     ]},
     { section: 'MY', items: [
       { id: 'mypage', label: '마이페이지', icon: User },
@@ -1580,6 +1820,18 @@ function AuthScreen() {
     is_graduate: false
   });
 
+  // 📜 회원가입 동의 + 약관 모달 state
+  const [agreedTerms, setAgreedTerms] = useState(false);
+  const [agreedPrivacy, setAgreedPrivacy] = useState(false);
+  const [agreedAge, setAgreedAge] = useState(false);
+  const [legalModal, setLegalModal] = useState(null); // 'terms' | 'privacy' | 'refund' | null
+  const allAgreed = agreedTerms && agreedPrivacy && agreedAge;
+  const toggleAll = (checked) => {
+    setAgreedTerms(checked);
+    setAgreedPrivacy(checked);
+    setAgreedAge(checked);
+  };
+
   const handleLogin = async () => {
     setError(''); setInfo('');
     if (!loginForm.username.trim()) return setError('아이디를 입력해주세요');
@@ -1628,6 +1880,9 @@ function AuthScreen() {
     }
     if (signupForm.password !== signupForm.passwordConfirm) return setError('비밀번호가 일치하지 않습니다');
     if (signupForm.password.length < 6) return setError('비밀번호는 6자 이상이어야 합니다');
+    if (!agreedTerms || !agreedPrivacy || !agreedAge) {
+      return setError('필수 약관에 모두 동의해주세요');
+    }
     setLoading(true);
 
     // username 중복 체크
@@ -1909,6 +2164,45 @@ function AuthScreen() {
                 </div>
 
                 {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
+
+                {/* 📜 약관 동의 (필수) */}
+                <div className="rounded-2xl p-4 space-y-3 my-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                  <label className="flex items-center gap-3 cursor-pointer pb-3" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
+                    <input type="checkbox" checked={allAgreed} onChange={e => toggleAll(e.target.checked)}
+                      className="w-5 h-5 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                    <span className="font-heading text-xs" style={{ color: COLORS.ink }}>전체 동의</span>
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="flex items-center gap-3">
+                      <input type="checkbox" checked={agreedTerms} onChange={e => setAgreedTerms(e.target.checked)}
+                        className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                      <span className="font-body text-xs" style={{ color: COLORS.stone }}>
+                        <span style={{ color: COLORS.deep }}>[필수]</span> 이용약관 동의
+                      </span>
+                    </span>
+                    <button type="button" onClick={() => setLegalModal('terms')} className="font-mono text-[10px] underline"
+                      style={{ color: COLORS.primary }}>보기</button>
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="flex items-center gap-3">
+                      <input type="checkbox" checked={agreedPrivacy} onChange={e => setAgreedPrivacy(e.target.checked)}
+                        className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                      <span className="font-body text-xs" style={{ color: COLORS.stone }}>
+                        <span style={{ color: COLORS.deep }}>[필수]</span> 개인정보처리방침 동의
+                      </span>
+                    </span>
+                    <button type="button" onClick={() => setLegalModal('privacy')} className="font-mono text-[10px] underline"
+                      style={{ color: COLORS.primary }}>보기</button>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={agreedAge} onChange={e => setAgreedAge(e.target.checked)}
+                      className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+                    <span className="font-body text-xs" style={{ color: COLORS.stone }}>
+                      <span style={{ color: COLORS.deep }}>[필수]</span> 만 14세 이상입니다
+                    </span>
+                  </label>
+                </div>
+
                 <button onClick={handleSignup} disabled={loading} className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
                   style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5), 0 0 8px rgba(255, 92, 31, 0.3)' }}>
                   <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Join HSSUP</span>
@@ -1919,6 +2213,32 @@ function AuthScreen() {
           </>
         )}
       </div>
+
+      {/* 📜 약관 보기 모달 (회원가입 화면용) */}
+      {legalModal && (
+        <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: COLORS.cream }}>
+          <div className="flex items-center justify-between p-4 shrink-0" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
+            <span className="font-heading text-base" style={{ color: COLORS.ink }}>
+              {legalModal === 'terms' ? '이용약관' : legalModal === 'privacy' ? '개인정보처리방침' : '환불정책'}
+            </span>
+            <button onClick={() => setLegalModal(null)} className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ background: COLORS.card }}>
+              <X size={18} style={{ color: COLORS.ink }} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5">
+            <pre style={{
+              fontFamily: 'inherit',
+              color: COLORS.stone,
+              fontSize: '12px',
+              lineHeight: '1.75',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'keep-all',
+              margin: 0
+            }}>{legalModal === 'terms' ? LEGAL_TERMS : legalModal === 'privacy' ? LEGAL_PRIVACY : LEGAL_REFUND}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2080,7 +2400,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'admin-products') return <AdminProducts user={user} />;
     if (currentPage === 'admin-library') return <AdminLibrary user={user} />;
     if (currentPage === 'admin-courses') return <AdminCourses user={user} />;
-    if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} />;
+    if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
   }
   if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} />;
   if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} setCurrentPage={setCurrentPage} />;
@@ -2110,6 +2430,9 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'greetings') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="인사" pageTitle="가입 인사" pageEn="Greetings" pageDesc="신규 회원들을 따뜻하게 환영해주세요" />;
   if (currentPage === 'reviews') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="후기" pageTitle="수강후기" pageEn="Reviews" pageDesc="동료들의 수강 후기를 만나보세요" />;
   if (currentPage === 'freeboard') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="자유" pageTitle="자유게시판" pageEn="Free Board" pageDesc="자유롭게 이야기 나눠보세요" />;
+  if (currentPage === 'terms') return <LegalPage ko="이용약관" en="Terms of Service" desc="서비스 이용 규칙" content={LEGAL_TERMS} />;
+  if (currentPage === 'privacy') return <LegalPage ko="개인정보처리방침" en="Privacy Policy" desc="개인정보 수집·이용 안내" content={LEGAL_PRIVACY} />;
+  if (currentPage === 'refund') return <LegalPage ko="환불정책" en="Refund Policy" desc="수강료·상품 환불 안내" content={LEGAL_REFUND} />;
   if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'my-activity') return <MyActivityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} />;
   if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
@@ -3026,10 +3349,9 @@ function MyCasePage({ user }) {
     if (form.imageFiles.length === 0) return alert('이미지를 1장 이상 업로드해주세요');
 
     setUploading(true);
-    let uploadedUrls = [];
     try {
       // 모든 이미지 업로드
-      uploadedUrls = await Promise.all(
+      const imageUrls = await Promise.all(
         form.imageFiles.map(file => uploadCaseImage(file, user.id))
       );
 
@@ -3039,7 +3361,7 @@ function MyCasePage({ user }) {
         title: form.title,
         category: form.category,
         memo: form.memo,
-        image_urls: uploadedUrls
+        image_urls: imageUrls
       });
 
       if (error) throw error;
@@ -3051,10 +3373,6 @@ function MyCasePage({ user }) {
       await load();
     } catch (err) {
       console.error(err);
-      // 🧹 insert 실패 시 업로드한 Storage 이미지 롤백
-      if (uploadedUrls.length > 0) {
-        await Promise.all(uploadedUrls.map(url => deleteCaseImage(url).catch(() => {}))).catch(() => {});
-      }
       alert('업로드 실패: ' + err.message);
     }
     setUploading(false);
@@ -3232,19 +3550,14 @@ function QnaDetailPage({ qna, user, setCurrentPage }) {
 
   useEffect(() => {
     if (!qna?.user_id) return;
-    const canSeeRealName = user?.role === 'admin' || user?.role === 'staff' || qna.user_id === user?.id;
-    if (canSeeRealName) {
-      supabase.from('profiles').select('name, avatar_color, role').eq('id', qna.user_id).maybeSingle()
-        .then(({ data }) => setAuthor(data));
-    } else {
-      setAuthor({ name: '익명', avatar_color: 'charcoal', role: 'student' });
-    }
-    setEditForm({
-      title: qna.title || '',
-      content: qna.content || '',
-      category: qna.category || '시술'
+    supabase.from('profiles').select('name, avatar_color, role').eq('id', qna.user_id).maybeSingle()
+      .then(({ data }) => setAuthor(data));
+    setEditForm({ 
+      title: qna.title || '', 
+      content: qna.content || '', 
+      category: qna.category || '시술' 
     });
-  }, [qna, user?.id, user?.role]);
+  }, [qna]);
 
   if (!qna) {
     return (
@@ -3280,39 +3593,40 @@ function QnaDetailPage({ qna, user, setCurrentPage }) {
   const handleDelete = async () => {
     if (!confirm('이 질문을 삭제하시겠습니까?\n답변과 댓글도 함께 삭제됩니다.')) return;
     setActionLoading(true);
-
+    
     try {
-      // 1. 본문 삭제를 먼저 시도 (권한 없으면 여기서 차단 — 댓글·좋아요는 보존)
+      // 1. 댓글 삭제
+      const { error: commentsError } = await supabase.from('comments')
+        .delete()
+        .eq('target_type', 'qna')
+        .eq('target_id', qna.id);
+      if (commentsError) console.warn('댓글 삭제 경고:', commentsError);
+      
+      // 2. 좋아요 삭제
+      const { error: likesError } = await supabase.from('likes')
+        .delete()
+        .eq('target_type', 'qna')
+        .eq('target_id', qna.id);
+      if (likesError) console.warn('좋아요 삭제 경고:', likesError);
+      
+      // 3. 질문 삭제
       const { error, count } = await supabase.from('questions')
         .delete({ count: 'exact' })
         .eq('id', qna.id);
-
+      
       if (error) {
         console.error('삭제 에러:', error);
         alert('❌ 삭제 실패: ' + error.message);
         setActionLoading(false);
         return;
       }
-
+      
       if (count === 0) {
         alert('⚠️ 삭제 권한이 없습니다.\n본인이 작성한 질문만 삭제할 수 있어요.');
         setActionLoading(false);
         return;
       }
-
-      // 2. 본문이 지워졌으면 종속 데이터(댓글·좋아요) 정리
-      const { error: commentsError } = await supabase.from('comments')
-        .delete()
-        .eq('target_type', 'qna')
-        .eq('target_id', qna.id);
-      if (commentsError) console.warn('댓글 삭제 경고:', commentsError);
-
-      const { error: likesError } = await supabase.from('likes')
-        .delete()
-        .eq('target_type', 'qna')
-        .eq('target_id', qna.id);
-      if (likesError) console.warn('좋아요 삭제 경고:', likesError);
-
+      
       alert('🗑️ 삭제되었습니다');
       setCurrentPage('qna');
     } catch (err) {
@@ -3709,13 +4023,24 @@ function QnaPage({ user, setCurrentPage, setSelectedQna }) {
     });
 
     // 📢 관리자에게 알림
-    await sendPushNotification({
-      title: `❓ [${form.category}] 새 질문이 등록되었어요`,
-      body: `${user.name}: ${form.title}`,
-      url: '/',
-      targetRole: 'admin',
-      excludeUserId: user.id,
-    });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: `❓ [${form.category}] 새 질문이 등록되었어요`,
+          body: `${user.name}: ${form.title}`,
+          url: '/',
+          targetRole: 'admin',
+          excludeUserId: user.id,
+        }),
+      });
+    } catch (e) { console.error('알림 발송 실패:', e); }
 
     clearForm();
     setShowForm(false);
@@ -4365,27 +4690,25 @@ function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
 // 🎬 LectureDetailPage - 영상 강의 상세 (YouTube 임베드)
 // =============================================================
 function LectureDetailPage({ lecture, user }) {
-  // 🍊 오리엔테이션 영상이면 미션 체크 (자동 reload 제거 — 영상 재생 끊김 방지)
+  // 🍊 오리엔테이션 영상이면 자동 미션 체크
   useEffect(() => {
-    if (!lecture?.is_orientation || !user || user.onb_video) return;
-    let cancelled = false;
-    let timer = null;
-    supabase.from('profiles').update({ onb_video: true }).eq('id', user.id).then(() => {
-      if (cancelled) return;
-      // 30초 후 안내 (영상 재생 시간을 충분히 확보, reload는 사용자 액션으로 위임)
-      timer = setTimeout(() => {
-        if (cancelled) return;
-        const msg = (!user.onb_greeting || !user.onb_review)
-          ? '🎬 오리엔테이션 시청 완료! 남은 미션을 진행해 주세요.'
-          : '🎉 모든 미션 완료! HSSUP 시작!';
-        alert(msg);
-      }, 30000);
-    });
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [lecture?.id, user?.id, user?.onb_video, user?.onb_greeting, user?.onb_review]);
+    if (lecture?.is_orientation && user && !user.onb_video) {
+      supabase.from('profiles').update({ onb_video: true }).eq('id', user.id).then(() => {
+        // 3초 후 자동 새로고침 (영상 시청 시간 확보)
+        setTimeout(() => {
+          if (!user.onb_greeting || !user.onb_review) {
+            // 다른 미션 남았으면 알림
+            alert('🎬 오리엔테이션 시청 완료!');
+            window.location.reload();
+          } else {
+            // 마지막 미션이면 축하
+            alert('🎉 모든 미션 완료! HSSUP 시작!');
+            window.location.reload();
+          }
+        }, 3000);
+      });
+    }
+  }, [lecture, user]);
 
   if (!lecture) {
     return (
@@ -4525,28 +4848,22 @@ function PostDetailPage({ post, user, setCurrentPage }) {
     if (!confirm('이 게시글을 삭제하시겠습니까?\n댓글과 좋아요도 함께 삭제됩니다.')) return;
     setActionLoading(true);
     try {
-      // 1. 본문 삭제 먼저 (권한 없으면 여기서 차단 — 댓글·좋아요는 보존)
-      const { error, count } = await supabase.from('community_posts')
-        .delete({ count: 'exact' })
-        .eq('id', post.id);
-      if (error) throw error;
-      if (count === 0) {
-        alert('⚠️ 삭제 권한이 없습니다.');
-        setActionLoading(false);
-        return;
-      }
-
-      // 2. 본문 삭제 성공 시 종속 데이터 정리
+      // 1. 댓글 삭제
       await supabase.from('comments')
         .delete()
         .eq('target_type', 'community_post')
         .eq('target_id', post.id);
-
+      
+      // 2. 좋아요 삭제
       await supabase.from('likes')
         .delete()
         .eq('target_type', 'community_post')
         .eq('target_id', post.id);
-
+      
+      // 3. 글 삭제
+      const { error } = await supabase.from('community_posts').delete().eq('id', post.id);
+      if (error) throw error;
+      
       alert('🗑️ 삭제되었습니다');
       const backPage = post.category === '인사' ? 'greetings'
                       : post.category === '후기' ? 'reviews'
@@ -4789,6 +5106,10 @@ function ProductDetailPage({ product, user, setCurrentPage, setSelectedCourse })
 // =============================================================
 function PaymentPage({ course, product, user, setCurrentPage }) {
   const [loading, setLoading] = useState(false);
+  const [agreedPurchase, setAgreedPurchase] = useState(false);
+  const [agreedRefund, setAgreedRefund] = useState(false);
+  const [legalModal, setLegalModal] = useState(null); // 'refund' | 'terms' | 'privacy' | null
+  const allAgreed = agreedPurchase && agreedRefund;
 
   // course 또는 product 중 하나가 와야 함 (course 우선)
   const isProduct = !course && !!product;
@@ -4814,32 +5135,12 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
   const itemOriginalPrice = item.original_price;
 
   const handlePayment = async () => {
+    if (!allAgreed) {
+      alert('필수 약관에 모두 동의해주세요.');
+      return;
+    }
     setLoading(true);
     try {
-      // 🔒 결제 직전 DB에서 최신 가격·재고 재확인 (가격 변조/품절 방지)
-      const table = isProduct ? 'products' : 'courses';
-      const { data: latest, error: fetchError } = await supabase
-        .from(table)
-        .select(isProduct ? 'price, stock, name' : 'price, title')
-        .eq('id', item.id)
-        .maybeSingle();
-      if (fetchError || !latest) {
-        alert('상품 정보를 확인할 수 없습니다. 다시 시도해주세요.');
-        setLoading(false);
-        return;
-      }
-      if (Number(latest.price) !== Number(itemPrice)) {
-        alert(`가격이 변경되었어요.\n현재 가격: ${Number(latest.price).toLocaleString()}원\n페이지를 새로고침해 주세요.`);
-        setLoading(false);
-        return;
-      }
-      if (isProduct && typeof latest.stock === 'number' && latest.stock <= 0) {
-        alert('품절된 상품입니다.');
-        setLoading(false);
-        return;
-      }
-
-      const verifiedAmount = Number(latest.price);
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
       // DB에 주문 정보 저장 (course 또는 product)
@@ -4850,7 +5151,7 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
         product_id: isProduct ? product.id : null,
         course_title: itemName,
         item_type: isProduct ? 'product' : 'course',
-        amount: verifiedAmount,
+        amount: itemPrice,
         status: 'pending',
         buyer_name: user.name,
         buyer_phone: user.phone,
@@ -4868,7 +5169,7 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
       const validPhone = (phoneOnly.length === 10 || phoneOnly.length === 11) ? phoneOnly : undefined;
 
       const paymentParams = {
-        amount: verifiedAmount,
+        amount: itemPrice,
         orderId: orderId,
         orderName: itemName,
         customerName: user.name || '고객',
@@ -4967,18 +5268,66 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
           </p>
         </div>
 
+        {/* 📜 결제 동의 (필수) */}
+        <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={agreedPurchase} onChange={e => setAgreedPurchase(e.target.checked)}
+              className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+            <span className="font-body text-xs" style={{ color: COLORS.stone }}>
+              <span style={{ color: COLORS.deep }}>[필수]</span> 구매조건을 확인했으며 결제에 동의합니다
+            </span>
+          </label>
+          <label className="flex items-center justify-between cursor-pointer">
+            <span className="flex items-center gap-3">
+              <input type="checkbox" checked={agreedRefund} onChange={e => setAgreedRefund(e.target.checked)}
+                className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+              <span className="font-body text-xs" style={{ color: COLORS.stone }}>
+                <span style={{ color: COLORS.deep }}>[필수]</span> 환불정책에 동의합니다
+              </span>
+            </span>
+            <button type="button" onClick={() => setLegalModal('refund')} className="font-mono text-[10px] underline"
+              style={{ color: COLORS.primary }}>보기</button>
+          </label>
+        </div>
+
         {/* 결제 버튼 */}
-        <button onClick={handlePayment} disabled={loading}
+        <button onClick={handlePayment} disabled={loading || !allAgreed}
           className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-60"
-          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)' }}>
+          style={{ background: allAgreed ? COLORS.primary : COLORS.cardElev, color: COLORS.white, boxShadow: allAgreed ? '0 0 24px rgba(255, 92, 31, 0.5)' : 'none' }}>
           {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} strokeWidth={2.5} />}
-          {loading ? '결제창 호출 중...' : `${itemPrice.toLocaleString()}원 결제하기`}
+          {loading ? '결제창 호출 중...' : !allAgreed ? '약관 동의 후 결제 가능' : `${itemPrice.toLocaleString()}원 결제하기`}
         </button>
 
         <p className="font-mono text-[10px] text-center mt-2" style={{ color: COLORS.stone }}>
           ⚠️ 테스트 모드: 실제 결제되지 않습니다
         </p>
       </div>
+
+      {/* 📜 약관 보기 모달 (결제 페이지용) */}
+      {legalModal && (
+        <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: COLORS.cream }}>
+          <div className="flex items-center justify-between p-4 shrink-0" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
+            <span className="font-heading text-base" style={{ color: COLORS.ink }}>
+              {legalModal === 'refund' ? '환불정책' : legalModal === 'terms' ? '이용약관' : '개인정보처리방침'}
+            </span>
+            <button onClick={() => setLegalModal(null)} className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ background: COLORS.card }}>
+              <X size={18} style={{ color: COLORS.ink }} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5">
+            <pre style={{
+              fontFamily: 'inherit',
+              color: COLORS.stone,
+              fontSize: '12px',
+              lineHeight: '1.75',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'keep-all',
+              margin: 0
+            }}>{legalModal === 'refund' ? LEGAL_REFUND : legalModal === 'terms' ? LEGAL_TERMS : LEGAL_PRIVACY}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -5007,17 +5356,12 @@ function PaymentSuccessPage({ user, setCurrentPage }) {
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        setError('로그인 정보가 만료되었습니다. 다시 로그인해주세요.');
-        setVerifying(false);
-        return;
-      }
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-payment`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
             'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
             'Content-Type': 'application/json',
           },
@@ -5147,7 +5491,7 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
   const [newPost, setNewPost, clearNewPost] = useDraft(`community_${fixedCategory || 'free'}`, '');
   const [loading, setLoading] = useState(false);
   const [displayCount, setDisplayCount] = useState(POSTS_PER_PAGE);
-  const isAdmin = user?.role === 'admin' || user?.role === 'staff';
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => { 
     load();
@@ -5216,18 +5560,30 @@ function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCategory, p
         return;
       }
       // 📢 알림 발송 (학생→관리자, 관리자→학생)
-      const categoryEmoji = fixedCategory === '인사' ? '👋' : fixedCategory === '후기' ? '⭐' : '💬';
-      const targetRole = isAdmin ? 'student' : 'admin';
-      const titlePrefix = isAdmin
-        ? `${categoryEmoji} [${pageTitle || '게시판'}] 원장님이 글을 남겼어요`
-        : `${categoryEmoji} [${pageTitle || '게시판'}] 새 글이 등록됐어요`;
-      await sendPushNotification({
-        title: titlePrefix,
-        body: `${user.name}: ${newPost.substring(0, 80)}`,
-        url: '/',
-        targetRole,
-        excludeUserId: user.id,
-      });
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const categoryEmoji = fixedCategory === '인사' ? '👋' : fixedCategory === '후기' ? '⭐' : '💬';
+        const targetRole = isAdmin ? 'student' : 'admin';
+        const titlePrefix = isAdmin 
+          ? `${categoryEmoji} [${pageTitle || '게시판'}] 원장님이 글을 남겼어요`
+          : `${categoryEmoji} [${pageTitle || '게시판'}] 새 글이 등록됐어요`;
+        
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: titlePrefix,
+            body: `${user.name}: ${newPost.substring(0, 80)}`,
+            url: '/',
+            targetRole,
+            excludeUserId: user.id,
+          }),
+        });
+      } catch (e) { console.error('알림 발송 실패:', e); }
 
       setNewPost('');
       await load();
@@ -5508,7 +5864,7 @@ function MyActivityPage({ user, setCurrentPage, setSelectedPost }) {
 }
 
 function MyPage({ user, handleLogout, setCurrentPage }) {
-  const isAdmin = user.role === 'admin' || user.role === 'staff';
+  const isAdmin = user.role === 'admin';
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [currentColor, setCurrentColor] = useState(user.avatar_color || 'orange');
   const [saving, setSaving] = useState(false);
@@ -6746,14 +7102,12 @@ function AdminTrends({ user }) {
   const submit = async () => {
     if (!form.title.trim()) return alert('제목을 입력해주세요');
     setLoading(true);
-    let newlyUploadedUrl = null;
     try {
       let imageUrl = form.image_url;
       if (form.imageFile) {
         setUploading(true);
         if (editingId && form.image_url) await deleteTrendImage(form.image_url);
         imageUrl = await uploadTrendImage(form.imageFile);
-        newlyUploadedUrl = imageUrl;
         setUploading(false);
       }
       const trendData = {
@@ -6775,12 +7129,23 @@ function AdminTrends({ user }) {
 
         // 푸시 알림 (신규 등록 + 체크 시)
         if (form.sendPush) {
-          await sendPushNotification({
-            title: `[${form.category}] 새 트렌드 속보!`,
-            body: form.title,
-            url: '/',
-            targetRole: 'student',
-          });
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                title: `[${form.category}] 새 트렌드 속보!`,
+                body: form.title,
+                url: '/',
+                targetRole: 'student',
+              }),
+            });
+          } catch (e) { console.error('알림 발송 실패:', e); }
         }
 
         // 운영진이면 원장님께 별도 알림
@@ -6790,8 +7155,6 @@ function AdminTrends({ user }) {
       await load();
     } catch (err) {
       console.error(err);
-      // 🧹 DB 저장 실패 시 새로 업로드한 이미지 롤백
-      if (newlyUploadedUrl) await deleteTrendImage(newlyUploadedUrl).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -7322,15 +7685,12 @@ function AdminTips({ user }) {
   const submit = async () => {
     if (!form.title.trim()) return alert('제목을 입력해주세요');
     setLoading(true);
-    let newlyUploadedImage = null;
-    let newlyUploadedVideo = null;
     try {
       let imageUrl = form.image_url;
       if (form.imageFile) {
         setUploading(true);
         if (editingId && form.image_url) await deleteTipImage(form.image_url);
         imageUrl = await uploadTipImage(form.imageFile);
-        newlyUploadedImage = imageUrl;
         setUploading(false);
       }
 
@@ -7340,7 +7700,6 @@ function AdminTips({ user }) {
         setUploading(true);
         if (editingId && form.video_url && !isYouTubeUrl(form.video_url)) await deletePostVideo(form.video_url);
         videoUrl = await uploadPostVideo(form.videoFile);
-        newlyUploadedVideo = videoUrl;
         setUploading(false);
       }
 
@@ -7362,12 +7721,23 @@ function AdminTips({ user }) {
         if (error) throw error;
 
         if (form.sendPush) {
-          await sendPushNotification({
-            title: `[${form.category}] 새 꿀팁이 올라왔어요!`,
-            body: form.title,
-            url: '/',
-            targetRole: 'student',
-          });
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                title: `[${form.category}] 새 꿀팁이 올라왔어요!`,
+                body: form.title,
+                url: '/',
+                targetRole: 'student',
+              }),
+            });
+          } catch (e) { console.error('알림 발송 실패:', e); }
         }
 
         await notifyAdminsOfStaffActivity(user, `수업·꿀팁 등록`, form.title);
@@ -7376,9 +7746,6 @@ function AdminTips({ user }) {
       await load();
     } catch (err) {
       console.error(err);
-      // 🧹 DB 저장 실패 시 새로 업로드한 미디어 롤백
-      if (newlyUploadedImage) await deleteTipImage(newlyUploadedImage).catch(() => {});
-      if (newlyUploadedVideo) await deletePostVideo(newlyUploadedVideo).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -7725,8 +8092,6 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   const submit = async () => {
     if (!form.title.trim()) return;
     setLoading(true);
-    const newlyUploadedImages = [];
-    let newlyUploadedVideo = null;
     try {
       // 여러 이미지 업로드 (기존 유지된 것 + 새로 추가된 것)
       let imageUrls = [...form.image_urls];
@@ -7735,7 +8100,6 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
         for (const file of form.imageFiles) {
           const url = await uploadNoticeImage(file);
           imageUrls.push(url);
-          newlyUploadedImages.push(url);
         }
         setUploading(false);
       }
@@ -7746,7 +8110,6 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
         setUploading(true);
         if (editingId && form.video_url && !isYouTubeUrl(form.video_url)) await deletePostVideo(form.video_url);
         videoUrl = await uploadPostVideo(form.videoFile);
-        newlyUploadedVideo = videoUrl;
         setUploading(false);
       }
 
@@ -7773,33 +8136,29 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
 
         if (form.sendPush && subscriberCount > 0) {
           const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) {
-            alert('공지 등록 완료! (알림 전송 실패 — 로그인 정보 만료)');
-          } else {
-            const response = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`,
-              {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${session.access_token}`,
-                  'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  title: `${form.urgent ? '🔴 ' : ''}[${form.tag}] ${form.title}`,
-                  body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
-                  url: '/',
-                  targetRole: 'student',
-                  excludeUserId: user.id,
-                }),
-              }
-            );
-            const result = response.ok ? await response.json().catch(() => ({})) : {};
-            if (result.sent > 0) {
-              alert(`✅ 공지 등록 완료!\n📢 ${result.sent}명에게 알림 전송됨`);
-            } else {
-              alert('공지 등록 완료! (알림 전송 실패 또는 구독자 없음)');
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                title: `${form.urgent ? '🔴 ' : ''}[${form.tag}] ${form.title}`,
+                body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
+                url: '/',
+                targetRole: 'student',
+                excludeUserId: user.id,
+              }),
             }
+          );
+          const result = await response.json();
+          if (result.sent > 0) {
+            alert(`✅ 공지 등록 완료!\n📢 ${result.sent}명에게 알림 전송됨`);
+          } else {
+            alert('공지 등록 완료! (알림 전송 실패 또는 구독자 없음)');
           }
         } else {
           alert('공지 등록 완료!');
@@ -7810,9 +8169,6 @@ function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
       await load();
     } catch (err) {
       console.error(err);
-      // 🧹 DB 저장 실패 시 새로 업로드한 미디어 롤백
-      await Promise.all(newlyUploadedImages.map(url => deleteNoticeImage(url).catch(() => {})));
-      if (newlyUploadedVideo) await deletePostVideo(newlyUploadedVideo).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -8468,14 +8824,25 @@ function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) {
       alert('변경 실패: ' + error.message);
     } else {
       // 📢 임명된 본인에게 알림
-      await sendPushNotification({
-        title: newRole === 'staff' ? '🎉 운영진으로 임명되었어요!' : '운영진 권한이 해제되었어요',
-        body: newRole === 'staff'
-          ? '이제 관리자 메뉴를 사용할 수 있어요. 환영합니다!'
-          : '일반 수강생으로 돌아갔어요.',
-        url: '/',
-        targetUserId: student.id,
-      });
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: newRole === 'staff' ? '🎉 운영진으로 임명되었어요!' : '운영진 권한이 해제되었어요',
+            body: newRole === 'staff' 
+              ? '이제 관리자 메뉴를 사용할 수 있어요. 환영합니다!' 
+              : '일반 수강생으로 돌아갔어요.',
+            url: '/',
+            targetUserId: student.id,
+          }),
+        });
+      } catch (e) { console.error('알림 발송 실패:', e); }
 
       alert(newRole === 'staff' ? '✅ 운영진으로 임명되었습니다' : '✅ 운영진 권한이 해제되었습니다');
       setCurrentPage('admin-students');
@@ -9367,7 +9734,6 @@ function AdminProducts({ user }) {
     if (!form.price) return alert('판매가를 입력해주세요');
 
     setLoading(true);
-    let newlyUploadedImage = null;
     try {
       let imageUrl = form.image_url;
 
@@ -9377,7 +9743,6 @@ function AdminProducts({ user }) {
           await deleteProductImage(form.image_url);
         }
         imageUrl = await uploadProductImage(form.imageFile);
-        newlyUploadedImage = imageUrl;
         setUploading(false);
       }
 
@@ -9405,8 +9770,6 @@ function AdminProducts({ user }) {
       await load();
     } catch (err) {
       console.error(err);
-      // 🧹 DB 저장 실패 시 새로 업로드한 이미지 롤백
-      if (newlyUploadedImage) await deleteProductImage(newlyUploadedImage).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -9782,14 +10145,12 @@ function AdminCourses({ user }) {
   const submit = async () => {
     if (!form.title.trim()) return alert('클래스명을 입력해주세요');
     setLoading(true);
-    let newlyUploadedImage = null;
     try {
       let imageUrl = form.image_url;
       if (form.imageFile) {
         setUploading(true);
         if (editingId && form.image_url) await deleteCourseImage(form.image_url);
         imageUrl = await uploadCourseImage(form.imageFile);
-        newlyUploadedImage = imageUrl;
         setUploading(false);
       }
       const courseData = {
@@ -9811,8 +10172,6 @@ function AdminCourses({ user }) {
       await load();
     } catch (err) {
       console.error(err);
-      // 🧹 DB 저장 실패 시 새로 업로드한 이미지 롤백
-      if (newlyUploadedImage) await deleteCourseImage(newlyUploadedImage).catch(() => {});
       alert('저장 실패: ' + err.message);
     }
     setLoading(false);
@@ -10468,12 +10827,23 @@ function AdminQna({ user }) {
 
     // 📢 질문자에게 알림
     if (selected.user_id && selected.user_id !== user.id) {
-      await sendPushNotification({
-        title: `✅ 원장님이 답변을 남겼어요!`,
-        body: `Q. ${selected.title}`,
-        url: '/',
-        targetUserId: selected.user_id,
-      });
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: `✅ 원장님이 답변을 남겼어요!`,
+            body: `Q. ${selected.title}`,
+            url: '/',
+            targetUserId: selected.user_id,
+          }),
+        });
+      } catch (e) { console.error('알림 발송 실패:', e); }
     }
 
     // 🍊 운영진이면 원장님께 별도 알림
