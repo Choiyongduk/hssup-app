@@ -1032,6 +1032,13 @@ export default function HSSUPApp() {
     await supabase.auth.signOut();
     setProfile(null); setSession(null); setDrawerOpen(false);
   };
+
+  // 🍊 현재 로그인된 사용자의 profile만 다시 읽어와 상태 갱신 (loadProfile의 페이지 복원 로직 우회)
+  const refreshUser = async () => {
+    if (!session?.user?.id) return;
+    const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+    if (data) setProfile(data);
+  };
  
   const isAdmin = profile?.role === 'admin' || profile?.role === 'staff';
   const canViewRevenue = profile?.role === 'admin';
@@ -1062,7 +1069,7 @@ export default function HSSUPApp() {
     const SAVABLE_PAGES = [
       'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
       'best', 'mycase', 'library', 'market', 'community', 'freeboard',
-      'greetings', 'reviews', 'improvements', 'my-activity', 'my-orders',
+      'greetings', 'reviews', 'improvements', 'my-activity', 'my-orders', 'my-profile-edit',
       'payment', 'product-detail',
       'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
@@ -1332,7 +1339,8 @@ export default function HSSUPApp() {
                     selectedTrend={selectedTrend} setSelectedTrend={setSelectedTrend}
                     selectedTip={selectedTip} setSelectedTip={setSelectedTip}
                     selectedLibrary={selectedLibrary} setSelectedLibrary={setSelectedLibrary}
-                    user={profile} handleLogout={handleLogout} isAdmin={isAdmin} canViewRevenue={canViewRevenue} />
+                    user={profile} handleLogout={handleLogout} isAdmin={isAdmin} canViewRevenue={canViewRevenue}
+                    refreshUser={refreshUser} />
                 </div>
               </main>
               <BottomTabBar tabs={tabs} currentPage={currentPage} setCurrentPage={setCurrentPage} setDrawerOpen={setDrawerOpen} />
@@ -2480,7 +2488,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser }) {
   // Debug route removed
   // 🍊 온보딩 체크 - 졸업생은 인사+후기, 신입생은 전부 필요
   const needsOnboarding = !isAdmin && user && (
@@ -2550,6 +2558,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'my-activity') return <MyActivityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} />;
   if (currentPage === 'my-orders') return <MyOrdersPage user={user} />;
+  if (currentPage === 'my-profile-edit') return <MyProfileEditPage user={user} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
   if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
   if (currentPage === 'admin-improvements') return <AdminImprovements user={user} />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} />;
@@ -6351,6 +6360,22 @@ function MyPage({ user, handleLogout, setCurrentPage }) {
           </button>
         )}
 
+        {/* ✏️ 내 정보 수정 */}
+        {!isAdmin && (
+          <button onClick={() => setCurrentPage('my-profile-edit')}
+            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+              <Edit3 size={18} style={{ color: COLORS.primary }} />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>내 정보 수정</p>
+              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>이름 · 전화번호 변경</p>
+            </div>
+            <ChevronRight size={16} style={{ color: COLORS.stone }} />
+          </button>
+        )}
+
         {/* 컬러 선택 (펼침/접힘) */}
         {showColorPicker && (
           <section className="rounded-2xl p-4 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -6455,6 +6480,81 @@ function MyPage({ user, handleLogout, setCurrentPage }) {
             회원 탈퇴
           </button>
         )}
+      </div>
+    </>
+  );
+}
+
+// =============================================================
+// ✏️ MyProfileEditPage - 내 정보 수정 (이름·전화)
+// =============================================================
+function MyProfileEditPage({ user, setCurrentPage, refreshUser }) {
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      alert('이름을 입력해주세요.');
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ name: name.trim(), phone: phone.trim() || null })
+      .eq('id', user.id);
+    setSaving(false);
+    if (error) {
+      alert('저장 실패: ' + error.message);
+      return;
+    }
+    if (refreshUser) await refreshUser();
+    alert('✅ 저장되었습니다');
+    setCurrentPage('mypage');
+  };
+
+  return (
+    <>
+      <PageIntro ko="내 정보 수정" en="Edit Profile" desc="이름과 연락처를 변경할 수 있어요" />
+      <div className="px-5 space-y-3">
+        {/* 이메일 (읽기 전용) */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+          <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>이메일 (변경 불가)</label>
+          <p className="font-body text-sm mt-1.5" style={{ color: COLORS.muted }}>{user?.email || '-'}</p>
+        </div>
+
+        {/* 이름 */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>이름 *</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="이름을 입력하세요"
+            className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+        </div>
+
+        {/* 전화번호 */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>전화번호</label>
+          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+            placeholder="010-0000-0000"
+            className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+        </div>
+
+        {/* 저장 / 취소 */}
+        <div className="flex gap-2 mt-2">
+          <button onClick={() => setCurrentPage('mypage')} disabled={saving}
+            className="flex-1 rounded-full py-3.5 font-heading text-sm"
+            style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+            취소
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 rounded-full py-3.5 font-heading text-sm flex items-center justify-center gap-2"
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)' }}>
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}
+            저장
+          </button>
+        </div>
       </div>
     </>
   );
