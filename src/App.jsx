@@ -8750,6 +8750,9 @@ function AdminOrdersPage({ user, setCurrentPage }) {
       query = query.eq('item_type', 'product').eq('shipping_status', 'shipped');
     } else if (filter === 'course') {
       query = query.eq('item_type', 'course');
+    } else if (!isRealAdmin) {
+      // staff는 'all' 필터에서도 클래스 주문 제외 (배송만 신경)
+      query = query.eq('item_type', 'product');
     }
 
     const { data, error } = await query;
@@ -8800,9 +8803,9 @@ function AdminOrdersPage({ user, setCurrentPage }) {
   const formatDate = (iso) => iso ? new Date(iso).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
 
   const filters = [
-    { id: 'product-pending', label: '📦 배송 대기' },
-    { id: 'product-shipped', label: '✅ 발송 완료' },
-    { id: 'course', label: '🎓 클래스' },
+    { id: 'product-pending', label: '배송 대기' },
+    { id: 'product-shipped', label: '발송 완료' },
+    ...(isRealAdmin ? [{ id: 'course', label: '클래스' }] : []),
     { id: 'all', label: '전체' },
   ];
 
@@ -8861,7 +8864,7 @@ function AdminOrdersPage({ user, setCurrentPage }) {
                       background: isShipped || isDelivered ? COLORS.primary : COLORS.cardElev,
                       color: isShipped || isDelivered ? COLORS.white : COLORS.stone,
                     }}>
-                    {isDelivered ? '✓ 배송 완료' : isShipped ? '✓ 발송 완료' : '⏳ 배송 대기'}
+                    {isDelivered ? '배송 완료' : isShipped ? '발송 완료' : '배송 대기'}
                   </span>
                 )}
               </div>
