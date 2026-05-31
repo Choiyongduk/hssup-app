@@ -7,7 +7,7 @@ import {
   Palette, BarChart3, Trash2, ChevronLeft, ShoppingCart,
   Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, Image as ImageIcon,
   ArrowRight, ArrowUpRight, Loader2,
-  User, LogOut, Menu, X, Search, FileText
+  User, LogOut, Menu, X, Search, FileText, Package, Truck
 } from 'lucide-react';
 
 // 아바타 그라데이션 컬러 (반영구 시술 무드)
@@ -889,6 +889,18 @@ export default function HSSUPApp() {
     }
   }, [profile]);
 
+  // 🔔 푸시 알림 클릭 등에서 ?page=XXX 로 진입 시 해당 페이지로 라우팅
+  useEffect(() => {
+    if (!profile) return;
+    const params = new URLSearchParams(window.location.search);
+    const targetPage = params.get('page');
+    if (!targetPage) return;
+    setCurrentPage(targetPage);
+    // URL 정리 (?page= 제거)
+    const cleanUrl = window.location.pathname + window.location.hash;
+    window.history.replaceState({}, '', cleanUrl);
+  }, [profile]);
+
   // 🍊 Pull-to-Refresh 로직
   useEffect(() => {
     const container = mainRef.current;
@@ -986,7 +998,7 @@ export default function HSSUPApp() {
       'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
       'best', 'mycase', 'library', 'market', 'community', 'freeboard',
       'greetings', 'reviews', 'improvements', 'my-activity',
-      'admin-approvals', 'admin-orders', 'admin-students', 'admin-qna',
+      'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
       'admin-library', 'admin-courses', 'admin-improvements', 'admin-trends',
       'trends', 'tips', 'admin-tips'
@@ -1075,6 +1087,7 @@ export default function HSSUPApp() {
       { id: 'dashboard', label: '대시보드', icon: BarChart3 },
       { id: 'admin-approvals', label: '가입 승인', icon: UserCheck },
       ...(canViewRevenue ? [{ id: 'admin-orders', label: '결제 내역', icon: ShoppingBag }] : []),
+      { id: 'admin-shipments', label: '주문 관리', icon: Package },
       { id: 'admin-students', label: '수강생', icon: UserCheck },
       { id: 'admin-qna', label: 'Q&A 답변', icon: MessageCircle },
       { id: 'admin-improvements', label: '개선 제안 답변', icon: Edit3 },
@@ -2393,6 +2406,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
       if (!canViewRevenue) return <NoPermissionScreen setCurrentPage={setCurrentPage} />;
       return <AdminOrders user={user} />;
     }
+    if (currentPage === 'admin-shipments') return <AdminOrdersPage user={user} setCurrentPage={setCurrentPage} />;
     if (currentPage === 'admin-students') return <AdminStudents setCurrentPage={setCurrentPage} setSelectedStudent={setSelectedStudent} />;
     if (currentPage === 'admin-student-detail') return <AdminStudentDetail student={selectedStudent} setCurrentPage={setCurrentPage} canViewRevenue={canViewRevenue} />;
     if (currentPage === 'admin-qna') return <AdminQna user={user} />;
@@ -5112,6 +5126,38 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
   const [legalModal, setLegalModal] = useState(null); // 'refund' | 'terms' | 'privacy' | null
   const allAgreed = agreedPurchase && agreedRefund;
 
+  // 배송 정보 (재료 구매 시만 사용)
+  const [shippingRecipientName, setShippingRecipientName] = useState(user?.name || '');
+  const [shippingRecipientPhone, setShippingRecipientPhone] = useState(user?.phone || '');
+  const [shippingPostalCode, setShippingPostalCode] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [shippingAddressDetail, setShippingAddressDetail] = useState('');
+  const [shippingMemo, setShippingMemo] = useState('');
+
+  // 다음 우편번호 API 호출 (재료 구매 시 사용)
+  const openPostcode = async () => {
+    try {
+      if (typeof window.daum === 'undefined' || !window.daum.Postcode) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('우편번호 API 로드 실패'));
+          document.head.appendChild(script);
+        });
+      }
+      new window.daum.Postcode({
+        oncomplete: (data) => {
+          setShippingPostalCode(data.zonecode);
+          setShippingAddress(data.roadAddress || data.jibunAddress);
+        }
+      }).open();
+    } catch (err) {
+      console.error('우편번호 검색 에러:', err);
+      alert('우편번호 검색 중 오류가 발생했어요. 다시 시도해주세요.');
+    }
+  };
+
   // course 또는 product 중 하나가 와야 함 (course 우선)
   const isProduct = !course && !!product;
   const item = course || product;
@@ -5140,6 +5186,27 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
       alert('필수 약관에 모두 동의해주세요.');
       return;
     }
+
+    // 재료(product) 구매 시 배송 정보 검증
+    if (isProduct) {
+      if (!shippingRecipientName?.trim()) {
+        alert('받는 사람 이름을 입력해주세요.');
+        return;
+      }
+      if (!shippingRecipientPhone?.trim()) {
+        alert('받는 사람 연락처를 입력해주세요.');
+        return;
+      }
+      if (!shippingPostalCode || !shippingAddress) {
+        alert('"주소 검색" 버튼을 눌러 주소를 입력해주세요.');
+        return;
+      }
+      if (!shippingAddressDetail?.trim()) {
+        alert('상세 주소를 입력해주세요. (동/호수 등)');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
@@ -5157,6 +5224,14 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
         buyer_name: user.name,
         buyer_phone: user.phone,
         buyer_email: user.email,
+        // 배송 정보 (재료일 때만)
+        shipping_recipient_name: isProduct ? shippingRecipientName.trim() : null,
+        shipping_recipient_phone: isProduct ? shippingRecipientPhone.trim() : null,
+        shipping_postal_code: isProduct ? shippingPostalCode : null,
+        shipping_address: isProduct ? shippingAddress : null,
+        shipping_address_detail: isProduct ? shippingAddressDetail.trim() : null,
+        shipping_memo: isProduct ? (shippingMemo?.trim() || null) : null,
+        shipping_status: isProduct ? 'pending' : null,
       };
 
       const { error: insertError } = await supabase.from('orders').insert(orderData);
@@ -5247,6 +5322,91 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
           </div>
         </div>
 
+        {/* 📦 배송 정보 (재료 구매 시에만 표시) */}
+        {isProduct && (
+          <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 배송 정보</p>
+              <span className="font-body text-[10px]" style={{ color: COLORS.muted }}>필수 입력</span>
+            </div>
+
+            {/* 받는 사람 이름 */}
+            <input
+              type="text"
+              placeholder="받는 사람 이름"
+              value={shippingRecipientName}
+              onChange={e => setShippingRecipientName(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+              style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}
+            />
+
+            {/* 받는 사람 연락처 */}
+            <input
+              type="tel"
+              placeholder="받는 사람 연락처 (배송 알림용)"
+              value={shippingRecipientPhone}
+              onChange={e => setShippingRecipientPhone(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+              style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}
+            />
+
+            {/* 우편번호 + 검색 버튼 */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="우편번호"
+                value={shippingPostalCode}
+                readOnly
+                className="flex-1 px-3 py-2.5 rounded-lg font-body text-sm outline-none cursor-pointer"
+                style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}
+                onClick={openPostcode}
+              />
+              <button
+                type="button"
+                onClick={openPostcode}
+                className="px-4 py-2.5 rounded-lg font-heading text-xs whitespace-nowrap"
+                style={{ background: COLORS.primary, color: COLORS.white }}
+              >
+                주소 검색
+              </button>
+            </div>
+
+            {/* 기본 주소 (자동입력) */}
+            <input
+              type="text"
+              placeholder="기본 주소 (주소 검색 후 자동 입력)"
+              value={shippingAddress}
+              readOnly
+              className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+              style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}
+            />
+
+            {/* 상세 주소 */}
+            <input
+              type="text"
+              placeholder="상세 주소 (동/호수 등)"
+              value={shippingAddressDetail}
+              onChange={e => setShippingAddressDetail(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+              style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}
+            />
+
+            {/* 배송 메모 (선택) */}
+            <input
+              type="text"
+              placeholder="배송 메모 (선택, 예: 부재시 경비실)"
+              value={shippingMemo}
+              onChange={e => setShippingMemo(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+              style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}
+            />
+
+            <p className="font-body text-[10px] mt-1" style={{ color: COLORS.muted }}>
+              📦 결제 완료 시 1~3 영업일 내 발송됩니다
+            </p>
+          </div>
+        )}
+
         {/* 결제 금액 */}
         <div className="rounded-2xl p-4" style={{ background: COLORS.cardElev }}>
           {discount > 0 && (
@@ -5311,7 +5471,7 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
         </button>
 
         <p className="font-mono text-[10px] text-center mt-2" style={{ color: COLORS.stone }}>
-          ⚠️ 테스트 모드: 실제 결제되지 않습니다
+          🔒 안전하게 암호화되어 결제됩니다
         </p>
       </div>
 
@@ -8553,6 +8713,333 @@ function AdminOrders() {
           </div>
         ))}
       </div>
+    </>
+  );
+}
+
+// =============================================================
+// 📦 AdminOrdersPage - 주문/배송 관리 (admin + staff)
+//   admin: 매출·카드·영수증까지 표시
+//   staff: 배송 정보·발송 처리만 표시
+// =============================================================
+function AdminOrdersPage({ user, setCurrentPage }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('product-pending');
+
+  const [shippingModal, setShippingModal] = useState(null);
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [trackingCompany, setTrackingCompany] = useState('');
+  const [shipping, setShipping] = useState(false);
+
+  const isRealAdmin = user?.role === 'admin';
+
+  useEffect(() => { loadOrders(); }, [filter]);
+
+  const loadOrders = async () => {
+    setLoading(true);
+    let query = supabase
+      .from('orders')
+      .select('*')
+      .eq('status', 'paid')
+      .order('paid_at', { ascending: false });
+
+    if (filter === 'product-pending') {
+      query = query.eq('item_type', 'product').eq('shipping_status', 'pending');
+    } else if (filter === 'product-shipped') {
+      query = query.eq('item_type', 'product').eq('shipping_status', 'shipped');
+    } else if (filter === 'course') {
+      query = query.eq('item_type', 'course');
+    }
+
+    const { data, error } = await query;
+    if (error) console.error('주문 로드 에러:', error);
+    setOrders(data || []);
+    setLoading(false);
+  };
+
+  const openShippingModal = (order) => {
+    setShippingModal(order);
+    setTrackingNumber('');
+    setTrackingCompany('');
+  };
+
+  const closeShippingModal = () => {
+    setShippingModal(null);
+    setTrackingNumber('');
+    setTrackingCompany('');
+  };
+
+  const handleShip = async () => {
+    if (!shippingModal) return;
+    if (!trackingNumber.trim()) {
+      alert('운송장 번호를 입력해주세요.');
+      return;
+    }
+    setShipping(true);
+    const { error } = await supabase.from('orders').update({
+      shipping_status: 'shipped',
+      shipped_at: new Date().toISOString(),
+      shipped_by: user.id,
+      tracking_number: trackingNumber.trim(),
+      tracking_company: trackingCompany.trim() || null,
+    }).eq('order_id', shippingModal.order_id);
+    setShipping(false);
+
+    if (error) {
+      alert('발송 처리 실패: ' + error.message);
+      return;
+    }
+
+    closeShippingModal();
+    await loadOrders();
+    alert('✅ 발송 처리 완료');
+  };
+
+  const formatPrice = (n) => '₩' + Number(n || 0).toLocaleString('ko-KR');
+  const formatDate = (iso) => iso ? new Date(iso).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+
+  const filters = [
+    { id: 'product-pending', label: '📦 배송 대기' },
+    { id: 'product-shipped', label: '✅ 발송 완료' },
+    { id: 'course', label: '🎓 클래스' },
+    { id: 'all', label: '전체' },
+  ];
+
+  return (
+    <>
+      <PageIntro ko="주문 관리" en="Orders" desc={isRealAdmin ? '결제 내역과 배송 상태를 관리해요' : '재료 배송을 처리해요'} />
+
+      {/* 필터 탭 */}
+      <div className="px-5 mb-3">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {filters.map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)}
+              className={`shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold transition-transform active:scale-95 ${filter === f.id ? 'glow-soft' : ''}`}
+              style={{
+                background: filter === f.id ? COLORS.primary : COLORS.card,
+                color: filter === f.id ? COLORS.white : COLORS.stone,
+                border: `1px solid ${filter === f.id ? COLORS.primary : COLORS.light}`,
+              }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 카운트 */}
+      <div className="px-5 mb-4">
+        <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>총 {orders.length}건</p>
+      </div>
+
+      {/* 목록 */}
+      <div className="px-5 space-y-3 pb-6">
+        {loading ? (
+          <div className="text-center py-10">
+            <Loader2 size={20} className="animate-spin mx-auto" style={{ color: COLORS.primary }} />
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="text-center py-10">
+            <Package size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+            <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>해당 조건의 주문이 없어요</p>
+          </div>
+        ) : orders.map(o => {
+          const isProduct = o.item_type === 'product';
+          const isShipped = o.shipping_status === 'shipped';
+          const isDelivered = o.shipping_status === 'delivered';
+          return (
+            <div key={o.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              {/* 헤더: 타입 + 발송 상태 */}
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded inline-flex items-center gap-1"
+                  style={{ background: COLORS.peach, color: COLORS.deep }}>
+                  {isProduct ? <><Package size={10} />재료</> : <><BookOpen size={10} />클래스</>}
+                </span>
+                {isProduct && (
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded"
+                    style={{
+                      background: isShipped || isDelivered ? COLORS.primary : COLORS.cardElev,
+                      color: isShipped || isDelivered ? COLORS.white : COLORS.stone,
+                    }}>
+                    {isDelivered ? '✓ 배송 완료' : isShipped ? '✓ 발송 완료' : '⏳ 배송 대기'}
+                  </span>
+                )}
+              </div>
+
+              {/* 상품명 + 주문번호 */}
+              <div className="mb-3">
+                <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{o.course_title || '-'}</p>
+                <p className="font-mono text-[10px] mt-1 truncate" style={{ color: COLORS.muted }}>
+                  주문 {o.order_id?.substring(0, 20)}...
+                </p>
+              </div>
+
+              {/* 구매자 정보 */}
+              <div className="rounded-lg p-3 space-y-1.5" style={{ background: COLORS.cream }}>
+                <div className="flex justify-between">
+                  <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>구매자</span>
+                  <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{o.buyer_name || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>연락처</span>
+                  <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{o.buyer_phone || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>결제일</span>
+                  <span className="font-mono text-[10px]" style={{ color: COLORS.ink }}>{formatDate(o.paid_at || o.created_at)}</span>
+                </div>
+              </div>
+
+              {/* 결제 정보 (admin만) */}
+              {isRealAdmin && (
+                <div className="rounded-lg p-3 mt-2 space-y-1.5" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+                  <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 결제 정보</p>
+                  <div className="flex justify-between">
+                    <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>금액</span>
+                    <span className="font-body text-sm font-bold" style={{ color: COLORS.primary }}>{formatPrice(o.amount)}</span>
+                  </div>
+                  {(o.payment_method || o.card_company) && (
+                    <div className="flex justify-between">
+                      <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>결제수단</span>
+                      <span className="font-body text-xs" style={{ color: COLORS.ink }}>
+                        {o.payment_method || '카드'}{o.card_company ? ` · ${o.card_company}` : ''}
+                      </span>
+                    </div>
+                  )}
+                  {o.receipt_url && (
+                    <div className="pt-1">
+                      <a href={o.receipt_url} target="_blank" rel="noopener noreferrer"
+                        className="font-heading text-[10px] px-3 py-1.5 rounded-full inline-block"
+                        style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                        영수증 →
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 배송 정보 (재료) */}
+              {isProduct && (
+                <div className="rounded-lg p-3 mt-2 space-y-1.5" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+                  <p className="font-mono text-[10px] font-bold tracking-widest uppercase inline-flex items-center gap-1" style={{ color: COLORS.primary }}>
+                    <Package size={10} />━━ 배송 정보
+                  </p>
+                  <div className="flex justify-between">
+                    <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>받는분</span>
+                    <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{o.shipping_recipient_name || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>연락처</span>
+                    <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{o.shipping_recipient_phone || '-'}</span>
+                  </div>
+                  <div>
+                    <p className="font-mono text-[10px] mb-0.5" style={{ color: COLORS.stone }}>주소</p>
+                    <p className="font-body text-xs" style={{ color: COLORS.ink }}>
+                      {o.shipping_postal_code ? `(${o.shipping_postal_code}) ` : ''}{o.shipping_address || '-'}
+                    </p>
+                    {o.shipping_address_detail && (
+                      <p className="font-body text-xs" style={{ color: COLORS.ink }}>{o.shipping_address_detail}</p>
+                    )}
+                  </div>
+                  {o.shipping_memo && (
+                    <div>
+                      <p className="font-mono text-[10px] mb-0.5" style={{ color: COLORS.stone }}>배송 메모</p>
+                      <p className="font-body text-xs" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>{o.shipping_memo}</p>
+                    </div>
+                  )}
+
+                  {/* 발송 정보 표시 (shipped/delivered) */}
+                  {(isShipped || isDelivered) && (
+                    <div className="pt-2 mt-2 space-y-1" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+                      <p className="font-mono text-[10px] font-bold tracking-widest uppercase inline-flex items-center gap-1" style={{ color: COLORS.primary }}>
+                        <Truck size={10} />━━ 발송 정보
+                      </p>
+                      {o.tracking_company && (
+                        <div className="flex justify-between">
+                          <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>택배사</span>
+                          <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{o.tracking_company}</span>
+                        </div>
+                      )}
+                      {o.tracking_number && (
+                        <div className="flex justify-between">
+                          <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>운송장</span>
+                          <span className="font-mono text-xs" style={{ color: COLORS.ink }}>{o.tracking_number}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>발송일</span>
+                        <span className="font-mono text-[10px]" style={{ color: COLORS.ink }}>{formatDate(o.shipped_at)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 발송 처리 버튼 (pending) */}
+                  {o.shipping_status === 'pending' && (
+                    <button onClick={() => openShippingModal(o)}
+                      className="w-full mt-2 rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
+                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+                      <Package size={14} strokeWidth={2.5} />발송 처리하기
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 발송 처리 모달 */}
+      {shippingModal && (
+        <div onClick={closeShippingModal}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()}
+            className="animate-slide-up w-full"
+            style={{ maxWidth: 480, background: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '85vh', overflowY: 'auto' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>발송 처리</h3>
+              <button onClick={closeShippingModal}><X size={18} style={{ color: COLORS.stone }} /></button>
+            </div>
+
+            <div className="rounded-lg p-3 mb-4" style={{ background: COLORS.cardElev }}>
+              <p className="font-body text-xs" style={{ color: COLORS.ink }}>{shippingModal.course_title}</p>
+              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>
+                받는분: {shippingModal.shipping_recipient_name || '-'} · {shippingModal.shipping_recipient_phone || '-'}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>택배사 (선택)</label>
+                <input type="text" value={trackingCompany} onChange={(e) => setTrackingCompany(e.target.value)}
+                  placeholder="예: CJ대한통운 / 롯데택배 / 한진택배"
+                  className="w-full font-body text-sm p-3 mt-1 outline-none rounded"
+                  style={{ background: COLORS.cream, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>운송장 번호 *</label>
+                <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
+                  placeholder="운송장 번호 입력"
+                  className="w-full font-body text-sm p-3 mt-1 outline-none rounded"
+                  style={{ background: COLORS.cream, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button onClick={closeShippingModal} disabled={shipping}
+                className="flex-1 rounded-full py-3 font-heading text-sm"
+                style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                취소
+              </button>
+              <button onClick={handleShip} disabled={shipping}
+                className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
+                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+                {shipping ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}
+                발송 확정
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
