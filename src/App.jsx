@@ -746,9 +746,14 @@ export default function HSSUPApp() {
     setIsIOS(isIOSDevice);
 
     // 이미 설치되어 standalone 모드로 실행 중인지 확인
-    const standalone = window.matchMedia('(display-mode: standalone)').matches 
+    const standalone = window.matchMedia('(display-mode: standalone)').matches
                     || window.navigator.standalone === true;
     setIsStandalone(standalone);
+
+    // 🍊 PWA로 한 번이라도 진입한 적이 있으면 표시 (Safari에서 결제 후 안내 UI 분기에 사용)
+    if (standalone) {
+      try { localStorage.setItem('hssup_is_pwa_user', '1'); } catch (e) {}
+    }
 
     // 설치 배너 닫은 적 있는지 확인
     const dismissed = localStorage.getItem('hssup_install_dismissed');
@@ -959,6 +964,29 @@ export default function HSSUPApp() {
       // 🍊 마지막 페이지 복원 (앱 재진입 시)
       const lastPage = sessionStorage.getItem('hssup_last_page');
       const defaultPage = (data.role === 'admin' || data.role === 'staff') ? 'dashboard' : 'home';
+
+      // 🍊 최우선: Safari에서 결제 완료된 직후 PWA로 돌아왔다면 결제 성공 페이지로 자동 이동
+      //    (PaymentSuccessPage가 Safari에서 작성한 flag를 PWA가 읽음)
+      //    standalone(PWA) 모드일 때만 자동 라우팅 — Safari 사용자가 다음 방문 때마다 성공 페이지로
+      //    튕기는 것 방지
+      const isStandaloneNow = window.matchMedia('(display-mode: standalone)').matches
+                          || window.navigator.standalone === true;
+      if (isStandaloneNow) {
+        try {
+          const completedRaw = localStorage.getItem('hssup_payment_completed');
+          if (completedRaw) {
+            const c = JSON.parse(completedRaw);
+            const COMPLETED_TTL = 30 * 60 * 1000;
+            if (Date.now() - (c.ts || 0) < COMPLETED_TTL && c.userId === data.id && c.orderId) {
+              setCurrentPage('payment-success');
+              setLoading(false);
+              return;
+            } else {
+              localStorage.removeItem('hssup_payment_completed');
+            }
+          }
+        } catch (e) { /* 무시 */ }
+      }
 
       // 1. sessionStorage에 결제 페이지가 남아있으면 우선 복원
       if (lastPage === 'payment' || lastPage === 'product-detail') {
@@ -5640,11 +5668,30 @@ function PaymentSuccessPage({ user, setCurrentPage }) {
   const [orderInfo, setOrderInfo] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // 🍊 iOS PWA 제약: NicePay redirect 체인이 Safari를 거치면서 사용자가 Safari에 남게 됨.
+  //    standalone(PWA) 모드인지 감지해서 안내 UI를 다르게 표시.
+  const isStandalone = typeof window !== 'undefined' && (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true
+  );
+  // 🍊 과거에 PWA로 진입한 적이 있는지 (Safari에서 결제 후 PWA로 돌아가라고 안내할지 판단)
+  const hasPwaInstalled = typeof window !== 'undefined' && localStorage.getItem('hssup_is_pwa_user') === '1';
+
   useEffect(() => {
     const fetchOrder = async () => {
       try {
         const params = new URLSearchParams(window.location.search);
-        const orderId = params.get('orderId');
+        // URL의 orderId가 우선, 없으면 localStorage 완료 플래그 사용 (PWA 재진입 시)
+        let orderId = params.get('orderId');
+        if (!orderId) {
+          try {
+            const raw = localStorage.getItem('hssup_payment_completed');
+            if (raw) {
+              const c = JSON.parse(raw);
+              if (Date.now() - (c.ts || 0) < 30 * 60 * 1000) orderId = c.orderId;
+            }
+          } catch (e) { /* 무시 */ }
+        }
         if (!orderId) {
           setLoading(false);
           return;
@@ -5656,6 +5703,21 @@ function PaymentSuccessPage({ user, setCurrentPage }) {
           .eq('order_id', orderId)
           .single();
         setOrderInfo(order);
+
+        // 🍊 Safari에서 열렸다면 localStorage에 완료 플래그를 적어둠 → PWA로 돌아왔을 때 이 페이지 자동 표시
+        if (!isStandalone && order) {
+          try {
+            localStorage.setItem('hssup_payment_completed', JSON.stringify({
+              orderId: order.order_id,
+              userId: order.user_id,
+              ts: Date.now(),
+            }));
+          } catch (e) { /* 무시 */ }
+        } else if (isStandalone) {
+          // PWA에서 이 페이지를 본 시점에 완료 플래그는 더 이상 필요 없음
+          localStorage.removeItem('hssup_payment_completed');
+        }
+
         // URL 정리
         window.history.replaceState({}, '', '/');
       } catch (err) {
@@ -5684,6 +5746,18 @@ function PaymentSuccessPage({ user, setCurrentPage }) {
         <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>결제가 완료되었습니다</h2>
         <p className="font-body text-xs mt-2" style={{ color: COLORS.stone }}>안전하게 결제 검증이 완료되었어요</p>
       </div>
+
+      {/* 🍊 Safari에서 열렸고 + 과거에 PWA로 진입한 흔적이 있으면 PWA로 돌아가도록 안내.
+          PWA 사용자가 아닌 일반 Safari 사용자에게는 표시하지 않음. */}
+      {!isStandalone && hasPwaInstalled && (
+        <div className="mx-5 mb-3 rounded-2xl p-4" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
+          <p className="font-heading text-sm" style={{ color: COLORS.deep }}>HSSUP 앱에서 자세한 내역을 확인하세요</p>
+          <p className="font-body text-xs mt-1" style={{ color: COLORS.deep, opacity: 0.85 }}>
+            홈 화면의 HSSUP 아이콘을 누르시면 결제 상세와 배송 정보를 보실 수 있어요.
+            (방금 받은 푸시 알림을 눌러도 앱이 열려요.)
+          </p>
+        </div>
+      )}
 
       <div className="px-5">
         <div className="rounded-2xl p-5 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -9117,19 +9191,30 @@ function AdminOrdersPage({ user, setCurrentPage }) {
         })}
       </div>
 
-      {/* 발송 처리 모달 */}
-      {shippingModal && (
-        <div onClick={closeShippingModal}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()}
-            className="animate-slide-up w-full"
-            style={{ maxWidth: 480, background: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '85vh', overflowY: 'auto' }}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>발송 처리</h3>
-              <button onClick={closeShippingModal}><X size={18} style={{ color: COLORS.stone }} /></button>
-            </div>
+      {/* 발송 처리 모달 — Portal + 풀스크린 + 스티키 푸터
+          ⚠️ 부모 <main>의 transform이 fixed containing block을 만들어 모달이 갇히는 문제 + 모바일 키보드가 떴을 때 푸터 버튼이 가려지는 문제를 동시에 해결. */}
+      {shippingModal && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, background: COLORS.cream, zIndex: 9999,
+          display: 'flex', flexDirection: 'column'
+        }}>
+          {/* 헤더 (고정) */}
+          <div style={{
+            flexShrink: 0, padding: '12px 16px',
+            paddingTop: 'max(12px, env(safe-area-inset-top))',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: `1px solid ${COLORS.light}`, background: COLORS.card
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: COLORS.ink, margin: 0, fontFamily: 'Pretendard, sans-serif' }}>발송 처리</h3>
+            <button onClick={closeShippingModal}
+              style={{ width: 36, height: 36, border: 'none', background: 'transparent', color: COLORS.stone, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <X size={20} />
+            </button>
+          </div>
 
-            <div className="rounded-lg p-3 mb-4" style={{ background: COLORS.cardElev }}>
+          {/* 본문 (스크롤) */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            <div className="rounded-lg p-3 mb-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
               <p className="font-body text-xs" style={{ color: COLORS.ink }}>{shippingModal.course_title}</p>
               <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>
                 받는분: {shippingModal.shipping_recipient_name || '-'} · {shippingModal.shipping_recipient_phone || '-'}
@@ -9142,32 +9227,39 @@ function AdminOrdersPage({ user, setCurrentPage }) {
                 <input type="text" value={trackingCompany} onChange={(e) => setTrackingCompany(e.target.value)}
                   placeholder="예: CJ대한통운 / 롯데택배 / 한진택배"
                   className="w-full font-body text-sm p-3 mt-1 outline-none rounded"
-                  style={{ background: COLORS.cream, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+                  style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
               </div>
               <div>
                 <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>운송장 번호 *</label>
                 <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
                   placeholder="운송장 번호 입력"
                   className="w-full font-body text-sm p-3 mt-1 outline-none rounded"
-                  style={{ background: COLORS.cream, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+                  style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
               </div>
             </div>
-
-            <div className="flex gap-2 mt-5">
-              <button onClick={closeShippingModal} disabled={shipping}
-                className="flex-1 rounded-full py-3 font-heading text-sm"
-                style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
-                취소
-              </button>
-              <button onClick={handleShip} disabled={shipping}
-                className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
-                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
-                {shipping ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}
-                발송 확정
-              </button>
-            </div>
           </div>
-        </div>
+
+          {/* 푸터 (스티키) — safe-area-inset-bottom 반영해서 키보드/홈인디케이터와 충돌 방지 */}
+          <div style={{
+            flexShrink: 0, padding: 16,
+            paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+            borderTop: `1px solid ${COLORS.light}`, background: COLORS.card,
+            display: 'flex', gap: 8
+          }}>
+            <button onClick={closeShippingModal} disabled={shipping}
+              className="flex-1 rounded-full py-3 font-heading text-sm"
+              style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+              취소
+            </button>
+            <button onClick={handleShip} disabled={shipping}
+              className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+              {shipping ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}
+              발송 확정
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </>
   );
