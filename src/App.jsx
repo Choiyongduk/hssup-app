@@ -1062,7 +1062,7 @@ export default function HSSUPApp() {
     const SAVABLE_PAGES = [
       'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
       'best', 'mycase', 'library', 'market', 'community', 'freeboard',
-      'greetings', 'reviews', 'improvements', 'my-activity',
+      'greetings', 'reviews', 'improvements', 'my-activity', 'my-orders',
       'payment', 'product-detail',
       'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
@@ -2549,6 +2549,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'refund') return <LegalPage ko="환불정책" en="Refund Policy" desc="수강료·상품 환불 안내" content={LEGAL_REFUND} />;
   if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'my-activity') return <MyActivityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} />;
+  if (currentPage === 'my-orders') return <MyOrdersPage user={user} />;
   if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
   if (currentPage === 'admin-improvements') return <AdminImprovements user={user} />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} />;
@@ -6333,6 +6334,22 @@ function MyPage({ user, handleLogout, setCurrentPage }) {
           </button>
         )}
 
+        {/* 📦 주문 내역 */}
+        {!isAdmin && (
+          <button onClick={() => setCurrentPage('my-orders')}
+            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+              <ShoppingBag size={18} style={{ color: COLORS.primary }} />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>주문 내역</p>
+              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>결제 · 배송 상태 확인</p>
+            </div>
+            <ChevronRight size={16} style={{ color: COLORS.stone }} />
+          </button>
+        )}
+
         {/* 컬러 선택 (펼침/접힘) */}
         {showColorPicker && (
           <section className="rounded-2xl p-4 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -6438,6 +6455,161 @@ function MyPage({ user, handleLogout, setCurrentPage }) {
           </button>
         )}
       </div>
+    </>
+  );
+}
+
+// =============================================================
+// 📦 MyOrdersPage - 학생용 주문 내역 (결제 + 배송 상태)
+// =============================================================
+function MyOrdersPage({ user }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('user_id', user.id)
+      .in('status', ['paid', 'cancelled'])
+      .order('paid_at', { ascending: false });
+    if (error) console.error('주문 내역 로드 에러:', error);
+    setOrders(data || []);
+    setLoading(false);
+  };
+
+  const formatPrice = (n) => '₩' + Number(n || 0).toLocaleString('ko-KR');
+  const formatDate = (iso) => iso ? new Date(iso).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+
+  return (
+    <>
+      <PageIntro ko="주문 내역" en="My Orders" desc="결제하신 클래스와 재료를 확인하세요" />
+
+      {loading ? (
+        <div className="text-center py-10">
+          <Loader2 size={20} className="animate-spin mx-auto" style={{ color: COLORS.primary }} />
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="text-center py-10 px-5">
+          <ShoppingBag size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+          <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>아직 주문 내역이 없어요</p>
+        </div>
+      ) : (
+        <div className="px-5 space-y-3 pb-6">
+          {orders.map(o => {
+            const isProduct = o.item_type === 'product';
+            const isCancelled = o.status === 'cancelled';
+            const isShipped = o.shipping_status === 'shipped';
+            const isDelivered = o.shipping_status === 'delivered';
+            return (
+              <div key={o.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                {/* 헤더: 타입 + 상태 */}
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded inline-flex items-center gap-1"
+                    style={{ background: COLORS.peach, color: COLORS.deep }}>
+                    {isProduct ? <><Package size={10} />재료</> : <><BookOpen size={10} />클래스</>}
+                  </span>
+                  <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded"
+                    style={{
+                      background: isCancelled ? COLORS.cardElev : COLORS.primary,
+                      color: isCancelled ? COLORS.stone : COLORS.white,
+                      textDecoration: isCancelled ? 'none' : 'none',
+                    }}>
+                    {isCancelled ? '취소됨' : '결제 완료'}
+                  </span>
+                </div>
+
+                {/* 상품명 + 금액 */}
+                <div className="mb-3">
+                  <p className="font-heading text-sm" style={{ color: COLORS.ink, textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                    {o.course_title || '-'}
+                  </p>
+                  <p className="font-display text-xl tracking-tight mt-1" style={{ color: isCancelled ? COLORS.stone : COLORS.primary, textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                    {formatPrice(o.amount)}
+                  </p>
+                </div>
+
+                {/* 결제 정보 */}
+                <div className="rounded-lg p-3 space-y-1.5" style={{ background: COLORS.cardElev }}>
+                  <div className="flex justify-between">
+                    <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>결제일</span>
+                    <span className="font-mono text-[10px]" style={{ color: COLORS.ink }}>{formatDate(o.paid_at || o.created_at)}</span>
+                  </div>
+                  {(o.payment_method || o.card_company) && (
+                    <div className="flex justify-between">
+                      <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>결제수단</span>
+                      <span className="font-body text-xs" style={{ color: COLORS.ink }}>
+                        {o.payment_method || '카드'}{o.card_company ? ` · ${o.card_company}` : ''}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>주문번호</span>
+                    <span className="font-mono text-[10px] truncate ml-2" style={{ color: COLORS.ink, maxWidth: '60%' }}>{o.order_id?.substring(0, 20)}...</span>
+                  </div>
+                </div>
+
+                {/* 배송 상태 (재료, 결제완료만) */}
+                {isProduct && !isCancelled && (
+                  <div className="rounded-lg p-3 mt-2" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+                    <p className="font-mono text-[10px] font-bold tracking-widest uppercase inline-flex items-center gap-1 mb-2" style={{ color: COLORS.primary }}>
+                      <Truck size={10} />━━ 배송 상태
+                    </p>
+                    {isShipped || isDelivered ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>상태</span>
+                          <span className="font-body text-xs font-semibold" style={{ color: COLORS.primary }}>{isDelivered ? '배송 완료' : '발송 완료'}</span>
+                        </div>
+                        {o.tracking_company && (
+                          <div className="flex justify-between mt-1">
+                            <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>택배사</span>
+                            <span className="font-body text-xs" style={{ color: COLORS.ink }}>{o.tracking_company}</span>
+                          </div>
+                        )}
+                        {o.tracking_number && (
+                          <div className="flex justify-between mt-1">
+                            <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>운송장</span>
+                            <span className="font-mono text-xs" style={{ color: COLORS.ink }}>{o.tracking_number}</span>
+                          </div>
+                        )}
+                        {o.shipped_at && (
+                          <div className="flex justify-between mt-1">
+                            <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>발송일</span>
+                            <span className="font-mono text-[10px]" style={{ color: COLORS.ink }}>{formatDate(o.shipped_at)}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="font-body text-xs" style={{ color: COLORS.stone }}>배송 대기 중 — 결제 완료 후 1-3 영업일 내 발송</p>
+                    )}
+                  </div>
+                )}
+
+                {/* 취소 사유 (취소된 경우) */}
+                {isCancelled && o.cancel_reason && (
+                  <div className="rounded-lg p-3 mt-2" style={{ background: COLORS.cardElev, borderLeft: `3px solid ${COLORS.stone}` }}>
+                    <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>취소 사유</p>
+                    <p className="font-body text-xs mt-1" style={{ color: COLORS.ink }}>{o.cancel_reason}</p>
+                  </div>
+                )}
+
+                {/* 영수증 (취소 아니면) */}
+                {!isCancelled && o.receipt_url && (
+                  <a href={o.receipt_url} target="_blank" rel="noopener noreferrer"
+                    className="mt-3 font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1.5"
+                    style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                    <Download size={12} />영수증 보기
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
