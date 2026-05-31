@@ -959,6 +959,15 @@ export default function HSSUPApp() {
       // 🍊 마지막 페이지 복원 (앱 재진입 시)
       const lastPage = sessionStorage.getItem('hssup_last_page');
       const defaultPage = (data.role === 'admin' || data.role === 'staff') ? 'dashboard' : 'home';
+      // payment·product-detail은 selected* 객체가 필요하므로 함께 복원
+      if (lastPage === 'payment' || lastPage === 'product-detail') {
+        try {
+          const sp = sessionStorage.getItem('hssup_sel_product');
+          const sc = sessionStorage.getItem('hssup_sel_course');
+          if (sp) setSelectedProduct(JSON.parse(sp));
+          if (sc) setSelectedCourse(JSON.parse(sc));
+        } catch (e) { /* 파싱 실패는 무시 — 기본 페이지로 fallback됨 */ }
+      }
       setCurrentPage(lastPage || defaultPage);
     }
     setLoading(false);
@@ -999,6 +1008,7 @@ export default function HSSUPApp() {
       'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
       'best', 'mycase', 'library', 'market', 'community', 'freeboard',
       'greetings', 'reviews', 'improvements', 'my-activity',
+      'payment', 'product-detail',
       'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
       'admin-library', 'admin-courses', 'admin-improvements', 'admin-trends',
@@ -1008,6 +1018,19 @@ export default function HSSUPApp() {
       sessionStorage.setItem('hssup_last_page', currentPage);
     }
   }, [currentPage, profile]);
+
+  // 🍊 결제 대상(상품/클래스)을 sessionStorage에 저장 — 앱 재시작 시 결제/상세 페이지 복원용
+  // (금액 검증은 nicepay-return Edge Function이 DB에서 재확인하므로 위변조 무관)
+  useEffect(() => {
+    if (selectedProduct) {
+      sessionStorage.setItem('hssup_sel_product', JSON.stringify(selectedProduct));
+    }
+  }, [selectedProduct]);
+  useEffect(() => {
+    if (selectedCourse) {
+      sessionStorage.setItem('hssup_sel_course', JSON.stringify(selectedCourse));
+    }
+  }, [selectedCourse]);
 
   // 사용자가 뒤로가기 누르면 → 이전 페이지로 이동
   useEffect(() => {
@@ -5153,25 +5176,38 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
         });
       }
       setPostcodeOpen(true);
-      // 다음 렌더에 ref가 마운트되므로 setTimeout으로 다음 tick에 embed
-      setTimeout(() => {
-        if (!postcodeContainerRef.current) return;
-        postcodeContainerRef.current.innerHTML = '';
-        new window.daum.Postcode({
-          width: '100%',
-          height: '100%',
-          oncomplete: (data) => {
-            setShippingPostalCode(data.zonecode);
-            setShippingAddress(data.roadAddress || data.jibunAddress);
-            setPostcodeOpen(false);
-          },
-        }).embed(postcodeContainerRef.current);
-      }, 0);
+      // 실제 embed는 아래 useEffect에서 postcodeContainerRef 마운트 후 수행
     } catch (err) {
       console.error('우편번호 검색 에러:', err);
       alert('우편번호 검색 중 오류가 발생했어요. 다시 시도해주세요.');
     }
   };
+
+  // 🔧 Bug fix: setTimeout(0) 방식은 첫 진입 시 ref가 아직 마운트되지 않아 흰 화면이 뜸.
+  //   postcodeOpen 변화를 useEffect로 감지해서 ref 준비 + Daum 스크립트 준비를 폴링.
+  useEffect(() => {
+    if (!postcodeOpen) return;
+    let cancelled = false;
+    let tries = 0;
+    const tryEmbed = () => {
+      if (cancelled) return;
+      if (!postcodeContainerRef.current || typeof window.daum === 'undefined' || !window.daum.Postcode) {
+        if (tries++ < 40) setTimeout(tryEmbed, 50);
+        return;
+      }
+      postcodeContainerRef.current.innerHTML = '';
+      new window.daum.Postcode({
+        width: '100%', height: '100%',
+        oncomplete: (data) => {
+          setShippingPostalCode(data.zonecode);
+          setShippingAddress(data.roadAddress || data.jibunAddress);
+          setPostcodeOpen(false);
+        },
+      }).embed(postcodeContainerRef.current);
+    };
+    tryEmbed();
+    return () => { cancelled = true; };
+  }, [postcodeOpen]);
 
   // course 또는 product 중 하나가 와야 함 (course 우선)
   const isProduct = !course && !!product;
