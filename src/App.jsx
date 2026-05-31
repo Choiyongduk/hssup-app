@@ -2523,7 +2523,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'admin-products') return <AdminProducts user={user} />;
     if (currentPage === 'admin-library') return <AdminLibrary user={user} />;
     if (currentPage === 'admin-courses') return <AdminCourses user={user} />;
-    if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} />;
+    if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} />;
   }
   if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} />;
   if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} setCurrentPage={setCurrentPage} />;
@@ -6378,69 +6378,61 @@ function MyPage({ user, handleLogout, setCurrentPage }) {
         {/* ⭐ 등급 카드 (admin 제외) */}
         {!isAdmin && <LevelCard userId={user.id} setCurrentPage={setCurrentPage} />}
 
-        {/* 📋 내 활동 바로가기 */}
-        {!isAdmin && (
-          <button onClick={() => setCurrentPage('my-activity')}
-            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
-            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
-              <BookOpen size={18} style={{ color: COLORS.primary }} />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>내 활동</p>
-              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>게시글 · 댓글 · 좋아요 모아보기</p>
-            </div>
-            <ChevronRight size={16} style={{ color: COLORS.stone }} />
-          </button>
-        )}
+        {/* 📋 내 활동 바로가기 (모든 사용자) */}
+        <button onClick={() => setCurrentPage('my-activity')}
+          className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+          style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+            <BookOpen size={18} style={{ color: COLORS.primary }} />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>내 활동</p>
+            <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>게시글 · 댓글 · 좋아요 모아보기</p>
+          </div>
+          <ChevronRight size={16} style={{ color: COLORS.stone }} />
+        </button>
 
-        {/* 📦 주문 내역 */}
-        {!isAdmin && (
-          <button onClick={() => setCurrentPage('my-orders')}
-            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
-            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
-              <ShoppingBag size={18} style={{ color: COLORS.primary }} />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>주문 내역</p>
-              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>결제 · 배송 상태 확인</p>
-            </div>
-            <ChevronRight size={16} style={{ color: COLORS.stone }} />
-          </button>
-        )}
+        {/* 📦 주문 내역 (모든 사용자) */}
+        <button onClick={() => setCurrentPage('my-orders')}
+          className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+          style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+            <ShoppingBag size={18} style={{ color: COLORS.primary }} />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>주문 내역</p>
+            <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>결제 · 배송 상태 확인</p>
+          </div>
+          <ChevronRight size={16} style={{ color: COLORS.stone }} />
+        </button>
 
-        {/* ✏️ 내 정보 수정 */}
-        {!isAdmin && (
-          <button onClick={() => setCurrentPage('my-profile-edit')}
-            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
-            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
-              <Edit3 size={18} style={{ color: COLORS.primary }} />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>내 정보 수정</p>
-              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>이름 · 전화번호 변경</p>
-            </div>
-            <ChevronRight size={16} style={{ color: COLORS.stone }} />
-          </button>
-        )}
+        {/* ✏️ 내 정보 수정 (모든 사용자) */}
+        <button onClick={() => setCurrentPage('my-profile-edit')}
+          className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+          style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+            <Edit3 size={18} style={{ color: COLORS.primary }} />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>내 정보 수정</p>
+            <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>이름 · 전화번호 변경</p>
+          </div>
+          <ChevronRight size={16} style={{ color: COLORS.stone }} />
+        </button>
 
-        {/* 🛒 장바구니 */}
-        {!isAdmin && (
-          <button onClick={() => setCurrentPage('cart')}
-            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
-            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
-              <ShoppingCart size={18} style={{ color: COLORS.primary }} />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>장바구니</p>
-              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>담아둔 재료 한번에 결제</p>
-            </div>
-            <ChevronRight size={16} style={{ color: COLORS.stone }} />
-          </button>
-        )}
+        {/* 🛒 장바구니 (모든 사용자) */}
+        <button onClick={() => setCurrentPage('cart')}
+          className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+          style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+            <ShoppingCart size={18} style={{ color: COLORS.primary }} />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>장바구니</p>
+            <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>담아둔 재료 한번에 결제</p>
+          </div>
+          <ChevronRight size={16} style={{ color: COLORS.stone }} />
+        </button>
 
         {/* 컬러 선택 (펼침/접힘) */}
         {showColorPicker && (
