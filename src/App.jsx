@@ -5748,11 +5748,12 @@ function PaymentSuccessPage({ user, setCurrentPage }) {
         <p className="font-body text-xs mt-2" style={{ color: COLORS.stone }}>안전하게 결제 검증이 완료되었어요</p>
       </div>
 
-      {/* 🍊 Safari에서 열렸고 + 과거에 PWA로 진입한 흔적이 있으면 PWA로 돌아가도록 안내.
-          PWA 사용자가 아닌 일반 Safari 사용자에게는 표시하지 않음. */}
-      {!isStandalone && hasPwaInstalled && (
+      {/* 🍊 Safari에서 열렸으면 PWA로 돌아가도록 안내.
+          iOS PWA와 Safari의 localStorage가 분리돼서 hasPwaInstalled를 신뢰할 수 없어
+          기준을 단순화: standalone이 아니면(=Safari) 안내 노출. */}
+      {!isStandalone && (
         <div className="mx-5 mb-3 rounded-2xl p-4" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
-          <p className="font-heading text-sm" style={{ color: COLORS.deep }}>HSSUP 앱에서 자세한 내역을 확인하세요</p>
+          <p className="font-heading text-sm" style={{ color: COLORS.deep }}>📱 HSSUP 앱에서 자세한 내역을 확인하세요</p>
           <p className="font-body text-xs mt-1" style={{ color: COLORS.deep, opacity: 0.85 }}>
             홈 화면의 HSSUP 아이콘을 누르시면 결제 상세와 배송 정보를 보실 수 있어요.
             (방금 받은 푸시 알림을 눌러도 앱이 열려요.)
@@ -9152,17 +9153,23 @@ function AdminOrdersPage({ user, setCurrentPage }) {
       return;
     }
     setShipping(true);
-    const { error } = await supabase.from('orders').update({
+    // 🍊 RLS가 admin/staff UPDATE를 막으면 에러 없이 0 rows로 실패하므로
+    //    .select()를 붙여 실제로 영향받은 행이 있는지 검증
+    const { data, error } = await supabase.from('orders').update({
       shipping_status: 'shipped',
       shipped_at: new Date().toISOString(),
       shipped_by: user.id,
       tracking_number: trackingNumber.trim(),
       tracking_company: trackingCompany.trim() || null,
-    }).eq('order_id', shippingModal.order_id);
+    }).eq('order_id', shippingModal.order_id).select();
     setShipping(false);
 
     if (error) {
       alert('발송 처리 실패: ' + error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      alert('발송 처리가 적용되지 않았어요.\n\norders 테이블의 RLS 권한(admin/staff UPDATE)을 확인해 주세요.\n(원장님께 orders-update-rls.sql 적용 요청)');
       return;
     }
 
