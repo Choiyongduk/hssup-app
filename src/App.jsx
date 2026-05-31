@@ -5133,8 +5133,13 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
   const [shippingAddress, setShippingAddress] = useState('');
   const [shippingAddressDetail, setShippingAddressDetail] = useState('');
   const [shippingMemo, setShippingMemo] = useState('');
+  const [postcodeOpen, setPostcodeOpen] = useState(false);
+  const postcodeContainerRef = useRef(null);
 
   // 다음 우편번호 API 호출 (재료 구매 시 사용)
+  // ⚠️ open() 방식은 모바일에서 Daum이 자체 history.pushState/back을 사용해서
+  //    SPA의 popstate 핸들러와 충돌 → 주소 선택 시 페이지가 뒤로 이동되는 버그 발생.
+  //    embed() 방식 + 자체 모달로 history 충돌을 우회.
   const openPostcode = async () => {
     try {
       if (typeof window.daum === 'undefined' || !window.daum.Postcode) {
@@ -5146,12 +5151,21 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
           document.head.appendChild(script);
         });
       }
-      new window.daum.Postcode({
-        oncomplete: (data) => {
-          setShippingPostalCode(data.zonecode);
-          setShippingAddress(data.roadAddress || data.jibunAddress);
-        }
-      }).open();
+      setPostcodeOpen(true);
+      // 다음 렌더에 ref가 마운트되므로 setTimeout으로 다음 tick에 embed
+      setTimeout(() => {
+        if (!postcodeContainerRef.current) return;
+        postcodeContainerRef.current.innerHTML = '';
+        new window.daum.Postcode({
+          width: '100%',
+          height: '100%',
+          oncomplete: (data) => {
+            setShippingPostalCode(data.zonecode);
+            setShippingAddress(data.roadAddress || data.jibunAddress);
+            setPostcodeOpen(false);
+          },
+        }).embed(postcodeContainerRef.current);
+      }, 0);
     } catch (err) {
       console.error('우편번호 검색 에러:', err);
       alert('우편번호 검색 중 오류가 발생했어요. 다시 시도해주세요.');
@@ -5497,6 +5511,21 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
               wordBreak: 'keep-all',
               margin: 0
             }}>{legalModal === 'refund' ? LEGAL_REFUND : legalModal === 'terms' ? LEGAL_TERMS : LEGAL_PRIVACY}</pre>
+          </div>
+        </div>
+      )}
+
+      {/* 우편번호 검색 모달 (Daum Postcode embed) */}
+      {postcodeOpen && (
+        <div onClick={() => setPostcodeOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 480, height: '70vh', maxHeight: 600, background: '#fff', borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+            <button onClick={() => setPostcodeOpen(false)}
+              style={{ position: 'absolute', top: 8, right: 8, width: 32, height: 32, border: 'none', background: 'rgba(0,0,0,0.55)', color: '#fff', borderRadius: '50%', fontSize: 18, lineHeight: 1, zIndex: 2, cursor: 'pointer' }}>
+              ×
+            </button>
+            <div ref={postcodeContainerRef} style={{ width: '100%', height: '100%' }} />
           </div>
         </div>
       )}
