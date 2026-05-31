@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from './lib/supabase';
 import {
   Home, Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles,
@@ -5515,19 +5516,23 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
         </div>
       )}
 
-      {/* 우편번호 검색 모달 (Daum Postcode embed) */}
-      {postcodeOpen && (
+      {/* 우편번호 검색 모달 (Daum Postcode embed)
+          ⚠️ Portal로 document.body에 렌더해야 viewport 기준으로 fixed 동작.
+              부모 <main>의 transform 인라인 스타일이 containing block을 만들어
+              모달이 헤더/푸터 사이에 갇히는 문제를 우회. */}
+      {postcodeOpen && createPortal(
         <div onClick={() => setPostcodeOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 480, height: '70vh', maxHeight: 600, background: '#fff', borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+            style={{ width: '100%', maxWidth: 520, height: '90vh', maxHeight: 760, background: '#fff', borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
             <button onClick={() => setPostcodeOpen(false)}
-              style={{ position: 'absolute', top: 8, right: 8, width: 32, height: 32, border: 'none', background: 'rgba(0,0,0,0.55)', color: '#fff', borderRadius: '50%', fontSize: 18, lineHeight: 1, zIndex: 2, cursor: 'pointer' }}>
+              style={{ position: 'absolute', top: 10, right: 10, width: 36, height: 36, border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', borderRadius: '50%', fontSize: 20, lineHeight: 1, zIndex: 2, cursor: 'pointer' }}>
               ×
             </button>
             <div ref={postcodeContainerRef} style={{ width: '100%', height: '100%' }} />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
