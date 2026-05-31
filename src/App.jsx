@@ -6566,6 +6566,9 @@ function MyProfileEditPage({ user, setCurrentPage, refreshUser }) {
 function MyOrdersPage({ user }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cancelModalOrder, setCancelModalOrder] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -6580,6 +6583,46 @@ function MyOrdersPage({ user }) {
     if (error) console.error('주문 내역 로드 에러:', error);
     setOrders(data || []);
     setLoading(false);
+  };
+
+  // 취소 요청 가능: 결제완료 + 취소 미요청 + (클래스 OR 배송대기 재료)
+  const canCancel = (o) =>
+    o.status === 'paid' && !o.cancel_status &&
+    (o.item_type === 'course' || o.shipping_status === 'pending');
+
+  const openCancelModal = (order) => {
+    setCancelModalOrder(order);
+    setCancelReason('');
+  };
+  const closeCancelModal = () => {
+    setCancelModalOrder(null);
+    setCancelReason('');
+  };
+
+  const requestCancel = async () => {
+    if (!cancelModalOrder) return;
+    if (!cancelReason.trim()) {
+      alert('취소 사유를 입력해주세요.');
+      return;
+    }
+    setCancelling(true);
+    const { data, error } = await supabase.from('orders').update({
+      cancel_status: 'requested',
+      cancel_requested_at: new Date().toISOString(),
+      cancel_reason_user: cancelReason.trim(),
+    }).eq('order_id', cancelModalOrder.order_id).select();
+    setCancelling(false);
+    if (error) {
+      alert('취소 요청 실패: ' + error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      alert('취소 요청이 반영되지 않았어요. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    closeCancelModal();
+    await load();
+    alert('취소 요청이 접수되었습니다.\n원장님 확인 후 처리됩니다.');
   };
 
   const formatPrice = (n) => '₩' + Number(n || 0).toLocaleString('ko-KR');
@@ -6605,6 +6648,20 @@ function MyOrdersPage({ user }) {
             const isCancelled = o.status === 'cancelled';
             const isShipped = o.shipping_status === 'shipped';
             const isDelivered = o.shipping_status === 'delivered';
+            const cancelRequested = o.cancel_status === 'requested';
+            const cancelRejected = o.cancel_status === 'rejected';
+
+            let statusText = '결제 완료';
+            let statusBg = COLORS.primary;
+            let statusColor = COLORS.white;
+            if (isCancelled) {
+              statusText = '취소됨'; statusBg = COLORS.cardElev; statusColor = COLORS.stone;
+            } else if (cancelRequested) {
+              statusText = '취소 요청 중'; statusBg = COLORS.peach; statusColor = COLORS.deep;
+            } else if (cancelRejected) {
+              statusText = '취소 거절됨'; statusBg = COLORS.cardElev; statusColor = COLORS.stone;
+            }
+
             return (
               <div key={o.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
                 {/* 헤더: 타입 + 상태 */}
@@ -6614,12 +6671,8 @@ function MyOrdersPage({ user }) {
                     {isProduct ? <><Package size={10} />재료</> : <><BookOpen size={10} />클래스</>}
                   </span>
                   <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded"
-                    style={{
-                      background: isCancelled ? COLORS.cardElev : COLORS.primary,
-                      color: isCancelled ? COLORS.stone : COLORS.white,
-                      textDecoration: isCancelled ? 'none' : 'none',
-                    }}>
-                    {isCancelled ? '취소됨' : '결제 완료'}
+                    style={{ background: statusBg, color: statusColor }}>
+                    {statusText}
                   </span>
                 </div>
 
@@ -6698,18 +6751,104 @@ function MyOrdersPage({ user }) {
                   </div>
                 )}
 
-                {/* 영수증 (취소 아니면) */}
-                {!isCancelled && o.receipt_url && (
-                  <a href={o.receipt_url} target="_blank" rel="noopener noreferrer"
-                    className="mt-3 font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1.5"
-                    style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
-                    <Download size={12} />영수증 보기
-                  </a>
+                {/* 사용자 취소 요청 사유 (요청 중·거절됨) */}
+                {(cancelRequested || cancelRejected) && o.cancel_reason_user && (
+                  <div className="rounded-lg p-3 mt-2" style={{ background: COLORS.cardElev, borderLeft: `3px solid ${cancelRequested ? COLORS.primary : COLORS.stone}` }}>
+                    <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: cancelRequested ? COLORS.primary : COLORS.stone }}>
+                      취소 요청 사유
+                    </p>
+                    <p className="font-body text-xs mt-1" style={{ color: COLORS.ink }}>{o.cancel_reason_user}</p>
+                    {cancelRequested && (
+                      <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>원장님 확인 후 처리됩니다.</p>
+                    )}
+                  </div>
                 )}
+
+                {/* 취소 요청 버튼 + 영수증 */}
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  {!isCancelled && o.receipt_url && (
+                    <a href={o.receipt_url} target="_blank" rel="noopener noreferrer"
+                      className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1.5"
+                      style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                      <Download size={12} />영수증
+                    </a>
+                  )}
+                  {canCancel(o) && (
+                    <button onClick={() => openCancelModal(o)}
+                      className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1.5"
+                      style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                      <X size={12} />주문 취소 요청
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* 취소 요청 모달 (Portal + 풀스크린) */}
+      {cancelModalOrder && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, background: COLORS.cream, zIndex: 9999,
+          display: 'flex', flexDirection: 'column'
+        }}>
+          {/* 헤더 */}
+          <div style={{
+            flexShrink: 0, padding: '12px 16px',
+            paddingTop: 'max(12px, env(safe-area-inset-top))',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: `1px solid ${COLORS.light}`, background: COLORS.card
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: COLORS.ink, margin: 0, fontFamily: 'Pretendard, sans-serif' }}>주문 취소 요청</h3>
+            <button onClick={closeCancelModal}
+              style={{ width: 36, height: 36, border: 'none', background: 'transparent', color: COLORS.stone, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* 본문 */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            <div className="rounded-lg p-3 mb-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+              <p className="font-body text-xs" style={{ color: COLORS.ink }}>{cancelModalOrder.course_title}</p>
+              <p className="font-display text-lg tracking-tight mt-1" style={{ color: COLORS.primary }}>
+                {formatPrice(cancelModalOrder.amount)}
+              </p>
+            </div>
+
+            <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>취소 사유 *</label>
+            <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="취소 사유를 적어주세요"
+              rows={5}
+              className="w-full font-body text-sm p-3 mt-1.5 outline-none resize-none rounded"
+              style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+
+            <p className="font-body text-xs mt-3" style={{ color: COLORS.stone }}>
+              원장님이 검토한 뒤 승인/거절이 결정됩니다. 승인 시 결제 금액이 결제 카드로 자동 환불됩니다.
+            </p>
+          </div>
+
+          {/* 푸터 */}
+          <div style={{
+            flexShrink: 0, padding: 16,
+            paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+            borderTop: `1px solid ${COLORS.light}`, background: COLORS.card,
+            display: 'flex', gap: 8
+          }}>
+            <button onClick={closeCancelModal} disabled={cancelling}
+              className="flex-1 rounded-full py-3 font-heading text-sm"
+              style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+              닫기
+            </button>
+            <button onClick={requestCancel} disabled={cancelling}
+              className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+              {cancelling ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} strokeWidth={2.5} />}
+              취소 요청
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -9204,6 +9343,7 @@ function AdminOrdersPage({ user, setCurrentPage }) {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [trackingCompany, setTrackingCompany] = useState('');
   const [shipping, setShipping] = useState(false);
+  const [cancelProcessing, setCancelProcessing] = useState(null);  // order_id 저장
 
   const isRealAdmin = user?.role === 'admin';
 
@@ -9223,6 +9363,8 @@ function AdminOrdersPage({ user, setCurrentPage }) {
       query = query.eq('item_type', 'product').eq('shipping_status', 'shipped');
     } else if (filter === 'course') {
       query = query.eq('item_type', 'course');
+    } else if (filter === 'cancel-requested') {
+      query = query.eq('cancel_status', 'requested');
     } else if (!isRealAdmin) {
       // staff는 'all' 필터에서도 클래스 주문 제외 (배송만 신경)
       query = query.eq('item_type', 'product');
@@ -9232,6 +9374,63 @@ function AdminOrdersPage({ user, setCurrentPage }) {
     if (error) console.error('주문 로드 에러:', error);
     setOrders(data || []);
     setLoading(false);
+  };
+
+  // 취소 요청 승인 — nicepay-cancel Edge Function 호출
+  const approveCancel = async (order) => {
+    if (!confirm(`${order.course_title} 주문(₩${Number(order.amount).toLocaleString()})의 취소를 승인하시겠습니까?\n\n나이스페이 결제 취소 API가 호출되어 즉시 환불 처리됩니다.`)) return;
+    setCancelProcessing(order.order_id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        alert('로그인 정보가 만료되었습니다. 다시 로그인해 주세요.');
+        setCancelProcessing(null);
+        return;
+      }
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/nicepay-cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: order.order_id,
+          reason: order.cancel_reason_user || '고객 요청',
+        }),
+      });
+      const result = resp.ok ? await resp.json().catch(() => ({})) : await resp.json().catch(() => ({}));
+      if (!resp.ok || !result.success) {
+        alert('취소 승인 실패: ' + (result.error || resp.statusText));
+        setCancelProcessing(null);
+        return;
+      }
+      alert('✅ 취소가 처리되었습니다');
+    } catch (e) {
+      alert('취소 승인 에러: ' + e.message);
+    }
+    setCancelProcessing(null);
+    await loadOrders();
+  };
+
+  // 취소 요청 거절
+  const rejectCancel = async (order) => {
+    if (!confirm(`${order.course_title} 주문의 취소 요청을 거절하시겠습니까?`)) return;
+    setCancelProcessing(order.order_id);
+    const { data, error } = await supabase.from('orders').update({
+      cancel_status: 'rejected',
+    }).eq('order_id', order.order_id).select();
+    setCancelProcessing(null);
+    if (error) {
+      alert('거절 실패: ' + error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      alert('거절이 적용되지 않았어요. RLS 권한 확인 필요.');
+      return;
+    }
+    alert('취소 요청을 거절했습니다');
+    await loadOrders();
   };
 
   const openShippingModal = (order) => {
@@ -9285,6 +9484,7 @@ function AdminOrdersPage({ user, setCurrentPage }) {
     { id: 'product-pending', label: '배송 대기' },
     { id: 'product-shipped', label: '발송 완료' },
     ...(isRealAdmin ? [{ id: 'course', label: '클래스' }] : []),
+    ...(isRealAdmin ? [{ id: 'cancel-requested', label: '취소 요청' }] : []),
     { id: 'all', label: '전체' },
   ];
 
@@ -9462,6 +9662,43 @@ function AdminOrdersPage({ user, setCurrentPage }) {
                       style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
                       <Package size={14} strokeWidth={2.5} />발송 처리하기
                     </button>
+                  )}
+                </div>
+              )}
+
+              {/* 취소 요청 처리 (admin만, cancel_status='requested') */}
+              {isRealAdmin && o.cancel_status === 'requested' && (
+                <div className="rounded-lg p-3 mt-2 space-y-2" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
+                  <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.deep }}>━━ 취소 요청</p>
+                  <div>
+                    <p className="font-mono text-[10px]" style={{ color: COLORS.deep, opacity: 0.7 }}>학생이 적은 사유</p>
+                    <p className="font-body text-xs mt-1" style={{ color: COLORS.deep, whiteSpace: 'pre-wrap' }}>{o.cancel_reason_user || '-'}</p>
+                  </div>
+                  {o.cancel_requested_at && (
+                    <p className="font-mono text-[10px]" style={{ color: COLORS.deep, opacity: 0.7 }}>요청 시각: {formatDate(o.cancel_requested_at)}</p>
+                  )}
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => rejectCancel(o)} disabled={cancelProcessing === o.order_id}
+                      className="flex-1 rounded-full py-2.5 font-heading text-xs"
+                      style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                      거절
+                    </button>
+                    <button onClick={() => approveCancel(o)} disabled={cancelProcessing === o.order_id}
+                      className="flex-1 rounded-full py-2.5 font-heading text-xs flex items-center justify-center gap-1.5"
+                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,92,31,0.4)' }}>
+                      {cancelProcessing === o.order_id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={2.5} />}
+                      승인 (환불)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 취소 거절됨 표시 */}
+              {isRealAdmin && o.cancel_status === 'rejected' && (
+                <div className="rounded-lg p-3 mt-2" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+                  <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>━━ 취소 요청 거절됨</p>
+                  {o.cancel_reason_user && (
+                    <p className="font-body text-xs mt-1" style={{ color: COLORS.muted }}>학생 사유: {o.cancel_reason_user}</p>
                   )}
                 </div>
               )}
