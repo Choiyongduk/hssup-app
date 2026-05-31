@@ -5516,21 +5516,30 @@ function PaymentPage({ course, product, user, setCurrentPage }) {
         </div>
       )}
 
-      {/* 우편번호 검색 모달 (Daum Postcode embed)
-          ⚠️ Portal로 document.body에 렌더해야 viewport 기준으로 fixed 동작.
-              부모 <main>의 transform 인라인 스타일이 containing block을 만들어
-              모달이 헤더/푸터 사이에 갇히는 문제를 우회. */}
+      {/* 우편번호 검색 모달 (Daum Postcode embed) — 풀스크린 + 헤더 패턴
+          ⚠️ Portal로 document.body에 렌더: 부모 <main>의 transform 인라인 스타일이
+              containing block을 만들어 fixed가 갇히는 문제를 우회. */}
       {postcodeOpen && createPortal(
-        <div onClick={() => setPostcodeOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 520, height: '90vh', maxHeight: 760, background: '#fff', borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+        <div style={{
+          position: 'fixed', inset: 0, background: '#fff', zIndex: 9999,
+          display: 'flex', flexDirection: 'column'
+        }}>
+          {/* 헤더 */}
+          <div style={{
+            flexShrink: 0, padding: '12px 16px',
+            paddingTop: 'max(12px, env(safe-area-inset-top))',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: '1px solid #e5e5e5', background: '#fff'
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>주소 검색</h3>
             <button onClick={() => setPostcodeOpen(false)}
-              style={{ position: 'absolute', top: 10, right: 10, width: 36, height: 36, border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', borderRadius: '50%', fontSize: 20, lineHeight: 1, zIndex: 2, cursor: 'pointer' }}>
+              style={{ width: 36, height: 36, border: 'none', background: 'transparent',
+                       fontSize: 24, lineHeight: 1, color: '#000', cursor: 'pointer' }}>
               ×
             </button>
-            <div ref={postcodeContainerRef} style={{ width: '100%', height: '100%' }} />
           </div>
+          {/* 본문 - Daum 위젯 임베드 영역 */}
+          <div ref={postcodeContainerRef} style={{ flex: 1, width: '100%', overflow: 'auto' }} />
         </div>,
         document.body
       )}
