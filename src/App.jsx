@@ -1070,7 +1070,7 @@ export default function HSSUPApp() {
       'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
       'best', 'mycase', 'library', 'market', 'community', 'freeboard',
       'greetings', 'reviews', 'improvements', 'my-activity', 'my-orders', 'my-profile-edit',
-      'cart', 'cart-checkout', 'practice-booking', 'practice-admin',
+      'cart', 'cart-checkout', 'practice-booking', 'practice-admin', 'my-bookings',
       'payment', 'product-detail',
       'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
@@ -2565,6 +2565,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'cart') return <CartPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'cart-checkout') return <CartCheckoutPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'practice-booking') return <PracticeBookingPage user={user} setCurrentPage={setCurrentPage} />;
+  if (currentPage === 'my-bookings') return <MyPracticeBookingsPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
   if (currentPage === 'admin-improvements') return <AdminImprovements user={user} />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} />;
@@ -6437,6 +6438,20 @@ function MyPage({ user, handleLogout, setCurrentPage }) {
           <ChevronRight size={16} style={{ color: COLORS.stone }} />
         </button>
 
+        {/* 🛏️ 내 예약 (모든 사용자) */}
+        <button onClick={() => setCurrentPage('my-bookings')}
+          className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+          style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+            <Calendar size={18} style={{ color: COLORS.primary }} />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>내 예약</p>
+            <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>다가오는 연습 예약 확인</p>
+          </div>
+          <ChevronRight size={16} style={{ color: COLORS.stone }} />
+        </button>
+
         {/* 컬러 선택 (펼침/접힘) */}
         {showColorPicker && (
           <section className="rounded-2xl p-4 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -6911,6 +6926,146 @@ function MyOrdersPage({ user }) {
         </div>,
         document.body
       )}
+    </>
+  );
+}
+
+// =============================================================
+// 🛏️ MyPracticeBookingsPage - 학생용 내 연습 예약 (다가오는 + 지난)
+// =============================================================
+function MyPracticeBookingsPage({ user, setCurrentPage }) {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from('practice_bookings')
+      .select('id, status, created_at, slot:slot_id(id, slot_date, start_time, end_time, capacity, memo)')
+      .eq('user_id', user.id)
+      .eq('status', 'booked')
+      .order('created_at', { ascending: false });
+    if (error) console.error('내 예약 로드 에러:', error);
+    const valid = (data || [])
+      .filter(b => b.slot)
+      .sort((a, b) => {
+        const aKey = a.slot.slot_date + (a.slot.start_time || '');
+        const bKey = b.slot.slot_date + (b.slot.start_time || '');
+        return bKey.localeCompare(aKey);  // 최신순
+      });
+    setBookings(valid);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const cancelBooking = async (b) => {
+    if (!confirm('예약을 취소할까요?')) return;
+    setActionLoading(b.id);
+    const { data, error } = await supabase.from('practice_bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', b.id).eq('status', 'booked')
+      .select();
+    setActionLoading(null);
+    if (error) { alert('취소 실패: ' + error.message); return; }
+    if (!data || data.length === 0) {
+      alert('취소가 적용되지 않았어요.');
+      return;
+    }
+    await load();
+  };
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const upcoming = bookings.filter(b => b.slot.slot_date >= todayStr);
+  const past = bookings.filter(b => b.slot.slot_date < todayStr);
+
+  const weekday = (slot_date) => {
+    const [yy, mm, dd] = slot_date.split('-').map(Number);
+    return ['일', '월', '화', '수', '목', '금', '토'][new Date(yy, (mm || 1) - 1, dd || 1).getDay()];
+  };
+
+  return (
+    <>
+      <PageIntro ko="내 예약" en="My Bookings" desc="다가오는 연습 예약과 지난 예약을 확인하세요" />
+
+      <div className="px-5 space-y-4 pb-6">
+        {/* 다가오는 예약 */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>
+              ━━ 다가오는 예약{upcoming.length > 0 && ` (${upcoming.length})`}
+            </p>
+            <button onClick={() => setCurrentPage('practice-booking')}
+              className="font-heading text-[11px] px-3 py-1.5 rounded-full inline-flex items-center gap-1"
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,92,31,0.35)' }}>
+              <Plus size={11} strokeWidth={2.5} />새 예약
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-6"><Loader2 size={16} className="animate-spin mx-auto" style={{ color: COLORS.primary }} /></div>
+          ) : upcoming.length === 0 ? (
+            <div className="rounded-2xl p-6 text-center" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <Calendar size={28} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+              <p className="font-body text-sm mt-2" style={{ color: COLORS.stone }}>다가오는 예약이 없어요</p>
+              <button onClick={() => setCurrentPage('practice-booking')}
+                className="mt-3 font-heading text-xs px-4 py-2 rounded-full"
+                style={{ background: COLORS.primary, color: COLORS.white }}>
+                연습 예약하기
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {upcoming.map(b => (
+                <div key={b.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.primary}` }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-heading text-base inline-flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                        <Calendar size={14} style={{ color: COLORS.primary }} />
+                        {b.slot.slot_date} ({weekday(b.slot.slot_date)})
+                      </p>
+                      <p className="font-body text-sm mt-1 inline-flex items-center gap-1.5" style={{ color: COLORS.stone }}>
+                        <Clock size={12} style={{ color: COLORS.muted }} />
+                        {(b.slot.start_time || '').substring(0, 5)} ~ {(b.slot.end_time || '').substring(0, 5)}
+                      </p>
+                      {b.slot.memo && <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.muted }}>{b.slot.memo}</p>}
+                    </div>
+                    <button onClick={() => cancelBooking(b)} disabled={actionLoading === b.id}
+                      className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1 shrink-0"
+                      style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                      {actionLoading === b.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                      취소
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 지난 예약 */}
+        {past.length > 0 && (
+          <div>
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.stone }}>━━ 지난 예약 ({past.length})</p>
+            <div className="space-y-2">
+              {past.map(b => (
+                <div key={b.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, opacity: 0.6 }}>
+                  <p className="font-heading text-sm inline-flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                    <Calendar size={12} style={{ color: COLORS.muted }} />
+                    {b.slot.slot_date} ({weekday(b.slot.slot_date)})
+                  </p>
+                  <p className="font-body text-xs mt-1 inline-flex items-center gap-1.5" style={{ color: COLORS.stone }}>
+                    <Clock size={11} style={{ color: COLORS.muted }} />
+                    {(b.slot.start_time || '').substring(0, 5)} ~ {(b.slot.end_time || '').substring(0, 5)}
+                  </p>
+                  {b.slot.memo && <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.muted }}>{b.slot.memo}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }
