@@ -8,7 +8,7 @@ import {
   Palette, BarChart3, Trash2, ChevronLeft, ShoppingCart,
   Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, Image as ImageIcon,
   ArrowRight, ArrowUpRight, Loader2,
-  User, LogOut, Menu, X, Search, FileText, Package, Truck
+  User, LogOut, Menu, X, Search, FileText, Package, Truck, Calendar
 } from 'lucide-react';
 
 // 아바타 그라데이션 컬러 (반영구 시술 무드)
@@ -1070,7 +1070,7 @@ export default function HSSUPApp() {
       'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
       'best', 'mycase', 'library', 'market', 'community', 'freeboard',
       'greetings', 'reviews', 'improvements', 'my-activity', 'my-orders', 'my-profile-edit',
-      'cart', 'cart-checkout',
+      'cart', 'cart-checkout', 'practice-booking', 'practice-admin',
       'payment', 'product-detail',
       'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
@@ -1165,7 +1165,7 @@ export default function HSSUPApp() {
     { section: 'PRACTICE', items: [
       { id: 'mycase', label: '개별피드백', icon: Camera },
       { id: 'best', label: '베스트 케이스', icon: Award },
-      
+      { id: 'practice-booking', label: '연습 예약', icon: Calendar },
     ]},
     { section: 'CONNECT', items: [
       { id: 'notice', label: '학원공지', icon: Bell },
@@ -1206,6 +1206,7 @@ export default function HSSUPApp() {
       { id: 'admin-products', label: '재료샵 관리', icon: ShoppingBag },
       { id: 'admin-library', label: '자료실 관리', icon: FolderOpen },
       { id: 'admin-courses', label: '클래스 관리', icon: BookOpen },
+      { id: 'practice-admin', label: '연습 베드 관리', icon: Calendar },
     ]},
     { section: 'LEARN', items: [
       { id: 'home', label: '홈', icon: Home },
@@ -1216,7 +1217,7 @@ export default function HSSUPApp() {
     { section: 'PRACTICE', items: [
       { id: 'mycase', label: '개별피드백', icon: Camera },
       { id: 'best', label: '베스트 케이스', icon: Award },
-      
+      { id: 'practice-booking', label: '연습 예약', icon: Calendar },
     ]},
     { section: 'CONNECT', items: [
       { id: 'notice', label: '학원공지', icon: Bell },
@@ -2515,6 +2516,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
       return <AdminOrders user={user} />;
     }
     if (currentPage === 'admin-shipments') return <AdminOrdersPage user={user} setCurrentPage={setCurrentPage} />;
+    if (currentPage === 'practice-admin') return <PracticeAdminPage user={user} setCurrentPage={setCurrentPage} />;
     if (currentPage === 'admin-students') return <AdminStudents setCurrentPage={setCurrentPage} setSelectedStudent={setSelectedStudent} />;
     if (currentPage === 'admin-student-detail') return <AdminStudentDetail student={selectedStudent} setCurrentPage={setCurrentPage} canViewRevenue={canViewRevenue} />;
     if (currentPage === 'admin-qna') return <AdminQna user={user} />;
@@ -2562,6 +2564,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'my-profile-edit') return <MyProfileEditPage user={user} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
   if (currentPage === 'cart') return <CartPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'cart-checkout') return <CartCheckoutPage user={user} setCurrentPage={setCurrentPage} />;
+  if (currentPage === 'practice-booking') return <PracticeBookingPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
   if (currentPage === 'admin-improvements') return <AdminImprovements user={user} />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} />;
@@ -10352,6 +10355,614 @@ function AdminOrdersPage({ user, setCurrentPage }) {
               {shipping ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}
               발송 확정
             </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+// =============================================================
+// 🛏️ PracticeBookingPage - 연습 베드 예약 (수강생)
+// =============================================================
+function PracticeBookingPage({ user, setCurrentPage }) {
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const [slots, setSlots] = useState([]);
+  const [bookingCounts, setBookingCounts] = useState({});
+  const [myBookings, setMyBookings] = useState([]);  // slot_id 배열
+  const [myUpcoming, setMyUpcoming] = useState([]);  // 다가오는 예약 (slot 정보 포함)
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);  // slot_id 저장
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const fmtDate = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
+
+  const loadMonth = async () => {
+    setLoading(true);
+    const { year: y, month: m } = viewMonth;
+    const first = fmtDate(y, m, 1);
+    const last = fmtDate(y, m, new Date(y, m + 1, 0).getDate());
+
+    const { data: s } = await supabase.from('practice_slots')
+      .select('*')
+      .gte('slot_date', first).lte('slot_date', last)
+      .order('slot_date').order('start_time');
+    setSlots(s || []);
+
+    const slotIds = (s || []).map(x => x.id);
+    if (slotIds.length) {
+      const { data: bk } = await supabase.from('practice_bookings')
+        .select('slot_id, user_id').eq('status', 'booked').in('slot_id', slotIds);
+      const counts = {};
+      const mine = [];
+      (bk || []).forEach(b => {
+        counts[b.slot_id] = (counts[b.slot_id] || 0) + 1;
+        if (b.user_id === user.id) mine.push(b.slot_id);
+      });
+      setBookingCounts(counts);
+      setMyBookings(mine);
+    } else {
+      setBookingCounts({});
+      setMyBookings([]);
+    }
+    setLoading(false);
+  };
+
+  // 다가오는 내 예약 (오늘 이후, 최대 5건)
+  const loadMyUpcoming = async () => {
+    const today = new Date();
+    const todayStr = fmtDate(today.getFullYear(), today.getMonth(), today.getDate());
+    const { data } = await supabase.from('practice_bookings')
+      .select('slot_id, slot:slot_id(slot_date, start_time, end_time, memo, capacity)')
+      .eq('user_id', user.id).eq('status', 'booked')
+      .order('created_at', { ascending: false });
+    const upcoming = (data || [])
+      .filter(b => b.slot && b.slot.slot_date >= todayStr)
+      .sort((a, b) => {
+        if (a.slot.slot_date !== b.slot.slot_date) return a.slot.slot_date.localeCompare(b.slot.slot_date);
+        return (a.slot.start_time || '').localeCompare(b.slot.start_time || '');
+      })
+      .slice(0, 5);
+    setMyUpcoming(upcoming);
+  };
+
+  useEffect(() => { loadMonth(); }, [viewMonth.year, viewMonth.month]);
+  useEffect(() => { loadMyUpcoming(); }, []);
+
+  const moveMonth = (delta) => {
+    setSelectedDate(null);
+    setViewMonth(prev => {
+      let m = prev.month + delta, y = prev.year;
+      if (m < 0) { m = 11; y -= 1; }
+      if (m > 11) { m = 0; y += 1; }
+      return { year: y, month: m };
+    });
+  };
+
+  const book = async (slot) => {
+    setActionLoading(slot.id);
+    const { data, error } = await supabase.rpc('book_practice_slot', { p_slot_id: slot.id });
+    setActionLoading(null);
+    if (error) { alert('예약 실패: ' + error.message); return; }
+    if (!data?.success) { alert(data?.error || '예약 실패'); return; }
+    alert('✅ 예약 완료!');
+    await Promise.all([loadMonth(), loadMyUpcoming()]);
+  };
+
+  const cancelBooking = async (slot) => {
+    if (!confirm('예약을 취소할까요?')) return;
+    setActionLoading(slot.id);
+    const { data, error } = await supabase.from('practice_bookings')
+      .update({ status: 'cancelled' })
+      .eq('slot_id', slot.id).eq('user_id', user.id).eq('status', 'booked')
+      .select();
+    setActionLoading(null);
+    if (error) { alert('취소 실패: ' + error.message); return; }
+    if (!data || data.length === 0) {
+      alert('취소가 적용되지 않았어요. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    await Promise.all([loadMonth(), loadMyUpcoming()]);
+  };
+
+  // 달력 데이터
+  const { year: y, month: m } = viewMonth;
+  const firstDayWeek = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const slotsByDate = {};
+  slots.forEach(s => {
+    if (!slotsByDate[s.slot_date]) slotsByDate[s.slot_date] = [];
+    slotsByDate[s.slot_date].push(s);
+  });
+  const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const daySlots = selectedDate ? (slotsByDate[selectedDate] || []) : [];
+
+  // 오늘 이전 날짜는 신청 불가 (관리자가 과거 슬롯을 만들 일은 없지만 안전망)
+  const today = new Date();
+  const todayStr = fmtDate(today.getFullYear(), today.getMonth(), today.getDate());
+
+  return (
+    <>
+      <PageIntro ko="연습 예약" en="Practice Booking" desc="원하는 날짜와 시간을 선택해 신청하세요" />
+
+      <div className="px-5 space-y-3 pb-6">
+        {/* 다가오는 내 예약 */}
+        {myUpcoming.length > 0 && (
+          <div className="rounded-2xl p-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ My Upcoming</p>
+            <div className="space-y-2 mt-2">
+              {myUpcoming.map(b => (
+                <div key={b.slot_id} className="flex items-center gap-2 rounded-lg p-2.5" style={{ background: COLORS.card }}>
+                  <Calendar size={14} style={{ color: COLORS.primary }} />
+                  <p className="font-body text-xs flex-1" style={{ color: COLORS.ink }}>
+                    {b.slot.slot_date} · {(b.slot.start_time || '').substring(0, 5)} ~ {(b.slot.end_time || '').substring(0, 5)}
+                    {b.slot.memo && <span className="font-mono text-[10px] ml-2" style={{ color: COLORS.stone }}>· {b.slot.memo}</span>}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 월 네비게이션 */}
+        <div className="rounded-2xl p-3 flex items-center justify-between" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <button onClick={() => moveMonth(-1)} className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90" style={{ background: COLORS.cardElev }}>
+            <ChevronLeft size={16} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+          </button>
+          <div className="text-center">
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ {y}</p>
+            <p className="font-display text-lg mt-0.5 tracking-tight" style={{ color: COLORS.ink }}>{m + 1}월</p>
+          </div>
+          <button onClick={() => moveMonth(1)} className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90" style={{ background: COLORS.cardElev }}>
+            <ChevronRight size={16} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {/* 달력 */}
+        <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          {loading && <div className="text-center py-4"><Loader2 size={16} className="animate-spin mx-auto" style={{ color: COLORS.primary }} /></div>}
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {dayLabels.map((d, i) => (
+              <div key={d} className="text-center font-mono text-[10px] font-bold py-1.5" style={{ color: i === 0 ? COLORS.primary : i === 6 ? COLORS.stone : COLORS.muted }}>{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: firstDayWeek }).map((_, i) => <div key={`b-${i}`} />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const d = i + 1;
+              const dateStr = fmtDate(y, m, d);
+              const hasSlots = !!slotsByDate[dateStr];
+              const isSelected = selectedDate === dateStr;
+              const isPast = dateStr < todayStr;
+              const hasMine = (slotsByDate[dateStr] || []).some(s => myBookings.includes(s.id));
+              return (
+                <button key={d} onClick={() => setSelectedDate(dateStr)}
+                  disabled={!hasSlots && !isSelected}
+                  className="aspect-square rounded-xl flex flex-col items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+                  style={{
+                    background: isSelected ? COLORS.primary : hasSlots ? COLORS.cardElev : 'transparent',
+                    border: isSelected ? `1px solid ${COLORS.primary}` : `1px solid ${COLORS.light}`,
+                    opacity: isPast && !isSelected ? 0.4 : 1,
+                  }}>
+                  <span className="font-body text-sm" style={{ color: isSelected ? COLORS.white : COLORS.ink, fontWeight: hasSlots ? 700 : 400 }}>{d}</span>
+                  {hasSlots && (
+                    <span className="w-1 h-1 rounded-full mt-0.5" style={{ background: isSelected ? COLORS.white : hasMine ? '#22C55E' : COLORS.primary }}></span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-end gap-3 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+            <span className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.stone }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: COLORS.primary }}></span>예약가능
+            </span>
+            <span className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.stone }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#22C55E' }}></span>내 예약
+            </span>
+          </div>
+        </div>
+
+        {/* 선택 날짜 슬롯 목록 */}
+        {selectedDate && (
+          <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ {selectedDate}</p>
+            {daySlots.length === 0 ? (
+              <p className="font-body text-xs text-center py-6 mt-2" style={{ color: COLORS.stone }}>이 날짜에는 열린 슬롯이 없어요</p>
+            ) : (
+              <div className="space-y-2 mt-3">
+                {daySlots.map(s => {
+                  const count = bookingCounts[s.id] || 0;
+                  const full = count >= s.capacity;
+                  const mine = myBookings.includes(s.id);
+                  const isPast = selectedDate < todayStr;
+                  return (
+                    <div key={s.id} className="rounded-lg p-3" style={{ background: COLORS.cardElev, border: `1px solid ${mine ? COLORS.primary : COLORS.light}` }}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-heading text-sm inline-flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                            <Clock size={12} style={{ color: COLORS.primary }} />
+                            {(s.start_time || '').substring(0, 5)} ~ {(s.end_time || '').substring(0, 5)}
+                          </p>
+                          <p className="font-mono text-[10px] mt-1" style={{ color: full && !mine ? COLORS.primary : COLORS.stone }}>
+                            <Users size={10} className="inline mr-1" />{count}/{s.capacity}{full && !mine ? ' · 마감' : ''}
+                          </p>
+                          {s.memo && <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>{s.memo}</p>}
+                        </div>
+                        {mine ? (
+                          <button onClick={() => cancelBooking(s)} disabled={actionLoading === s.id || isPast}
+                            className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1 shrink-0"
+                            style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                            {actionLoading === s.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                            예약 취소
+                          </button>
+                        ) : full ? (
+                          <span className="font-heading text-[11px] px-3 py-2 rounded-full shrink-0"
+                            style={{ background: COLORS.card, color: COLORS.muted, border: `1px solid ${COLORS.light}` }}>
+                            마감
+                          </span>
+                        ) : (
+                          <button onClick={() => book(s)} disabled={actionLoading === s.id || isPast}
+                            className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1 shrink-0 disabled:opacity-50"
+                            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,92,31,0.35)' }}>
+                            {actionLoading === s.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={2.5} />}
+                            신청하기
+                          </button>
+                        )}
+                      </div>
+                      {mine && <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.primary }}>✓ 내가 예약한 슬롯</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// =============================================================
+// 🛏️ PracticeAdminPage - 연습 베드 슬롯 관리 (admin/staff)
+// =============================================================
+function PracticeAdminPage({ user, setCurrentPage }) {
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const [slots, setSlots] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [startTime, setStartTime] = useState('14:00');
+  const [endTime, setEndTime] = useState('16:00');
+  const [capacity, setCapacity] = useState(2);
+  const [memo, setMemo] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const [bookersModal, setBookersModal] = useState(null);  // { slot, bookers }
+  const [bookerCounts, setBookerCounts] = useState({});  // slot_id → count
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const fmtDate = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
+
+  const loadMonth = async () => {
+    setLoading(true);
+    const { year: y, month: m } = viewMonth;
+    const first = fmtDate(y, m, 1);
+    const last = fmtDate(y, m, new Date(y, m + 1, 0).getDate());
+    const { data: s } = await supabase.from('practice_slots')
+      .select('*')
+      .gte('slot_date', first).lte('slot_date', last)
+      .order('slot_date').order('start_time');
+    setSlots(s || []);
+
+    const slotIds = (s || []).map(x => x.id);
+    if (slotIds.length) {
+      const { data: bk } = await supabase.from('practice_bookings')
+        .select('slot_id').eq('status', 'booked').in('slot_id', slotIds);
+      const counts = {};
+      (bk || []).forEach(b => { counts[b.slot_id] = (counts[b.slot_id] || 0) + 1; });
+      setBookerCounts(counts);
+    } else {
+      setBookerCounts({});
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadMonth(); }, [viewMonth.year, viewMonth.month]);
+
+  const moveMonth = (delta) => {
+    setSelectedDate(null);
+    setViewMonth(prev => {
+      let m = prev.month + delta, y = prev.year;
+      if (m < 0) { m = 11; y -= 1; }
+      if (m > 11) { m = 0; y += 1; }
+      return { year: y, month: m };
+    });
+  };
+
+  const addSlot = async () => {
+    if (!selectedDate) { alert('날짜를 선택해주세요'); return; }
+    if (startTime >= endTime) { alert('종료 시간이 시작 시간보다 늦어야 합니다'); return; }
+    const cap = Number(capacity);
+    if (!cap || cap < 1) { alert('정원은 1명 이상이어야 합니다'); return; }
+    setAdding(true);
+    const { data, error } = await supabase.from('practice_slots').insert({
+      slot_date: selectedDate,
+      start_time: startTime,
+      end_time: endTime,
+      capacity: cap,
+      memo: memo.trim() || null,
+      created_by: user.id,
+    }).select();
+    setAdding(false);
+    if (error) { alert('슬롯 추가 실패: ' + error.message); return; }
+    if (!data || data.length === 0) {
+      alert('슬롯 추가가 적용되지 않았어요. RLS(practice_slots manage 정책) 확인 필요.');
+      return;
+    }
+    setShowAddModal(false);
+    setMemo('');
+    await loadMonth();
+  };
+
+  const deleteSlot = async (slot) => {
+    const count = bookerCounts[slot.id] || 0;
+    const msg = count > 0
+      ? `이 슬롯에 예약자가 ${count}명 있어요.\n슬롯을 삭제하면 예약도 함께 삭제됩니다.\n그래도 삭제할까요?`
+      : '이 슬롯을 삭제할까요?';
+    if (!confirm(msg)) return;
+    const { data, error } = await supabase.from('practice_slots').delete().eq('id', slot.id).select();
+    if (error) { alert('삭제 실패: ' + error.message); return; }
+    if (!data || data.length === 0) {
+      alert('삭제가 적용되지 않았어요. RLS 확인 필요.');
+      return;
+    }
+    await loadMonth();
+  };
+
+  const viewBookers = async (slot) => {
+    const { data } = await supabase.from('practice_bookings')
+      .select('user_id, created_at, profile:user_id(name, phone, avatar_color)')
+      .eq('slot_id', slot.id).eq('status', 'booked')
+      .order('created_at');
+    setBookersModal({ slot, bookers: data || [] });
+  };
+
+  // 달력 그리드
+  const { year: y, month: m } = viewMonth;
+  const firstDayWeek = new Date(y, m, 1).getDay();  // 0=일
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const slotsByDate = {};
+  slots.forEach(s => {
+    if (!slotsByDate[s.slot_date]) slotsByDate[s.slot_date] = [];
+    slotsByDate[s.slot_date].push(s);
+  });
+  const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const daySlots = selectedDate ? (slotsByDate[selectedDate] || []) : [];
+
+  return (
+    <>
+      <PageIntro ko="연습 베드 관리" en="Practice Admin" desc="연습 가능 시간을 열고 예약자를 관리하세요" />
+
+      <div className="px-5 space-y-3 pb-6">
+        {/* 월 네비게이션 */}
+        <div className="rounded-2xl p-3 flex items-center justify-between" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <button onClick={() => moveMonth(-1)} className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90" style={{ background: COLORS.cardElev }}>
+            <ChevronLeft size={16} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+          </button>
+          <div className="text-center">
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ {y}</p>
+            <p className="font-display text-lg mt-0.5 tracking-tight" style={{ color: COLORS.ink }}>{m + 1}월</p>
+          </div>
+          <button onClick={() => moveMonth(1)} className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90" style={{ background: COLORS.cardElev }}>
+            <ChevronRight size={16} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {/* 달력 */}
+        <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          {loading && <div className="text-center py-4"><Loader2 size={16} className="animate-spin mx-auto" style={{ color: COLORS.primary }} /></div>}
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {dayLabels.map((d, i) => (
+              <div key={d} className="text-center font-mono text-[10px] font-bold py-1.5" style={{ color: i === 0 ? COLORS.primary : i === 6 ? COLORS.stone : COLORS.muted }}>{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: firstDayWeek }).map((_, i) => <div key={`b-${i}`} />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const d = i + 1;
+              const dateStr = fmtDate(y, m, d);
+              const hasSlots = !!slotsByDate[dateStr];
+              const isSelected = selectedDate === dateStr;
+              return (
+                <button key={d} onClick={() => setSelectedDate(dateStr)}
+                  className="aspect-square rounded-xl flex flex-col items-center justify-center transition-transform active:scale-95"
+                  style={{
+                    background: isSelected ? COLORS.primary : hasSlots ? COLORS.cardElev : 'transparent',
+                    border: isSelected ? `1px solid ${COLORS.primary}` : `1px solid ${COLORS.light}`,
+                  }}>
+                  <span className="font-body text-sm" style={{ color: isSelected ? COLORS.white : COLORS.ink, fontWeight: hasSlots ? 700 : 400 }}>{d}</span>
+                  {hasSlots && (
+                    <span className="w-1 h-1 rounded-full mt-0.5" style={{ background: isSelected ? COLORS.white : COLORS.primary }}></span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 선택 날짜 영역 */}
+        {selectedDate && (
+          <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Selected</p>
+                <p className="font-heading text-base mt-1" style={{ color: COLORS.ink }}>{selectedDate}</p>
+              </div>
+              <button onClick={() => setShowAddModal(true)}
+                className="font-heading text-xs px-4 py-2 rounded-full inline-flex items-center gap-1.5"
+                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+                <Plus size={12} strokeWidth={2.5} />연습 시간 추가
+              </button>
+            </div>
+
+            {daySlots.length === 0 ? (
+              <p className="font-body text-xs text-center py-6" style={{ color: COLORS.stone }}>등록된 슬롯이 없어요</p>
+            ) : (
+              <div className="space-y-2">
+                {daySlots.map(s => {
+                  const count = bookerCounts[s.id] || 0;
+                  const full = count >= s.capacity;
+                  return (
+                    <div key={s.id} className="rounded-lg p-3" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-heading text-sm inline-flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                            <Clock size={12} style={{ color: COLORS.primary }} />
+                            {(s.start_time || '').substring(0, 5)} ~ {(s.end_time || '').substring(0, 5)}
+                          </p>
+                          <p className="font-mono text-[10px] mt-1" style={{ color: full ? COLORS.primary : COLORS.stone }}>
+                            예약 {count}/{s.capacity}{full && ' · 마감'}
+                          </p>
+                          {s.memo && <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>{s.memo}</p>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-2 pt-2" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+                        <button onClick={() => viewBookers(s)}
+                          className="flex-1 font-heading text-[11px] py-2 rounded-full inline-flex items-center justify-center gap-1.5"
+                          style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                          <Users size={12} />예약자 {count}명
+                        </button>
+                        <button onClick={() => deleteSlot(s)}
+                          className="font-heading text-[11px] px-4 py-2 rounded-full inline-flex items-center justify-center gap-1"
+                          style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 슬롯 추가 모달 */}
+      {showAddModal && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, background: COLORS.cream, zIndex: 9999,
+          display: 'flex', flexDirection: 'column'
+        }}>
+          <div style={{
+            flexShrink: 0, padding: '12px 16px',
+            paddingTop: 'max(12px, env(safe-area-inset-top))',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: `1px solid ${COLORS.light}`, background: COLORS.card
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: COLORS.ink, margin: 0, fontFamily: 'Pretendard, sans-serif' }}>연습 시간 추가</h3>
+            <button onClick={() => setShowAddModal(false)}
+              style={{ width: 36, height: 36, border: 'none', background: 'transparent', color: COLORS.stone, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <X size={20} />
+            </button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            <div className="rounded-lg p-3 mb-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>날짜</p>
+              <p className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>{selectedDate}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>시작 시간</label>
+                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
+                  style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>종료 시간</label>
+                <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
+                  className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
+                  style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>정원 (명)</label>
+              <input type="number" min="1" max="10" value={capacity} onChange={(e) => setCapacity(e.target.value)}
+                className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
+                style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+            </div>
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>메모 (선택)</label>
+              <textarea value={memo} onChange={(e) => setMemo(e.target.value)}
+                placeholder="예: 1번 베드, 강의실 1"
+                rows={3}
+                className="w-full font-body text-sm p-3 mt-1.5 outline-none resize-none rounded"
+                style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+            </div>
+          </div>
+          <div style={{
+            flexShrink: 0, padding: 16,
+            paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+            borderTop: `1px solid ${COLORS.light}`, background: COLORS.card,
+            display: 'flex', gap: 8
+          }}>
+            <button onClick={() => setShowAddModal(false)} disabled={adding}
+              className="flex-1 rounded-full py-3 font-heading text-sm"
+              style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+              취소
+            </button>
+            <button onClick={addSlot} disabled={adding}
+              className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+              {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} strokeWidth={2.5} />}
+              추가
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* 예약자 명단 모달 */}
+      {bookersModal && createPortal(
+        <div onClick={() => setBookersModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 480, maxHeight: '85vh', background: COLORS.card, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="flex items-center justify-between p-4" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
+              <div>
+                <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>예약자 명단</h3>
+                <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{bookersModal.slot.slot_date} · {(bookersModal.slot.start_time || '').substring(0, 5)} ~ {(bookersModal.slot.end_time || '').substring(0, 5)}</p>
+              </div>
+              <button onClick={() => setBookersModal(null)}><X size={18} style={{ color: COLORS.stone }} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+              {bookersModal.bookers.length === 0 ? (
+                <p className="font-body text-sm text-center py-6" style={{ color: COLORS.stone }}>아직 예약자가 없어요</p>
+              ) : (
+                <div className="space-y-2">
+                  {bookersModal.bookers.map((b, i) => (
+                    <div key={b.user_id} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: COLORS.cardElev }}>
+                      <Avatar user={b.profile || { name: '?' }} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-heading text-sm truncate" style={{ color: COLORS.ink }}>{b.profile?.name || '익명'}</p>
+                        {b.profile?.phone && <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{b.profile.phone}</p>}
+                      </div>
+                      <span className="font-mono text-[10px]" style={{ color: COLORS.muted }}>#{i + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>,
         document.body
