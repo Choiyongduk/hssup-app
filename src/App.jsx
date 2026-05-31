@@ -10426,8 +10426,7 @@ function PracticeBookingPage({ user, setCurrentPage }) {
       .sort((a, b) => {
         if (a.slot.slot_date !== b.slot.slot_date) return a.slot.slot_date.localeCompare(b.slot.slot_date);
         return (a.slot.start_time || '').localeCompare(b.slot.start_time || '');
-      })
-      .slice(0, 5);
+      });
     setMyUpcoming(upcoming);
   };
 
@@ -10450,6 +10449,29 @@ function PracticeBookingPage({ user, setCurrentPage }) {
     setActionLoading(null);
     if (error) { alert('예약 실패: ' + error.message); return; }
     if (!data?.success) { alert(data?.error || '예약 실패'); return; }
+
+    // 📢 admin/staff에게 푸시 알림 (실패해도 예약은 정상)
+    //    send-push의 targetRole:'admin'은 내부적으로 admin+staff 모두 포함
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const timeStr = `${(slot.start_time || '').slice(0, 5)}~${(slot.end_time || '').slice(0, 5)}`;
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: '🗓️ 새 연습 예약',
+          body: `${user.name || '수강생'}님 · ${slot.slot_date} ${timeStr}`,
+          url: '/?page=practice-admin',
+          targetRole: 'admin',
+          excludeUserId: user.id,
+        }),
+      });
+    } catch (e) { console.error('연습 예약 알림 발송 실패:', e); }
+
     alert('✅ 예약 완료!');
     await Promise.all([loadMonth(), loadMyUpcoming()]);
   };
@@ -10492,23 +10514,44 @@ function PracticeBookingPage({ user, setCurrentPage }) {
       <PageIntro ko="연습 예약" en="Practice Booking" desc="원하는 날짜와 시간을 선택해 신청하세요" />
 
       <div className="px-5 space-y-3 pb-6">
-        {/* 다가오는 내 예약 */}
-        {myUpcoming.length > 0 && (
-          <div className="rounded-2xl p-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
-            <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ My Upcoming</p>
+        {/* 다가오는 내 예약 — 빈 상태도 표시 */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 내 연습 예약</p>
+          {myUpcoming.length === 0 ? (
+            <p className="font-body text-xs text-center py-4 mt-2" style={{ color: COLORS.stone }}>예약한 연습이 없어요</p>
+          ) : (
             <div className="space-y-2 mt-2">
-              {myUpcoming.map(b => (
-                <div key={b.slot_id} className="flex items-center gap-2 rounded-lg p-2.5" style={{ background: COLORS.card }}>
-                  <Calendar size={14} style={{ color: COLORS.primary }} />
-                  <p className="font-body text-xs flex-1" style={{ color: COLORS.ink }}>
-                    {b.slot.slot_date} · {(b.slot.start_time || '').substring(0, 5)} ~ {(b.slot.end_time || '').substring(0, 5)}
-                    {b.slot.memo && <span className="font-mono text-[10px] ml-2" style={{ color: COLORS.stone }}>· {b.slot.memo}</span>}
-                  </p>
-                </div>
-              ))}
+              {myUpcoming.map(b => {
+                const [yy, mm, dd] = (b.slot.slot_date || '').split('-').map(Number);
+                const wd = ['일','월','화','수','목','금','토'][new Date(yy, (mm || 1) - 1, dd || 1).getDay()];
+                const slotForCancel = { id: b.slot_id, ...b.slot };
+                return (
+                  <div key={b.slot_id} className="rounded-lg p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-heading text-sm inline-flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                          <Calendar size={12} style={{ color: COLORS.primary }} />
+                          {b.slot.slot_date} ({wd})
+                        </p>
+                        <p className="font-body text-xs mt-1 inline-flex items-center gap-1.5" style={{ color: COLORS.stone }}>
+                          <Clock size={11} style={{ color: COLORS.muted }} />
+                          {(b.slot.start_time || '').substring(0, 5)} ~ {(b.slot.end_time || '').substring(0, 5)}
+                        </p>
+                        {b.slot.memo && <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.muted }}>{b.slot.memo}</p>}
+                      </div>
+                      <button onClick={() => cancelBooking(slotForCancel)} disabled={actionLoading === b.slot_id}
+                        className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1 shrink-0"
+                        style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                        {actionLoading === b.slot_id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                        예약 취소
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* 월 네비게이션 */}
         <div className="rounded-2xl p-3 flex items-center justify-between" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
