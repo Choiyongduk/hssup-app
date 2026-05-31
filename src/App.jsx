@@ -959,16 +959,43 @@ export default function HSSUPApp() {
       // 🍊 마지막 페이지 복원 (앱 재진입 시)
       const lastPage = sessionStorage.getItem('hssup_last_page');
       const defaultPage = (data.role === 'admin' || data.role === 'staff') ? 'dashboard' : 'home';
-      // payment·product-detail은 selected* 객체가 필요하므로 함께 복원
+
+      // 1. sessionStorage에 결제 페이지가 남아있으면 우선 복원
       if (lastPage === 'payment' || lastPage === 'product-detail') {
         try {
           const sp = sessionStorage.getItem('hssup_sel_product');
           const sc = sessionStorage.getItem('hssup_sel_course');
           if (sp) setSelectedProduct(JSON.parse(sp));
           if (sc) setSelectedCourse(JSON.parse(sc));
-        } catch (e) { /* 파싱 실패는 무시 — 기본 페이지로 fallback됨 */ }
+        } catch (e) { /* 파싱 실패는 무시 */ }
+        setCurrentPage(lastPage);
+      } else if (lastPage) {
+        // 2. 그 외 일반 페이지는 단순 복원
+        setCurrentPage(lastPage);
+      } else {
+        // 3. sessionStorage가 비어있음 (PWA 강제종료 후 재시작 등)
+        //    → localStorage 백업에서 결제·상세를 30분 TTL로 복원 시도
+        let restored = false;
+        try {
+          const raw = localStorage.getItem('hssup_payment_resume');
+          if (raw) {
+            const resume = JSON.parse(raw);
+            const RESUME_TTL = 30 * 60 * 1000;  // 30분
+            const isFresh = Date.now() - (resume.ts || 0) < RESUME_TTL;
+            const isSameUser = resume.userId === data.id;
+            const isPaymentFlow = resume.page === 'payment' || resume.page === 'product-detail';
+            if (isFresh && isSameUser && isPaymentFlow) {
+              if (resume.product) setSelectedProduct(resume.product);
+              if (resume.course) setSelectedCourse(resume.course);
+              setCurrentPage(resume.page);
+              restored = true;
+            } else {
+              localStorage.removeItem('hssup_payment_resume');
+            }
+          }
+        } catch (e) { /* 무시 */ }
+        if (!restored) setCurrentPage(defaultPage);
       }
-      setCurrentPage(lastPage || defaultPage);
     }
     setLoading(false);
   };
@@ -1031,6 +1058,26 @@ export default function HSSUPApp() {
       sessionStorage.setItem('hssup_sel_course', JSON.stringify(selectedCourse));
     }
   }, [selectedCourse]);
+
+  // 🍊 결제·상세 페이지일 땐 localStorage에도 백업 (PWA가 OS에 의해 강제 종료될 때 sessionStorage가 사라지는 문제 대응)
+  //    - 30분 TTL + userId 검증으로 stale·다른 사용자 데이터 차단
+  //    - 결제 외 페이지로 가면 백업 제거
+  useEffect(() => {
+    if (!profile) return;
+    if (currentPage === 'payment' || currentPage === 'product-detail') {
+      try {
+        localStorage.setItem('hssup_payment_resume', JSON.stringify({
+          userId: profile.id,
+          page: currentPage,
+          product: selectedProduct,
+          course: selectedCourse,
+          ts: Date.now(),
+        }));
+      } catch (e) { /* quota 등 무시 */ }
+    } else {
+      localStorage.removeItem('hssup_payment_resume');
+    }
+  }, [currentPage, profile, selectedProduct, selectedCourse]);
 
   // 사용자가 뒤로가기 누르면 → 이전 페이지로 이동
   useEffect(() => {
