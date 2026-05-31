@@ -1070,6 +1070,7 @@ export default function HSSUPApp() {
       'home', 'dashboard', 'mypage', 'notice', 'qna', 'course', 'online',
       'best', 'mycase', 'library', 'market', 'community', 'freeboard',
       'greetings', 'reviews', 'improvements', 'my-activity', 'my-orders', 'my-profile-edit',
+      'cart', 'cart-checkout',
       'payment', 'product-detail',
       'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
@@ -2559,6 +2560,8 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'my-activity') return <MyActivityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} />;
   if (currentPage === 'my-orders') return <MyOrdersPage user={user} />;
   if (currentPage === 'my-profile-edit') return <MyProfileEditPage user={user} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
+  if (currentPage === 'cart') return <CartPage user={user} setCurrentPage={setCurrentPage} />;
+  if (currentPage === 'cart-checkout') return <CartCheckoutPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
   if (currentPage === 'admin-improvements') return <AdminImprovements user={user} />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} />;
@@ -5099,6 +5102,8 @@ function PostDetailPage({ post, user, setCurrentPage }) {
 // 🛍️ ProductDetailPage - 상품 상세 (이미지 + 설명 + 좋아요/댓글)
 // =============================================================
 function ProductDetailPage({ product, user, setCurrentPage, setSelectedCourse }) {
+  const [addingToCart, setAddingToCart] = useState(false);
+
   if (!product) {
     return (
       <div className="px-5 py-10 text-center">
@@ -5110,6 +5115,38 @@ function ProductDetailPage({ product, user, setCurrentPage, setSelectedCourse })
   const discount = product.original_price && product.original_price > product.price
     ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
     : 0;
+
+  const addToCart = async () => {
+    if (!user) return;
+    if (product.stock === 0) { alert('품절된 상품입니다.'); return; }
+    setAddingToCart(true);
+    try {
+      // 이미 담겨있으면 수량 +1, 없으면 insert
+      const { data: existing } = await supabase
+        .from('cart_items')
+        .select('id, quantity')
+        .eq('user_id', user.id)
+        .eq('product_id', product.id)
+        .maybeSingle();
+      if (existing) {
+        const newQty = (existing.quantity || 1) + 1;
+        const { error } = await supabase.from('cart_items').update({ quantity: newQty }).eq('id', existing.id);
+        if (error) throw error;
+        alert(`장바구니에 추가됐어요\n현재 수량: ${newQty}개`);
+      } else {
+        const { error } = await supabase.from('cart_items').insert({
+          user_id: user.id,
+          product_id: product.id,
+          quantity: 1,
+        });
+        if (error) throw error;
+        alert('장바구니에 담겼어요');
+      }
+    } catch (err) {
+      alert('장바구니 담기 실패: ' + err.message);
+    }
+    setAddingToCart(false);
+  };
 
   return (
     <div className="pb-32">
@@ -5196,7 +5233,7 @@ function ProductDetailPage({ product, user, setCurrentPage, setSelectedCourse })
         </div>
       </div>
 
-      {/* 하단 구매 버튼 (고정) */}
+      {/* 하단 구매/장바구니 버튼 (고정) */}
       <div className="fixed left-0 right-0 px-5 py-3" style={{
         background: 'rgba(10, 10, 10, 0.85)',
         backdropFilter: 'blur(20px)',
@@ -5205,21 +5242,34 @@ function ProductDetailPage({ product, user, setCurrentPage, setSelectedCourse })
         margin: '0 auto',
         bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)'
       }}>
-        <button onClick={() => {
-                if (product.stock === 0) { alert('품절된 상품입니다.'); return; }
-                setSelectedCourse(null);
-                setCurrentPage('payment');
-              }}
-          disabled={product.stock === 0}
-          className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-          style={{
-            background: product.stock === 0 ? COLORS.cardElev : COLORS.primary,
-            color: COLORS.white,
-            boxShadow: product.stock === 0 ? 'none' : '0 0 24px rgba(255, 92, 31, 0.5)'
-          }}>
-          <ShoppingCart size={16} strokeWidth={2.5} />
-          {product.stock === 0 ? '품절' : '구매하기'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={addToCart}
+            disabled={product.stock === 0 || addingToCart}
+            className="flex-1 rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+            style={{
+              background: COLORS.card,
+              color: COLORS.ink,
+              border: `1px solid ${COLORS.light}`,
+            }}>
+            {addingToCart ? <Loader2 size={16} className="animate-spin" /> : <Package size={16} strokeWidth={2.5} />}
+            장바구니
+          </button>
+          <button onClick={() => {
+                  if (product.stock === 0) { alert('품절된 상품입니다.'); return; }
+                  setSelectedCourse(null);
+                  setCurrentPage('payment');
+                }}
+            disabled={product.stock === 0}
+            className="flex-1 rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+            style={{
+              background: product.stock === 0 ? COLORS.cardElev : COLORS.primary,
+              color: COLORS.white,
+              boxShadow: product.stock === 0 ? 'none' : '0 0 24px rgba(255, 92, 31, 0.5)'
+            }}>
+            <ShoppingCart size={16} strokeWidth={2.5} />
+            {product.stock === 0 ? '품절' : '바로 구매'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -6376,6 +6426,22 @@ function MyPage({ user, handleLogout, setCurrentPage }) {
           </button>
         )}
 
+        {/* 🛒 장바구니 */}
+        {!isAdmin && (
+          <button onClick={() => setCurrentPage('cart')}
+            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+              <ShoppingCart size={18} style={{ color: COLORS.primary }} />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-heading text-sm" style={{ color: COLORS.ink }}>장바구니</p>
+              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>담아둔 재료 한번에 결제</p>
+            </div>
+            <ChevronRight size={16} style={{ color: COLORS.stone }} />
+          </button>
+        )}
+
         {/* 컬러 선택 (펼침/접힘) */}
         {showColorPicker && (
           <section className="rounded-2xl p-4 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -6851,6 +6917,527 @@ function MyOrdersPage({ user }) {
         document.body
       )}
     </>
+  );
+}
+
+// =============================================================
+// 🛒 CartPage - 장바구니 (재료 상품)
+// =============================================================
+function CartPage({ user, setCurrentPage }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(null);  // id 저장
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('cart_items')
+      .select('*, product:products(*)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    if (error) console.error('장바구니 로드 에러:', error);
+    setItems(data || []);
+    setLoading(false);
+  };
+
+  const changeQty = async (item, delta) => {
+    const next = (item.quantity || 1) + delta;
+    if (next < 1) return;
+    const stock = item.product?.stock;
+    if (typeof stock === 'number' && stock > 0 && next > stock) {
+      alert(`재고가 ${stock}개 남았어요`);
+      return;
+    }
+    setUpdating(item.id);
+    const { error } = await supabase.from('cart_items').update({ quantity: next }).eq('id', item.id);
+    setUpdating(null);
+    if (error) {
+      alert('수량 변경 실패: ' + error.message);
+      return;
+    }
+    await load();
+  };
+
+  const removeItem = async (item) => {
+    if (!confirm(`${item.product?.name || '상품'}을 장바구니에서 빼시겠습니까?`)) return;
+    setUpdating(item.id);
+    const { error } = await supabase.from('cart_items').delete().eq('id', item.id);
+    setUpdating(null);
+    if (error) {
+      alert('삭제 실패: ' + error.message);
+      return;
+    }
+    await load();
+  };
+
+  // 합계 (재고 부족·품절 상품 제외)
+  const validItems = items.filter(it => it.product && (it.product.stock === null || it.product.stock === undefined || it.product.stock > 0));
+  const total = validItems.reduce((sum, it) => sum + (it.product?.price || 0) * (it.quantity || 1), 0);
+
+  const goCheckout = () => {
+    if (validItems.length === 0) {
+      alert('결제할 상품이 없어요.');
+      return;
+    }
+    // 재고 초과 검증
+    for (const it of validItems) {
+      if (typeof it.product?.stock === 'number' && it.quantity > it.product.stock) {
+        alert(`${it.product.name}: 재고가 ${it.product.stock}개로 부족해요. 수량을 줄여주세요.`);
+        return;
+      }
+    }
+    setCurrentPage('cart-checkout');
+  };
+
+  const formatPrice = (n) => Number(n || 0).toLocaleString('ko-KR');
+
+  return (
+    <>
+      <PageIntro ko="장바구니" en="Cart" desc="담아두신 재료를 한번에 결제하세요" />
+
+      {loading ? (
+        <div className="text-center py-10">
+          <Loader2 size={20} className="animate-spin mx-auto" style={{ color: COLORS.primary }} />
+        </div>
+      ) : items.length === 0 ? (
+        <div className="text-center py-10 px-5">
+          <ShoppingBag size={32} style={{ color: COLORS.stone, margin: '0 auto', opacity: 0.4 }} />
+          <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>장바구니가 비어 있어요</p>
+          <button onClick={() => setCurrentPage('market')}
+            className="mt-4 font-heading text-xs px-5 py-2.5 rounded-full"
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255,92,31,0.35)' }}>
+            재료샵 둘러보기
+          </button>
+        </div>
+      ) : (
+        <div className="px-5 pb-32 space-y-3">
+          {items.map(it => {
+            const p = it.product;
+            const outOfStock = !p || (typeof p.stock === 'number' && p.stock <= 0);
+            const overStock = p && typeof p.stock === 'number' && p.stock > 0 && it.quantity > p.stock;
+            return (
+              <div key={it.id} className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${outOfStock || overStock ? COLORS.stone : COLORS.light}` }}>
+                <div className="flex gap-3">
+                  {/* 이미지 */}
+                  <div className="w-20 h-20 rounded-xl shrink-0 overflow-hidden" style={{ background: COLORS.cream }}>
+                    {p?.image_url ? (
+                      <SkeletonImage src={p.image_url} alt={p?.name} className="w-full h-full" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl" style={{ color: COLORS.primary }}>{p?.emoji || '🛍️'}</div>
+                    )}
+                  </div>
+                  {/* 정보 */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-heading text-sm truncate" style={{ color: COLORS.ink }}>{p?.name || '(삭제된 상품)'}</p>
+                    {p?.brand && <p className="font-mono text-[10px] mt-0.5 truncate" style={{ color: COLORS.stone }}>{p.brand}</p>}
+                    <p className="font-display text-base mt-1 tracking-tight" style={{ color: COLORS.primary }}>
+                      ₩{formatPrice((p?.price || 0) * it.quantity)}
+                    </p>
+                    {outOfStock && <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>품절</p>}
+                    {overStock && <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.primary }}>재고 {p.stock}개로 부족</p>}
+                  </div>
+                  {/* 삭제 */}
+                  <button onClick={() => removeItem(it)} disabled={updating === it.id}
+                    className="w-8 h-8 rounded-full flex items-center justify-center self-start"
+                    style={{ background: COLORS.cardElev }}>
+                    <Trash2 size={14} style={{ color: COLORS.stone }} />
+                  </button>
+                </div>
+                {/* 수량 + 단가 */}
+                <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+                  <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>단가 ₩{formatPrice(p?.price || 0)}</p>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => changeQty(it, -1)} disabled={updating === it.id || it.quantity <= 1}
+                      className="w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-40"
+                      style={{ background: COLORS.cardElev, color: COLORS.ink }}>
+                      −
+                    </button>
+                    <span className="font-heading text-sm w-8 text-center" style={{ color: COLORS.ink }}>{it.quantity}</span>
+                    <button onClick={() => changeQty(it, 1)} disabled={updating === it.id || outOfStock}
+                      className="w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-40"
+                      style={{ background: COLORS.cardElev, color: COLORS.ink }}>
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* 합계 */}
+          <div className="rounded-2xl p-4 mt-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex justify-between items-baseline">
+              <span className="font-mono text-[12px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>TOTAL</span>
+              <span className="font-display text-3xl tracking-tight" style={{ color: COLORS.ink }}>₩{formatPrice(total)}</span>
+            </div>
+            <p className="font-mono text-[10px] mt-1 text-right" style={{ color: COLORS.stone }}>{validItems.length}개 상품</p>
+          </div>
+        </div>
+      )}
+
+      {/* 결제 버튼 (하단 고정) */}
+      {!loading && items.length > 0 && (
+        <div className="fixed left-0 right-0 px-5 py-3" style={{
+          background: 'rgba(10, 10, 10, 0.85)', backdropFilter: 'blur(20px)',
+          borderTop: `1px solid ${COLORS.light}`,
+          maxWidth: '480px', margin: '0 auto',
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)'
+        }}>
+          <button onClick={goCheckout}
+            disabled={validItems.length === 0}
+            className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+            <ShoppingCart size={16} strokeWidth={2.5} />
+            ₩{formatPrice(total)} 전체 결제하기
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+// =============================================================
+// 🛒💳 CartCheckoutPage - 장바구니 결제 (orders 1건 + order_items N건)
+//   기존 단일 결제(PaymentPage)와 완전히 별도. 결제 흐름은 동일하게 NicePay 사용.
+//   금액 검증은 nicepay-return Edge Function에서 order_items 합계로 재검증.
+// =============================================================
+function CartCheckoutPage({ user, setCurrentPage }) {
+  const [items, setItems] = useState([]);
+  const [loadingCart, setLoadingCart] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [legalModal, setLegalModal] = useState(null);
+  const [agreedTerms, setAgreedTerms] = useState(false);
+  const [agreedRefund, setAgreedRefund] = useState(false);
+
+  const [shippingRecipientName, setShippingRecipientName] = useState(user?.name || '');
+  const [shippingRecipientPhone, setShippingRecipientPhone] = useState(user?.phone || '');
+  const [shippingPostalCode, setShippingPostalCode] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [shippingAddressDetail, setShippingAddressDetail] = useState('');
+  const [shippingMemo, setShippingMemo] = useState('');
+  const [postcodeOpen, setPostcodeOpen] = useState(false);
+  const postcodeContainerRef = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoadingCart(true);
+      const { data } = await supabase
+        .from('cart_items')
+        .select('*, product:products(*)')
+        .eq('user_id', user.id);
+      setItems(data || []);
+      setLoadingCart(false);
+    })();
+  }, []);
+
+  const openPostcode = async () => {
+    try {
+      if (typeof window.daum === 'undefined' || !window.daum.Postcode) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('우편번호 API 로드 실패'));
+          document.head.appendChild(script);
+        });
+      }
+      setPostcodeOpen(true);
+    } catch (err) {
+      console.error('우편번호 검색 에러:', err);
+      alert('우편번호 검색 중 오류가 발생했어요. 다시 시도해주세요.');
+    }
+  };
+
+  useEffect(() => {
+    if (!postcodeOpen) return;
+    let cancelled = false;
+    let tries = 0;
+    const tryEmbed = () => {
+      if (cancelled) return;
+      if (!postcodeContainerRef.current || typeof window.daum === 'undefined' || !window.daum.Postcode) {
+        if (tries++ < 40) setTimeout(tryEmbed, 50);
+        return;
+      }
+      postcodeContainerRef.current.innerHTML = '';
+      new window.daum.Postcode({
+        width: '100%', height: '100%',
+        oncomplete: (data) => {
+          setShippingPostalCode(data.zonecode);
+          setShippingAddress(data.roadAddress || data.jibunAddress);
+          setPostcodeOpen(false);
+        },
+      }).embed(postcodeContainerRef.current);
+    };
+    tryEmbed();
+    return () => { cancelled = true; };
+  }, [postcodeOpen]);
+
+  const validItems = items.filter(it => it.product && (it.product.stock === null || it.product.stock === undefined || it.product.stock > 0));
+  const total = validItems.reduce((sum, it) => sum + (it.product?.price || 0) * (it.quantity || 1), 0);
+  const allAgreed = agreedTerms && agreedRefund;
+  const repName = validItems[0]?.product?.name || '재료';
+  const goodsName = validItems.length > 1 ? `${repName} 외 ${validItems.length - 1}건` : repName;
+
+  const handlePayment = async () => {
+    if (!allAgreed) { alert('필수 약관에 모두 동의해주세요.'); return; }
+    if (validItems.length === 0) { alert('결제할 상품이 없어요.'); return; }
+    if (!shippingRecipientName?.trim()) { alert('받는 사람 이름을 입력해주세요.'); return; }
+    if (!shippingRecipientPhone?.trim()) { alert('받는 사람 연락처를 입력해주세요.'); return; }
+    if (!shippingPostalCode || !shippingAddress) { alert('"주소 검색" 버튼을 눌러 주소를 입력해주세요.'); return; }
+    if (!shippingAddressDetail?.trim()) { alert('상세 주소를 입력해주세요. (동/호수 등)'); return; }
+
+    setLoading(true);
+    try {
+      // 결제 직전 가격·재고 재확인
+      const productIds = validItems.map(it => it.product.id);
+      const { data: latestProducts, error: fetchErr } = await supabase
+        .from('products')
+        .select('id, price, stock, name')
+        .in('id', productIds);
+      if (fetchErr || !latestProducts) {
+        alert('상품 정보를 확인할 수 없습니다. 다시 시도해주세요.');
+        setLoading(false);
+        return;
+      }
+      let verifiedTotal = 0;
+      const verifiedLineItems = [];
+      for (const it of validItems) {
+        const latest = latestProducts.find(p => p.id === it.product.id);
+        if (!latest) {
+          alert(`${it.product.name}: 상품을 찾을 수 없어요`); setLoading(false); return;
+        }
+        if (Number(latest.price) !== Number(it.product.price)) {
+          alert(`${it.product.name}: 가격이 변경됐어요 (현재 ${Number(latest.price).toLocaleString()}원). 장바구니를 새로고침해 주세요.`);
+          setLoading(false); return;
+        }
+        if (typeof latest.stock === 'number' && latest.stock <= 0) {
+          alert(`${latest.name}: 품절된 상품입니다.`); setLoading(false); return;
+        }
+        if (typeof latest.stock === 'number' && latest.stock < it.quantity) {
+          alert(`${latest.name}: 재고가 ${latest.stock}개로 부족해요.`); setLoading(false); return;
+        }
+        verifiedTotal += Number(latest.price) * it.quantity;
+        verifiedLineItems.push({
+          product_id: it.product.id,
+          product_name: latest.name,
+          unit_price: Number(latest.price),
+          quantity: it.quantity,
+        });
+      }
+
+      const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
+      // 1) orders insert (product_id = null, 장바구니 주문 식별)
+      const orderData = {
+        order_id: orderId,
+        user_id: user.id,
+        course_id: null,
+        product_id: null,   // ★ 장바구니 주문은 null
+        course_title: goodsName,
+        item_type: 'product',
+        amount: verifiedTotal,
+        status: 'pending',
+        buyer_name: user.name,
+        buyer_phone: user.phone,
+        buyer_email: user.email,
+        shipping_recipient_name: shippingRecipientName.trim(),
+        shipping_recipient_phone: shippingRecipientPhone.trim(),
+        shipping_postal_code: shippingPostalCode,
+        shipping_address: shippingAddress,
+        shipping_address_detail: shippingAddressDetail.trim(),
+        shipping_memo: shippingMemo?.trim() || null,
+        shipping_status: 'pending',
+      };
+      const { error: orderErr } = await supabase.from('orders').insert(orderData);
+      if (orderErr) throw orderErr;
+
+      // 2) order_items insert (각 라인)
+      const linesWithOrderId = verifiedLineItems.map(l => ({ ...l, order_id: orderId }));
+      const { error: linesErr } = await supabase.from('order_items').insert(linesWithOrderId);
+      if (linesErr) {
+        // 라인 insert 실패 시 orders도 삭제 (best-effort)
+        await supabase.from('orders').delete().eq('order_id', orderId).catch(() => {});
+        throw linesErr;
+      }
+
+      // 3) 나이스페이 SDK 로드 + 결제창 호출
+      if (typeof window.AUTHNICE === 'undefined') {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://pay.nicepay.co.kr/v1/js/';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('나이스페이 SDK 로드 실패'));
+          document.head.appendChild(script);
+        });
+      }
+      const phoneOnly = user.phone?.replace(/[^0-9]/g, '') || '';
+      const validPhone = (phoneOnly.length === 10 || phoneOnly.length === 11) ? phoneOnly : '';
+      const returnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/nicepay-return`;
+
+      window.AUTHNICE.requestPay({
+        clientId: import.meta.env.VITE_NICEPAY_CLIENT_KEY,
+        method: 'card',
+        orderId: orderId,
+        amount: verifiedTotal,
+        goodsName: goodsName,
+        returnUrl: returnUrl,
+        buyerName: user.name || '고객',
+        buyerTel: validPhone,
+        buyerEmail: user.email || '',
+        fnError: (result) => {
+          console.log('나이스페이 결제 취소/실패:', result);
+          setLoading(false);
+        }
+      });
+    } catch (err) {
+      console.error('장바구니 결제 시작 에러:', err);
+      alert('결제 시작 실패: ' + (err.message || err));
+      setLoading(false);
+    }
+  };
+
+  if (loadingCart) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin" style={{ color: COLORS.primary }} />
+      </div>
+    );
+  }
+
+  if (validItems.length === 0) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <p className="font-body text-sm" style={{ color: COLORS.stone }}>결제할 상품이 없어요.</p>
+        <button onClick={() => setCurrentPage('cart')} className="mt-4 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white }}>
+          장바구니로
+        </button>
+      </div>
+    );
+  }
+
+  const formatPrice = (n) => Number(n || 0).toLocaleString('ko-KR');
+
+  return (
+    <div className="pb-6">
+      <PageIntro ko="장바구니 결제" en="Checkout" desc="안전한 결제를 진행해주세요" />
+
+      <div className="px-5 space-y-3">
+        {/* 상품 목록 요약 */}
+        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase p-4 pb-2" style={{ color: COLORS.primary }}>━━ 주문 상품 ({validItems.length}건)</p>
+          {validItems.map(it => (
+            <div key={it.id} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+              <div className="w-12 h-12 rounded-lg shrink-0 overflow-hidden" style={{ background: COLORS.cream }}>
+                {it.product.image_url ? (
+                  <SkeletonImage src={it.product.image_url} alt={it.product.name} className="w-full h-full" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xl" style={{ color: COLORS.primary }}>🛍️</div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-body text-xs truncate" style={{ color: COLORS.ink }}>{it.product.name}</p>
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{it.quantity}개 × ₩{formatPrice(it.product.price)}</p>
+              </div>
+              <p className="font-heading text-sm shrink-0" style={{ color: COLORS.primary }}>₩{formatPrice(it.product.price * it.quantity)}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* 배송 정보 */}
+        <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 배송 정보</p>
+          <input type="text" placeholder="받는 사람 이름" value={shippingRecipientName} onChange={(e) => setShippingRecipientName(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          <input type="tel" placeholder="받는 사람 연락처 (010-0000-0000)" value={shippingRecipientPhone} onChange={(e) => setShippingRecipientPhone(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          <div className="flex gap-2">
+            <input type="text" placeholder="우편번호" value={shippingPostalCode} readOnly onClick={openPostcode}
+              className="flex-1 px-3 py-2.5 rounded-lg font-body text-sm outline-none cursor-pointer"
+              style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+            <button type="button" onClick={openPostcode}
+              className="px-4 py-2.5 rounded-lg font-heading text-xs whitespace-nowrap"
+              style={{ background: COLORS.primary, color: COLORS.white }}>
+              주소 검색
+            </button>
+          </div>
+          <input type="text" placeholder="기본 주소 (주소 검색 후 자동 입력)" value={shippingAddress} readOnly
+            className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          <input type="text" placeholder="상세 주소 (동/호수 등)" value={shippingAddressDetail} onChange={(e) => setShippingAddressDetail(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          <input type="text" placeholder="배송 메모 (선택, 예: 부재시 경비실)" value={shippingMemo} onChange={(e) => setShippingMemo(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+        </div>
+
+        {/* 합계 */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.cardElev }}>
+          <div className="flex justify-between items-baseline pt-1">
+            <span className="font-mono text-[12px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>TOTAL</span>
+            <span className="font-display text-3xl tracking-tight" style={{ color: COLORS.ink }}>₩{formatPrice(total)}</span>
+          </div>
+        </div>
+
+        {/* 약관 동의 */}
+        <div className="rounded-2xl p-4 space-y-2" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} />
+            <span className="font-body text-xs flex-1" style={{ color: COLORS.ink }}>[필수] 구매조건을 확인했으며 결제에 동의합니다</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={agreedRefund} onChange={(e) => setAgreedRefund(e.target.checked)} />
+            <span className="font-body text-xs flex-1" style={{ color: COLORS.ink }}>[필수] 환불정책에 동의합니다</span>
+            <button onClick={() => setLegalModal('refund')} className="font-mono text-[10px] underline" style={{ color: COLORS.stone }}>보기</button>
+          </label>
+        </div>
+
+        {/* 결제 버튼 */}
+        <button onClick={handlePayment} disabled={loading}
+          className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)' }}>
+          {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} strokeWidth={2.5} />}
+          {loading ? '결제창 호출 중...' : `₩${formatPrice(total)} 결제하기`}
+        </button>
+      </div>
+
+      {/* 약관 모달 */}
+      {legalModal && createPortal(
+        <div onClick={() => setLegalModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 480, height: '80vh', background: COLORS.card, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="flex items-center justify-between p-4" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
+              <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>환불정책</h3>
+              <button onClick={() => setLegalModal(null)}><X size={18} style={{ color: COLORS.stone }} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+              <pre style={{ fontFamily: 'inherit', color: COLORS.stone, fontSize: '12px', lineHeight: '1.75', whiteSpace: 'pre-wrap', wordBreak: 'keep-all', margin: 0 }}>
+                {LEGAL_REFUND}
+              </pre>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* 주소 검색 모달 */}
+      {postcodeOpen && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: '#fff', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flexShrink: 0, padding: '12px 16px', paddingTop: 'max(12px, env(safe-area-inset-top))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e5e5e5', background: '#fff' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>주소 검색</h3>
+            <button onClick={() => setPostcodeOpen(false)}
+              style={{ width: 36, height: 36, border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, color: '#000', cursor: 'pointer' }}>×</button>
+          </div>
+          <div ref={postcodeContainerRef} style={{ flex: 1, width: '100%', overflow: 'auto' }} />
+        </div>,
+        document.body
+      )}
+    </div>
   );
 }
 
