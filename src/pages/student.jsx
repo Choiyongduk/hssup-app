@@ -3787,6 +3787,60 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
           </div>
         </section>
 
+        {/* 프로필 사진·아바타 컬러 (아바타 누르면 펼침) */}
+        {showColorPicker && (
+          <section className="rounded-2xl p-4 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            {/* 프로필 사진 */}
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.primary }}>━━ Profile Photo</p>
+            <div className="flex items-center gap-3 mb-4">
+              <Avatar user={displayUser} size="xl" />
+              <div className="flex-1 flex gap-2">
+                <button onClick={() => photoInputRef.current?.click()} disabled={photoUploading}
+                  className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5 disabled:opacity-60"
+                  style={{ background: COLORS.primary, color: COLORS.white }}>
+                  {photoUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} strokeWidth={2.5} />}
+                  {currentAvatar ? '사진 변경' : '사진 올리기'}
+                </button>
+                {currentAvatar && (
+                  <button onClick={removePhoto} disabled={photoUploading}
+                    className="px-3 py-2.5 rounded-full flex items-center justify-center disabled:opacity-60"
+                    style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+                    <Trash2 size={13} style={{ color: COLORS.stone }} />
+                  </button>
+                )}
+              </div>
+              <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" />
+            </div>
+            <div className="h-px w-full mb-4" style={{ background: COLORS.light }} />
+
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Avatar Color</p>
+                <h3 className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>아바타 컬러 변경</h3>
+                <p className="font-body text-[10px] mt-1" style={{ color: COLORS.muted }}>사진이 없을 때 표시돼요</p>
+              </div>
+              {saving && <Loader2 size={14} className="animate-spin" style={{ color: COLORS.primary }} />}
+            </div>
+            <div className="grid grid-cols-6 gap-2">
+              {Object.entries(AVATAR_COLORS).map(([key, c]) => (
+                <button key={key} onClick={() => changeColor(key)} className="aspect-square rounded-full"
+                  style={{
+                    background: c.gradient,
+                    border: currentColor === key ? `3px solid ${COLORS.ink}` : '2px solid transparent',
+                    boxShadow: currentColor === key ? `0 0 0 2px ${COLORS.primary}33` : 'none',
+                    transform: currentColor === key ? 'scale(0.9)' : 'scale(1)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  title={c.name}
+                ></button>
+              ))}
+            </div>
+            <p className="font-mono text-[10px] mt-3 text-center" style={{ color: COLORS.stone }}>
+              현재: <span style={{ color: COLORS.primary, fontWeight: 700 }}>{AVATAR_COLORS[currentColor].name}</span>
+            </p>
+          </section>
+        )}
+
         {/* ⭐ 등급 카드 (admin 제외) */}
         {!isAdmin && <LevelCard userId={user.id} setCurrentPage={setCurrentPage} />}
 
@@ -3860,59 +3914,6 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
           <ChevronRight size={16} style={{ color: COLORS.stone }} />
         </button>
 
-        {/* 컬러 선택 (펼침/접힘) */}
-        {showColorPicker && (
-          <section className="rounded-2xl p-4 animate-fade-in" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            {/* 프로필 사진 */}
-            <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.primary }}>━━ Profile Photo</p>
-            <div className="flex items-center gap-3 mb-4">
-              <Avatar user={displayUser} size="xl" />
-              <div className="flex-1 flex gap-2">
-                <button onClick={() => photoInputRef.current?.click()} disabled={photoUploading}
-                  className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5 disabled:opacity-60"
-                  style={{ background: COLORS.primary, color: COLORS.white }}>
-                  {photoUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} strokeWidth={2.5} />}
-                  {currentAvatar ? '사진 변경' : '사진 올리기'}
-                </button>
-                {currentAvatar && (
-                  <button onClick={removePhoto} disabled={photoUploading}
-                    className="px-3 py-2.5 rounded-full flex items-center justify-center disabled:opacity-60"
-                    style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
-                    <Trash2 size={13} style={{ color: COLORS.stone }} />
-                  </button>
-                )}
-              </div>
-              <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" />
-            </div>
-            <div className="h-px w-full mb-4" style={{ background: COLORS.light }} />
-
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Avatar Color</p>
-                <h3 className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>아바타 컬러 변경</h3>
-                <p className="font-body text-[10px] mt-1" style={{ color: COLORS.muted }}>사진이 없을 때 표시돼요</p>
-              </div>
-              {saving && <Loader2 size={14} className="animate-spin" style={{ color: COLORS.primary }} />}
-            </div>
-            <div className="grid grid-cols-6 gap-2">
-              {Object.entries(AVATAR_COLORS).map(([key, c]) => (
-                <button key={key} onClick={() => changeColor(key)} className="aspect-square rounded-full"
-                  style={{
-                    background: c.gradient,
-                    border: currentColor === key ? `3px solid ${COLORS.ink}` : '2px solid transparent',
-                    boxShadow: currentColor === key ? `0 0 0 2px ${COLORS.primary}33` : 'none',
-                    transform: currentColor === key ? 'scale(0.9)' : 'scale(1)',
-                    transition: 'all 0.2s ease',
-                  }}
-                  title={c.name}
-                ></button>
-              ))}
-            </div>
-            <p className="font-mono text-[10px] mt-3 text-center" style={{ color: COLORS.stone }}>
-              현재: <span style={{ color: COLORS.primary, fontWeight: 700 }}>{AVATAR_COLORS[currentColor].name}</span>
-            </p>
-          </section>
-        )}
 
         {/* 알림 설정 */}
         <section className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
