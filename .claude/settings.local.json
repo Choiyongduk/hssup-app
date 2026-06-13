@@ -3,7 +3,19 @@
     "allow": [
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npm run *)",
+      "Bash(cd \"c:\\\\Users\\\\cyd89\\\\Desktop\\\\용덕폴더\\\\프로그램 개발\\\\히썹앱\\\\hssup-app\" && ls \"C:\\\\Users\\\\cyd89\\\\.claude\\\\projects\\\\c--Users-cyd89-Desktop------------------hssup-app\\\\memory\\\\\" 2>&1 | head; echo \"---\"; cat \"C:\\\\Users\\\\cyd89\\\\.claude\\\\projects\\\\c--Users-cyd89-Desktop------------------hssup-app\\\\memory\\\\MEMORY.md\" 2>&1 | head -30)",
+      "Read(//c/Users/cyd89/.claude/projects/c--Users-cyd89-Desktop------------------hssup-app/**)",
+      "Bash(node -e ' *)",
+      "Bash(node scripts/extract_common.cjs)",
+      "Bash(node scripts/extract_pages.cjs)",
+      "Bash(grep -vE \"^\\\\s*$\")",
+      "Bash(awk 'NR>=4150 && NR<=4600 && /[\\\\xF0\\\\x9F]|📦|🛍️|💳|✅|⚠️|🍊|🎉|💰|📋|🚚|👤|📍|💎/' src/pages/student.jsx)",
+      "Bash(awk -F: '$1>=2511 && $1<=2980')",
+      "Bash(awk 'NR>=4600 && NR<=4820 && /결제|동의|안전|암호화/' src/pages/student.jsx)",
+      "Bash(grep -rnoE \".{0,8}confirm\\\\\\(\" src/pages/student.jsx src/pages/admin.jsx src/App.jsx)",
+      "Bash(git commit *)"
     ]
   }
 }
