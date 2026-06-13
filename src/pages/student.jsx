@@ -9,9 +9,9 @@ import { subscribeToNotifications, unsubscribeFromNotifications, checkNotificati
 import { LEGAL_TERMS, LEGAL_PRIVACY, LEGAL_REFUND } from '../lib/legal';
 import { useDraft, useLatestLecture, useRecentUpdates, useDetailItem } from '../hooks';
 import {
-  ImageCarousel, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, MultiImageField,
+  ImageCarousel, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, MultiImageField, CategoryMover,
 } from '../components/common';
-import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar } from 'lucide-react';
+import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar, Gift } from 'lucide-react';
 
 export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   const [notices, setNotices] = useState([]);
@@ -578,6 +578,21 @@ export function BestCasePage() {
     <>
       <PageIntro ko="베스트 케이스" en="Best Case" desc="동료들의 작품에서 영감을 얻으세요" />
 
+      {/* 🎁 베스트 케이스 선정 혜택 안내 */}
+      <div className="px-5 mb-4">
+        <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
+          <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+            <Gift size={16} style={{ color: COLORS.white }} />
+          </div>
+          <div>
+            <p className="font-heading text-sm" style={{ color: COLORS.deep }}>베스트 케이스에 선정되면?</p>
+            <p className="font-body text-xs mt-1 leading-relaxed" style={{ color: COLORS.ink }}>
+              올려주신 작업 사진이 베스트 케이스로 선정되면 <b>추후 수강 할인 혜택</b> 또는 <b>소정의 선물</b>을 드려요. 멋진 작업물을 1:1 피드백에 많이 남겨주세요! 🍊
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* 카테고리 필터 */}
       <div className="px-5 mb-4">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -768,7 +783,7 @@ export function MyCasePage({ user }) {
 
   return (
     <>
-      <PageIntro ko="개별피드백" en="Personal Feedback" desc="원장님의 1:1 개별 피드백을 받아보세요 🔒" />
+      <PageIntro ko="1:1 피드백" en="Personal Feedback" desc="원장님의 1:1 개별 피드백을 받아보세요 🔒" />
       <div className="px-5 space-y-3">
 
         {/* 새 케이스 추가 버튼 */}
@@ -920,16 +935,18 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: '', content: '', category: '시술' });
   const [actionLoading, setActionLoading] = useState(false);
+  const [catOverride, setCatOverride] = useState(null);
 
   useEffect(() => {
     if (!qna?.user_id) return;
     supabase.from('public_profiles').select('name, avatar_color, avatar_url, role').eq('id', qna.user_id).maybeSingle()
       .then(({ data }) => setAuthor(data));
-    setEditForm({ 
-      title: qna.title || '', 
-      content: qna.content || '', 
-      category: qna.category || '시술' 
+    setEditForm({
+      title: qna.title || '',
+      content: qna.content || '',
+      category: qna.category || '시술'
     });
+    setCatOverride(null);
   }, [qna]);
 
   if (!qna) {
@@ -1076,8 +1093,13 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
             background: qna.status === 'answered' ? COLORS.ink : COLORS.peach,
             color: qna.status === 'answered' ? COLORS.primary : COLORS.deep
           }}>{qna.status === 'answered' ? '답변완료' : '답변대기'}</span>
-          <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cream, color: COLORS.stone }}>{qna.category}</span>
+          <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cream, color: COLORS.stone }}>{catOverride ?? qna.category}</span>
         </div>
+        {isAdmin && (
+          <div className="mt-3">
+            <CategoryMover table="questions" itemId={qna.id} current={catOverride ?? qna.category} options={['시술', '재료', '수업', '창업']} onMoved={setCatOverride} />
+          </div>
+        )}
         <h1 className="font-display text-2xl mt-3 tracking-tight leading-tight" style={{ color: COLORS.ink }}>{qna.title}</h1>
         {author && (
           <div className="flex items-center justify-between mt-3">
@@ -1277,6 +1299,9 @@ export function TrendsPage({ user, setCurrentPage, setSelectedTrend }) {
 
 export function TrendDetailPage({ trend: propTrend, user, routeId }) {
   const { item: trend, fetching } = useDetailItem(propTrend, routeId, 'trends');
+  const isAdmin = user?.role === 'admin' || user?.role === 'staff';
+  const [catOverride, setCatOverride] = useState(null);
+  useEffect(() => { setCatOverride(null); }, [trend?.id]);
   if (!trend) {
     return (
       <div className="px-5 py-10 text-center">
@@ -1313,12 +1338,17 @@ export function TrendDetailPage({ trend: propTrend, user, routeId }) {
       <div className="px-5 pt-5">
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>
-            {trend.category}
+            {catOverride ?? trend.category}
           </span>
           <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
             {new Date(trend.created_at).toLocaleDateString('ko-KR')}
           </span>
         </div>
+        {isAdmin && (
+          <div className="mb-3">
+            <CategoryMover table="trends" itemId={trend.id} current={catOverride ?? trend.category} options={['트렌드', '신상품', '시술기법', '업계소식', '마케팅팁']} onMoved={setCatOverride} />
+          </div>
+        )}
         <h1 className="font-display text-2xl tracking-tight leading-tight" style={{ color: COLORS.ink }}>{trend.title}</h1>
       </div>
 
@@ -1975,7 +2005,22 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
 
   return (
     <>
-      <PageIntro ko="온라인 강의" en="Lectures" desc="언제 어디서나 학습하세요" />
+      <PageIntro ko="온라인 강의" en="Lectures" desc="언제 어디서나 학습하세요 · 9월 오픈 예정" />
+
+      {/* 🗓️ 9월 오픈 안내 배너 */}
+      <div className="px-5 mb-4">
+        <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
+          <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+            <PlayCircle size={16} style={{ color: COLORS.white }} />
+          </div>
+          <div>
+            <p className="font-heading text-sm" style={{ color: COLORS.deep }}>온라인 강의 9월 오픈 예정 🎬</p>
+            <p className="font-body text-xs mt-1 leading-relaxed" style={{ color: COLORS.ink }}>
+              현재 강의 영상을 정성껏 준비하고 있어요. 9월에 오픈되면 알려드릴게요!
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* 🔍 검색바 */}
       <div className="px-5 mb-3">
@@ -2053,10 +2098,10 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
               ) : (
                 <div className="w-full h-full" style={{ background: COLORS.cardElev }}></div>
               )}
-              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.25)' }}>
-                <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)' }}>
-                  <Play size={20} fill={COLORS.white} style={{ color: COLORS.white }} className="ml-1" />
-                </div>
+              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
+                <span className="font-heading text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5" style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                  <Clock size={12} /> 영상 준비중
+                </span>
               </div>
               <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>
                 {l.category || '기초'}
@@ -2282,6 +2327,25 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
     }
   };
 
+  // 📂 게시판(카테고리) 이동 — 관리자/스태프 전용
+  const BOARD_CATEGORIES = [
+    { value: '자유', label: '자유게시판', page: 'freeboard' },
+    { value: '인사', label: '가입 인사', page: 'greetings' },
+    { value: '후기', label: '수강후기', page: 'reviews' },
+  ];
+
+  const handleMoveCategory = async (newCat) => {
+    const target = BOARD_CATEGORIES.find(c => c.value === newCat);
+    if (!target || newCat === post.category) return;
+    if (!await confirmDialog(`이 게시글을 "${target.label}"(으)로 이동할까요?`)) return;
+    setActionLoading(true);
+    const { error } = await supabase.from('community_posts').update({ category: newCat }).eq('id', post.id);
+    setActionLoading(false);
+    if (error) { toast('❌ 이동 실패: ' + error.message); return; }
+    toast(`📂 "${target.label}"(으)로 이동했어요`);
+    setCurrentPage(target.page);
+  };
+
   // ✏️ 수정 모드 UI
   if (editing) {
     return (
@@ -2373,6 +2437,27 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
               </div>
             )}
           </div>
+
+          {/* 📂 카테고리 이동 (관리자/스태프 전용) */}
+          {isAdmin && (
+            <div className="flex items-center gap-1.5 flex-wrap mb-4 pb-4" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
+              <span className="font-mono text-[10px] font-bold tracking-widest uppercase mr-1" style={{ color: COLORS.stone }}>이동</span>
+              {BOARD_CATEGORIES.map(c => {
+                const active = c.value === post.category;
+                return (
+                  <button key={c.value} onClick={() => handleMoveCategory(c.value)} disabled={actionLoading || active}
+                    className="font-heading text-[10px] px-3 py-1.5 rounded-full"
+                    style={{
+                      background: active ? COLORS.primary : COLORS.cardElev,
+                      color: active ? COLORS.white : COLORS.ink,
+                      border: `1px solid ${active ? COLORS.primary : COLORS.light}`,
+                    }}>
+                    {c.label}{active ? ' ✓' : ''}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {post.content && (
             <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
@@ -3374,15 +3459,51 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
     ? '첫 후기를 남겨보세요!'
     : '첫 게시글을 남겨보세요!';
 
+  // 👋 가입 인사 양식 (인사 게시판 전용)
+  const GREETING_TEMPLATE = `안녕하세요. 히썹 아카데미에 합류하게 된 OOO입니다.
+
+• 닉네임 / 이름 :
+• 수강 클래스 :
+• 거주 지역 :
+• 반영구를 시작하게 된 계기 :
+• 앞으로의 목표 한마디 :
+
+잘 부탁드립니다.`;
+
   return (
     <>
       <PageIntro ko={pageTitle || "커뮤니티"} en={pageEn || "Community"} desc={pageDesc || "동료들과 이야기 나눠보세요"} />
       <div className="px-5 space-y-3">
+        {/* 👋 가입 인사 양식 + 규정 안내 (인사 게시판 전용) */}
+        {fixedCategory === '인사' && (
+          <div className="rounded-2xl p-4" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
+            <p className="font-heading text-sm flex items-center gap-1.5" style={{ color: COLORS.deep }}>
+              <Sparkles size={14} /> 가입 인사 작성 안내
+            </p>
+            <div className="rounded-xl p-3 mt-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.primary }}>━━ 양식 예시</p>
+              <p className="font-body text-xs leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>{GREETING_TEMPLATE}</p>
+            </div>
+            <div className="rounded-xl p-3 mt-2" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-1.5" style={{ color: COLORS.primary }}>━━ 규정 안내</p>
+              <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.ink }}>
+                • 가입 후 첫 인사를 남겨주세요.<br />
+                • <b>수강 후기를 작성</b>하시면 <b>등업 예정</b>입니다.<br />
+                • 서로 존중하는 커뮤니티를 함께 만들어가요.
+              </p>
+            </div>
+            <button onClick={() => setNewPost(GREETING_TEMPLATE)}
+              className="w-full mt-3 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+              <Edit3 size={12} /> 양식 불러와서 작성하기
+            </button>
+          </div>
+        )}
         {/* 글 작성 */}
         <div className="rounded-2xl p-3 space-y-2" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <textarea value={newPost} onChange={e => setNewPost(e.target.value)}
-            placeholder={placeholder} rows={2}
-            className="w-full font-body text-xs font-medium p-2 outline-none resize-none rounded"
+            placeholder={placeholder} rows={fixedCategory === '인사' ? 11 : 3}
+            className="w-full font-body text-sm font-medium p-3 outline-none resize-y rounded leading-relaxed"
             style={{ background: COLORS.cream, color: COLORS.ink }} />
 
           {/* 📎 첨부 영역 */}
@@ -3825,7 +3946,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
                 {isAdmin && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>}
               </div>
               <p className="font-mono text-[10px] mt-1 truncate" style={{ color: COLORS.ink, opacity: 0.6 }}>{user.email}</p>
-              <p className="font-serif-italic text-sm mt-2" style={{ color: COLORS.primary }}>{user.course}</p>
+              <p className="font-body text-sm mt-2" style={{ color: COLORS.primary }}>{user.course}</p>
             </div>
           </div>
         </section>
@@ -5071,7 +5192,7 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
       id: 'greeting',
       icon: Sparkles,
       title: '가입 인사 작성',
-      desc: '학원 친구들에게 첫 인사를 남겨주세요',
+      desc: '인사를 남기면 모든 기능이 바로 열려요',
       done: user.onb_greeting,
       action: () => setCurrentPage('greetings'),
     },
@@ -5080,15 +5201,17 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
       icon: Heart,
       title: '첫 수업 후기 작성',
       desc: '첫 수업의 인상을 후기로 남겨주세요',
+      optional: true,
       done: user.onb_review,
       action: () => setCurrentPage('reviews'),
     },
-    // 🍊 신입생만 영상 미션 표시 (졸업생은 면제)
-    ...(user.is_graduate ? [] : [{
+    // 🍊 오리엔테이션 영상 (선택)
+    {
       id: 'video',
       icon: PlayCircle,
       title: '오리엔테이션 영상 시청',
       desc: 'HSSUP 아카데미를 소개해드릴게요',
+      optional: true,
       done: user.onb_video,
       action: () => {
         if (orientation) {
@@ -5098,11 +5221,13 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
           toast('오리엔테이션 영상이 아직 준비되지 않았어요.\n원장님께 문의해주세요!');
         }
       },
-    }]),
+    },
   ];
 
   const completed = missions.filter(m => m.done).length;
   const progress = (completed / missions.length) * 100;
+  // 🍊 가입 인사만 작성하면 전체 잠금 해제 (나머지는 선택)
+  const unlocked = !!user.onb_greeting;
   const allDone = completed === missions.length;
 
   return (
@@ -5114,7 +5239,7 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
           <span className="glow-text" style={{ color: COLORS.primary }}>{user.name}</span>님
         </h1>
         <p className="font-serif-italic text-base mt-3" style={{ color: COLORS.stone }}>
-          {allDone ? '모든 미션을 완료했어요! 🎉' : 'HSSUP에 오신 걸 환영해요 🍊'}
+          {unlocked ? '가입 인사 완료! 모든 기능이 열렸어요 🎉' : 'HSSUP에 오신 걸 환영해요 🍊'}
         </p>
       </div>
 
@@ -5160,7 +5285,12 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
                     : <Icon size={20} style={{ color: COLORS.primary }} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{m.title}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{m.title}</p>
+                    {m.optional && !m.done && (
+                      <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.cream, color: COLORS.stone }}>선택</span>
+                    )}
+                  </div>
                   <p className="font-body text-xs mt-0.5" style={{ color: m.done ? COLORS.primary : COLORS.stone }}>
                     {m.done ? '✓ 완료!' : m.desc}
                   </p>
@@ -5172,16 +5302,16 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
         </div>
 
         {/* 안내 */}
-        {!allDone && (
+        {!unlocked && (
           <div className="mt-4 p-3 rounded-xl" style={{ background: COLORS.peach }}>
             <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.deep }}>
-              💡 3가지 미션을 모두 완료하면<br/>모든 기능을 자유롭게 이용할 수 있어요!
+              💡 <b>가입 인사</b>만 작성하면 모든 기능을 바로 이용할 수 있어요!<br/>수강 후기·오리엔테이션 영상은 천천히 완료해주세요.
             </p>
           </div>
         )}
 
-        {/* 완료 시 안내 */}
-        {allDone && (
+        {/* 잠금 해제 시 안내 */}
+        {unlocked && (
           <button onClick={() => window.location.reload()}
             className="w-full mt-4 rounded-2xl py-4 font-display text-base font-bold transition-transform active:scale-95"
             style={{ 
@@ -5243,7 +5373,7 @@ export function ImprovementsPage({ user }) {
 
   return (
     <>
-      <PageIntro ko="개선 제안" en="Improvements" desc="아카데미에게 바라는 점을 자유롭게 남겨주세요 🔒 원장님께만 보입니다" />
+      <PageIntro ko="어플개선제안" en="Improvements" desc="앱을 사용하며 개선되었으면 하는 점을 자유롭게 남겨주세요 🔒 원장님께만 보입니다" />
 
       <div className="px-5">
         {!showForm && (
@@ -5472,6 +5602,9 @@ export function TipsPage({ user, setCurrentPage, setSelectedTip }) {
 
 export function TipDetailPage({ tip: propTip, user, routeId }) {
   const { item: tip, fetching } = useDetailItem(propTip, routeId, 'tips');
+  const isAdmin = user?.role === 'admin' || user?.role === 'staff';
+  const [catOverride, setCatOverride] = useState(null);
+  useEffect(() => { setCatOverride(null); }, [tip?.id]);
   if (!tip) {
     return (
       <div className="px-5 py-10 text-center">
@@ -5508,12 +5641,17 @@ export function TipDetailPage({ tip: propTip, user, routeId }) {
       <div className="px-5 pt-5">
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>
-            {tip.category}
+            {catOverride ?? tip.category}
           </span>
           <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
             {new Date(tip.created_at).toLocaleDateString('ko-KR')}
           </span>
         </div>
+        {isAdmin && (
+          <div className="mb-3">
+            <CategoryMover table="tips" itemId={tip.id} current={catOverride ?? tip.category} options={['수업노트', '시술꿀팁', '운영꿀팁', '기타']} onMoved={setCatOverride} />
+          </div>
+        )}
         <h1 className="font-display text-2xl tracking-tight leading-tight" style={{ color: COLORS.ink }}>{tip.title}</h1>
       </div>
 

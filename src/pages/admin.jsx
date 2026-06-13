@@ -111,7 +111,7 @@ export function AdminImprovements({ user }) {
 
   return (
     <>
-      <PageIntro ko="개선 제안 관리" en="Improvements Admin" desc="학생들의 의견에 답변해주세요" />
+      <PageIntro ko="어플개선제안 관리" en="Improvements Admin" desc="학생들의 의견에 답변해주세요" />
 
       <div className="px-5 mb-4">
         <div className="grid grid-cols-2 gap-2 mb-3">
@@ -355,8 +355,8 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
     { id: 'admin-tips',         label: 'TIPS',     ko: '수업·꿀팁',     icon: Sparkles },
     { id: 'admin-students',     label: 'STUDENTS', ko: '수강생',        icon: UserCheck },
     { id: 'admin-qna',          label: 'Q&A',      ko: 'Q&A 답변',      icon: MessageCircle },
-    { id: 'admin-improvements', label: 'FEEDBACK', ko: '개선 제안',     icon: Edit3 },
-    { id: 'admin-cases',        label: 'CASES',    ko: '개별피드백',    icon: Camera },
+    { id: 'admin-improvements', label: 'FEEDBACK', ko: '어플개선제안',   icon: Edit3 },
+    { id: 'admin-cases',        label: 'CASES',    ko: '1:1 피드백',    icon: Camera },
     { id: 'admin-lectures',     label: 'LECTURES', ko: '강의 관리',     icon: PlayCircle },
     { id: 'admin-products',     label: 'PRODUCTS', ko: '재료샵',        icon: ShoppingBag },
     { id: 'admin-library',      label: 'LIBRARY',  ko: '자료실',        icon: FolderOpen },
@@ -2704,7 +2704,7 @@ export function AdminApprovals({ user }) {
                 </div>
                 <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{u.email}</p>
                 {u.phone && <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>📞 {u.phone}</p>}
-                <p className="font-serif-italic text-xs mt-1" style={{ color: COLORS.primary }}>{u.course}</p>
+                <p className="font-body text-xs mt-1" style={{ color: COLORS.primary }}>{u.course}</p>
                 <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>가입: {new Date(u.created_at).toLocaleDateString('ko-KR')}</p>
                 
                 {/* 🎓 졸업생 신청 표시 */}
@@ -2902,7 +2902,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
                 {student.status === 'rejected' && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>거절됨</span>}
               </div>
               <p className="font-mono text-[10px] mt-1 truncate" style={{ color: COLORS.ink, opacity: 0.7 }}>{student.email}</p>
-              <p className="font-serif-italic text-sm mt-2" style={{ color: COLORS.primary }}>{student.course}</p>
+              <p className="font-body text-sm mt-2" style={{ color: COLORS.primary }}>{student.course}</p>
             </div>
           </div>
         </div>
@@ -3208,7 +3208,7 @@ export function AdminStudents({ setCurrentPage, setSelectedStudent }) {
                 {s.status === 'rejected' && <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>거절</span>}
               </div>
               <p className="font-mono text-[10px] truncate" style={{ color: COLORS.stone }}>{s.email}</p>
-              <p className="font-serif-italic text-xs mt-1" style={{ color: COLORS.primary }}>{s.course}</p>
+              <p className="font-body text-xs mt-1" style={{ color: COLORS.primary }}>{s.course}</p>
             </div>
             <ChevronRight size={16} style={{ color: COLORS.stone }} />
           </button>
@@ -3258,7 +3258,7 @@ export function AdminCases() {
 
   return (
     <>
-      <PageIntro ko="케이스 관리" en="Cases Admin" />
+      <PageIntro ko="1:1 피드백" en="Cases Admin" />
 
       <div className="px-5 mb-4">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">

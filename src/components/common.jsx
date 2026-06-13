@@ -4,8 +4,46 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { COLORS, getInitial, AVATAR_COLORS } from '../lib/colors';
 import { subscribeToast, toast } from '../lib/toast';
-import { subscribeConfirm } from '../lib/dialog';
+import { subscribeConfirm, confirmDialog } from '../lib/dialog';
 import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X } from 'lucide-react';
+
+// =============================================================
+// 📂 CategoryMover - 관리자/스태프용 카테고리 이동 버튼 (공용)
+//   table: 대상 테이블, itemId: 행 id, current: 현재 카테고리,
+//   options: 선택 가능한 카테고리 배열, onMoved: 이동 후 콜백(newCat)
+// =============================================================
+export function CategoryMover({ table, itemId, current, options, onMoved }) {
+  const [loading, setLoading] = useState(false);
+  const move = async (cat) => {
+    if (cat === current || loading) return;
+    if (!await confirmDialog(`이 게시글을 "${cat}" 카테고리로 이동할까요?`)) return;
+    setLoading(true);
+    const { error } = await supabase.from(table).update({ category: cat }).eq('id', itemId);
+    setLoading(false);
+    if (error) { toast('❌ 이동 실패: ' + error.message); return; }
+    toast(`📂 "${cat}" 카테고리로 이동했어요`);
+    onMoved?.(cat);
+  };
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span className="font-mono text-[10px] font-bold tracking-widest uppercase mr-1" style={{ color: COLORS.stone }}>이동</span>
+      {options.map(o => {
+        const active = o === current;
+        return (
+          <button key={o} onClick={() => move(o)} disabled={loading || active}
+            className="font-heading text-[10px] px-3 py-1.5 rounded-full"
+            style={{
+              background: active ? COLORS.primary : COLORS.cardElev,
+              color: active ? COLORS.white : COLORS.ink,
+              border: `1px solid ${active ? COLORS.primary : COLORS.light}`,
+            }}>
+            {o}{active ? ' ✓' : ''}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // =============================================================
 // ❓ ConfirmHost - 전역 확인 모달 (App 최상단에 한 번 마운트)

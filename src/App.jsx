@@ -557,7 +557,7 @@ export default function HSSUPApp() {
       { id: 'tips', label: '수업·꿀팁', icon: Sparkles },
     ]},
     { section: 'PRACTICE', items: [
-      { id: 'mycase', label: '개별피드백', icon: Camera },
+      { id: 'mycase', label: '1:1 피드백', icon: Camera },
       { id: 'best', label: '베스트 케이스', icon: Award },
       { id: 'practice-booking', label: '연습 예약', icon: Calendar },
     ]},
@@ -565,10 +565,10 @@ export default function HSSUPApp() {
       { id: 'notice', label: '학원공지', icon: Bell },
       { id: 'trends', label: '트렌드 속보', icon: Sparkles },
       { id: 'qna', label: 'Q&A', icon: MessageCircle },
-      { id: 'improvements', label: '개선 제안', icon: Edit3 },
       { id: 'greetings', label: '가입 인사', icon: Sparkles },
       { id: 'reviews', label: '수강후기', icon: Heart },
       { id: 'freeboard', label: '자유게시판', icon: Users },
+      { id: 'improvements', label: '어플개선제안', icon: Edit3 },
     ]},
     { section: 'RESOURCE', items: [
       { id: 'library', label: '자료실', icon: FolderOpen },
@@ -591,16 +591,16 @@ export default function HSSUPApp() {
       { id: 'admin-shipments', label: '주문 관리', icon: Package },
       { id: 'admin-students', label: '수강생', icon: UserCheck },
       { id: 'admin-qna', label: 'Q&A 답변', icon: MessageCircle },
-      { id: 'admin-improvements', label: '개선 제안 답변', icon: Edit3 },
       { id: 'admin-notice', label: '학원공지 관리', icon: Bell },
       { id: 'admin-trends', label: '트렌드 속보 관리', icon: Sparkles },
       { id: 'admin-tips', label: '수업·꿀팁 관리', icon: Sparkles },
-      { id: 'admin-cases', label: '케이스 관리', icon: Camera },
+      { id: 'admin-cases', label: '1:1 피드백 관리', icon: Camera },
       { id: 'admin-lectures', label: '강의 관리', icon: PlayCircle },
       { id: 'admin-products', label: '재료샵 관리', icon: ShoppingBag },
       { id: 'admin-library', label: '자료실 관리', icon: FolderOpen },
       { id: 'admin-courses', label: '클래스 관리', icon: BookOpen },
       { id: 'practice-admin', label: '연습 베드 관리', icon: Calendar },
+      { id: 'admin-improvements', label: '어플개선제안 답변', icon: Edit3 },
     ]},
     { section: 'LEARN', items: [
       { id: 'home', label: '홈', icon: Home },
@@ -609,7 +609,7 @@ export default function HSSUPApp() {
       { id: 'tips', label: '수업·꿀팁', icon: Sparkles },
     ]},
     { section: 'PRACTICE', items: [
-      { id: 'mycase', label: '개별피드백', icon: Camera },
+      { id: 'mycase', label: '1:1 피드백', icon: Camera },
       { id: 'best', label: '베스트 케이스', icon: Award },
       { id: 'practice-booking', label: '연습 예약', icon: Calendar },
     ]},
@@ -1068,7 +1068,7 @@ function AuthScreen() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [signupForm, setSignupForm] = useState({
     name: '', username: '', email: '', password: '', passwordConfirm: '',
-    phone: '', course: '눈썹 마스터 클래스', avatar_color: 'orange',
+    phone: '', course: '토탈풀마스터', avatar_color: 'orange',
     is_graduate: false
   });
 
@@ -1341,8 +1341,8 @@ function AuthScreen() {
                   <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>CLASS</label>
                   <select value={signupForm.course} onChange={e => setSignupForm({ ...signupForm, course: e.target.value })}
                     className="w-full font-body text-sm font-medium border-b py-1.5 mt-0.5 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }}>
-                    <option>눈썹 베이직 클래스</option><option>눈썹 마스터 클래스</option><option>아이라인 클래스</option>
-                    <option>입술 문신 클래스</option><option>속눈썹 펌·연장 클래스</option><option>올인원 마스터 클래스</option>
+                    <option>토탈풀마스터</option><option>풀마스터</option><option>브로우마스터</option>
+                    <option>원데이</option><option>단과반(엠보)</option><option>단과반(수지)</option><option>단과반(콤보)</option>
                   </select>
                 </div>
 
@@ -1585,7 +1585,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
                 <p className="font-heading text-sm">{user.name}</p>
                 {isAdmin && <span className="font-body text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>ADMIN</span>}
               </div>
-              <p className="font-serif-italic text-xs opacity-70 mt-0.5" style={{ color: COLORS.stone }}>{user.course}</p>
+              <p className="font-body text-xs opacity-70 mt-0.5" style={{ color: COLORS.stone }}>{user.course}</p>
             </div>
           </div>
         </div>
@@ -1621,12 +1621,8 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
  
 function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser, routeId }) {
   // Debug route removed
-  // 🍊 온보딩 체크 - 졸업생은 인사+후기, 신입생은 전부 필요
-  const needsOnboarding = !isAdmin && user && (
-    user.is_graduate 
-      ? (!user.onb_greeting || !user.onb_review)  // 🎓 졸업생: 인사+후기만
-      : (!user.onb_greeting || !user.onb_review || !user.onb_video)  // 🌱 신입생: 전부
-  );
+  // 🍊 온보딩 체크 - 가입 인사만 작성하면 전체 오픈 (신입생/졸업생 동일)
+  const needsOnboarding = !isAdmin && user && !user.onb_greeting;
   const ONBOARDING_ALLOWED = ['onboarding', 'greetings', 'reviews', 'community', 'freeboard', 'lecture-detail', 'mypage'];
   
   if (needsOnboarding && !ONBOARDING_ALLOWED.includes(currentPage)) {
