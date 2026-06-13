@@ -457,7 +457,7 @@ export function CourseDetailPage({ course: propCourse, user, setCurrentPage, set
   return (
     <div className="pb-28">
       {getRowImages(c).length > 0 && (
-        <ImageCarousel images={getRowImages(c)} className="aspect-video w-full" rounded="" bordered={false} />
+        <ImageCarousel images={getRowImages(c)} className="aspect-video w-full" rounded="" bordered={false} zoomable />
       )}
       <div className="px-5 pt-5">
         <div className="flex items-center gap-1.5 flex-wrap mb-2">
@@ -1331,10 +1331,6 @@ export function TrendDetailPage({ trend: propTrend, user, routeId }) {
 
   return (
     <div className="pb-6">
-      {getRowImages(trend).length > 0 && (
-        <ImageCarousel images={getRowImages(trend)} className="aspect-[16/9] w-full" rounded="" bordered={false} />
-      )}
-
       <div className="px-5 pt-5">
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>
@@ -1351,6 +1347,12 @@ export function TrendDetailPage({ trend: propTrend, user, routeId }) {
         )}
         <h1 className="font-display text-2xl tracking-tight leading-tight" style={{ color: COLORS.ink }}>{trend.title}</h1>
       </div>
+
+      {getRowImages(trend).length > 0 && (
+        <div className="px-5 mt-4">
+          <ImageCarousel images={getRowImages(trend)} className="w-full" fit="contain" zoomable />
+        </div>
+      )}
 
       {trend.content && (
         <div className="px-5 mt-4">
@@ -1675,7 +1677,7 @@ export function LibraryDetailPage({ file: propFile, setCurrentPage, routeId }) {
 
       {getRowImages(file).length > 0 && (
         <div className="px-5 mb-4">
-          <ImageCarousel images={getRowImages(file)} className="aspect-[4/3] w-full" />
+          <ImageCarousel images={getRowImages(file)} className="w-full" fit="contain" zoomable />
         </div>
       )}
 
@@ -2467,7 +2469,7 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
 
           {getRowImages(post).length > 0 && (
             <div className="mt-3">
-              <ImageCarousel images={getRowImages(post)} className="aspect-square w-full" />
+              <ImageCarousel images={getRowImages(post)} className="w-full" fit="contain" zoomable />
             </div>
           )}
 
@@ -2549,7 +2551,7 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
       {/* 큰 이미지 */}
       <div className="relative aspect-square w-full overflow-hidden" style={{ background: COLORS.cream }}>
         {getRowImages(product).length > 0 ? (
-          <ImageCarousel images={getRowImages(product)} className="w-full h-full" rounded="" bordered={false} />
+          <ImageCarousel images={getRowImages(product)} className="w-full h-full" rounded="" bordered={false} zoomable />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-9xl" style={{ color: COLORS.primary }}>{product.emoji || '🛍️'}</span>
@@ -5634,10 +5636,6 @@ export function TipDetailPage({ tip: propTip, user, routeId }) {
 
   return (
     <div className="pb-6">
-      {getRowImages(tip).length > 0 && (
-        <ImageCarousel images={getRowImages(tip)} className="aspect-[16/9] w-full" rounded="" bordered={false} />
-      )}
-
       <div className="px-5 pt-5">
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>
@@ -5654,6 +5652,12 @@ export function TipDetailPage({ tip: propTip, user, routeId }) {
         )}
         <h1 className="font-display text-2xl tracking-tight leading-tight" style={{ color: COLORS.ink }}>{tip.title}</h1>
       </div>
+
+      {getRowImages(tip).length > 0 && (
+        <div className="px-5 mt-4">
+          <ImageCarousel images={getRowImages(tip)} className="w-full" fit="contain" zoomable />
+        </div>
+      )}
 
       {tip.content && (
         <div className="px-5 mt-4">

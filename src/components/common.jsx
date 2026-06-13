@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { COLORS, getInitial, AVATAR_COLORS } from '../lib/colors';
 import { subscribeToast, toast } from '../lib/toast';
 import { subscribeConfirm, confirmDialog } from '../lib/dialog';
-import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X } from 'lucide-react';
+import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // =============================================================
 // 📂 CategoryMover - 관리자/스태프용 카테고리 이동 버튼 (공용)
@@ -196,17 +196,30 @@ export function MultiImageField({ value, onChange, max = 10, label = '이미지'
   );
 }
 
-export function ImageCarousel({ images, className = '', rounded = 'rounded-2xl', bordered = true }) {
+// fit: 'cover'(목록 카드 — 균일 비율로 채움/크롭) | 'contain'(상세 — 전체가 보이게, 잘림 없음)
+// zoomable: true면 탭/클릭 시 전체화면 라이트박스로 확대(여러 장은 스와이프)
+export function ImageCarousel({ images, className = '', rounded = 'rounded-2xl', bordered = true, fit = 'cover', zoomable = false }) {
   const list = (images || []).filter(Boolean);
   const [idx, setIdx] = useState(0);
+  const [box, setBox] = useState(-1); // 라이트박스 시작 인덱스(-1=닫힘)
   const ref = useRef(null);
   const borderStyle = bordered ? { border: `1px solid ${COLORS.light}` } : {};
   if (list.length === 0) return null;
+
+  const zoomCls = zoomable ? 'cursor-zoom-in' : '';
+  const openBox = (i) => { if (zoomable) setBox(i); };
+  const lb = box >= 0 ? <Lightbox images={list} index={box} onClose={() => setBox(-1)} /> : null;
+  // contain은 이미지 본래 높이를 따르므로 슬라이드에 고정 높이를 주지 않는다(잘림 방지).
+  const hCls = fit === 'contain' ? '' : 'h-full';
+
   if (list.length === 1) {
     return (
-      <div className={`${rounded} overflow-hidden ${className}`} style={borderStyle}>
-        <SkeletonImage src={list[0]} alt="" className="w-full h-full object-cover" />
-      </div>
+      <>
+        <div className={`${rounded} overflow-hidden ${className} ${zoomCls}`} style={borderStyle} onClick={() => openBox(0)}>
+          <SkeletonImage src={list[0]} alt="" fit={fit} className={`w-full ${hCls}`} />
+        </div>
+        {lb}
+      </>
     );
   }
   const onScroll = () => {
@@ -215,30 +228,101 @@ export function ImageCarousel({ images, className = '', rounded = 'rounded-2xl',
     setIdx(Math.round(el.scrollLeft / el.clientWidth));
   };
   return (
-    <div className={`relative ${rounded} overflow-hidden ${className}`} style={borderStyle}>
-      <div ref={ref} onScroll={onScroll}
-        className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full">
-        {list.map((src, i) => (
-          <div key={i} className="shrink-0 w-full h-full snap-center">
-            <SkeletonImage src={src} alt="" className="w-full h-full object-cover" />
-          </div>
-        ))}
+    <>
+      <div className={`relative ${rounded} overflow-hidden ${className} ${zoomCls}`} style={borderStyle}>
+        <div ref={ref} onScroll={onScroll}
+          className={`flex overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full ${hCls}`}>
+          {list.map((src, i) => (
+            <div key={i} className={`shrink-0 w-full ${hCls} snap-center`} onClick={() => openBox(i)}>
+              <SkeletonImage src={src} alt="" fit={fit} className={`w-full ${hCls}`} />
+            </div>
+          ))}
+        </div>
+        {/* 점 인디케이터 */}
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
+          {list.map((_, i) => (
+            <span key={i} className="rounded-full transition-all" style={{
+              width: i === idx ? 16 : 6, height: 6,
+              background: i === idx ? COLORS.white : 'rgba(255,255,255,0.5)',
+            }} />
+          ))}
+        </div>
+        {/* 장수 배지 */}
+        <span className="absolute top-2 right-2 font-mono text-[9px] font-bold px-2 py-1 rounded-full pointer-events-none"
+          style={{ background: 'rgba(0,0,0,0.55)', color: COLORS.white }}>
+          {idx + 1} / {list.length}
+        </span>
       </div>
-      {/* 점 인디케이터 */}
-      <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
-        {list.map((_, i) => (
-          <span key={i} className="rounded-full transition-all" style={{
-            width: i === idx ? 16 : 6, height: 6,
-            background: i === idx ? COLORS.white : 'rgba(255,255,255,0.5)',
-          }} />
-        ))}
+      {lb}
+    </>
+  );
+}
+
+// 전체화면 이미지 뷰어: 전체 보기(화면 맞춤) ↔ 탭하면 실제 크기로 확대(스크롤해서 디테일 확인)
+// 여러 장이면 좌우 화살표/스와이프로 이동. 배경/X/Esc로 닫기.
+export function Lightbox({ images, index = 0, onClose }) {
+  const list = (images || []).filter(Boolean);
+  const [idx, setIdx] = useState(index);
+  const [zoomed, setZoomed] = useState(false);
+  const startX = useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowRight') { setZoomed(false); setIdx(i => Math.min(i + 1, list.length - 1)); }
+      else if (e.key === 'ArrowLeft') { setZoomed(false); setIdx(i => Math.max(i - 1, 0)); }
+    };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [onClose, list.length]);
+
+  if (list.length === 0) return null;
+  const go = (d) => { setZoomed(false); setIdx(i => Math.max(0, Math.min(list.length - 1, i + d))); };
+  const btn = { background: 'rgba(255,255,255,0.16)', color: '#fff' };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.94)' }} onClick={onClose}>
+      <button onClick={onClose} aria-label="닫기"
+        className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full flex items-center justify-center" style={btn}>
+        <X size={22} />
+      </button>
+      {list.length > 1 && (
+        <span className="absolute top-5 left-1/2 -translate-x-1/2 z-10 font-mono text-xs font-bold px-3 py-1 rounded-full" style={btn}>
+          {idx + 1} / {list.length}
+        </span>
+      )}
+      <div className={`w-full h-full ${zoomed ? 'overflow-auto' : 'overflow-hidden flex items-center justify-center'}`}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => { startX.current = e.touches[0].clientX; }}
+        onTouchEnd={(e) => {
+          if (zoomed || startX.current == null) return;
+          const dx = e.changedTouches[0].clientX - startX.current;
+          if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+          startX.current = null;
+        }}>
+        <img src={list[idx]} alt=""
+          onClick={() => setZoomed(z => !z)}
+          className={zoomed ? 'w-auto max-w-none cursor-zoom-out mx-auto' : 'max-w-full max-h-full object-contain cursor-zoom-in mx-auto'}
+          style={zoomed ? { minWidth: '100%' } : {}} />
       </div>
-      {/* 장수 배지 */}
-      <span className="absolute top-2 right-2 font-mono text-[9px] font-bold px-2 py-1 rounded-full pointer-events-none"
-        style={{ background: 'rgba(0,0,0,0.55)', color: COLORS.white }}>
-        {idx + 1} / {list.length}
-      </span>
-    </div>
+      {list.length > 1 && !zoomed && (
+        <>
+          <button onClick={(e) => { e.stopPropagation(); go(-1); }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ ...btn, opacity: idx === 0 ? 0.3 : 1 }}>
+            <ChevronLeft size={24} />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); go(1); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ ...btn, opacity: idx === list.length - 1 ? 0.3 : 1 }}>
+            <ChevronRight size={24} />
+          </button>
+        </>
+      )}
+    </div>,
+    document.body
   );
 }
 
@@ -263,7 +347,7 @@ export function LegalPage({ ko, en, desc, content }) {
   );
 }
 
-export function SkeletonImage({ src, alt, className = '', style = {}, onError, ...rest }) {
+export function SkeletonImage({ src, alt, className = '', style = {}, onError, fit = 'cover', ...rest }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const imgRef = useRef(null);
@@ -288,14 +372,17 @@ export function SkeletonImage({ src, alt, className = '', style = {}, onError, .
     );
   }
 
+  // contain: 전체가 보이게(잘림 없음), 본문에 어울리는 미리보기 높이로 제한(원본은 탭하면 라이트박스). cover: 채우고 넘치면 크롭.
+  const imgCls = fit === 'contain' ? 'w-full max-h-[360px] object-contain' : 'w-full h-full object-cover';
   return (
-    <div className={`relative overflow-hidden ${className}`} style={{ ...style, background: COLORS.cardElev }}>
+    <div className={`relative overflow-hidden ${className}`}
+      style={{ ...style, background: COLORS.cardElev, ...(fit === 'contain' && !loaded ? { minHeight: 160 } : {}) }}>
       {!loaded && <div className="absolute inset-0 skeleton-shimmer"></div>}
       <img
         ref={imgRef}
         src={src}
         alt={alt}
-        className="w-full h-full object-cover"
+        className={imgCls}
         style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.3s ease' }}
         onLoad={() => setLoaded(true)}
         onError={() => { setError(true); if (onError) onError(); }}
