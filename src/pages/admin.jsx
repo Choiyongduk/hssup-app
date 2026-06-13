@@ -4027,6 +4027,7 @@ export function AdminCourses({ user }) {
     title: '', en_title: '', level: 'BASIC', duration: '', price: '', original_price: '',
     show_price: true, description: '', features: '', badge: '',
     is_active: true, is_featured: false, hot: false, order_index: 0,
+    category: 'PMU',
     image_urls: [], imageFiles: [], imagePreviews: [],
   });
 
@@ -4045,6 +4046,7 @@ export function AdminCourses({ user }) {
       title: '', en_title: '', level: 'BASIC', duration: '', price: '', original_price: '',
       show_price: true, description: '', features: '', badge: '',
       is_active: true, is_featured: false, hot: false, order_index: 0,
+      category: 'PMU',
       image_urls: [], imageFiles: [], imagePreviews: [],
     });
     setEditingId(null);
@@ -4067,6 +4069,7 @@ export function AdminCourses({ user }) {
       is_featured: course.is_featured || false,
       hot: course.hot || false,
       order_index: course.order_index || 0,
+      category: course.category || 'PMU',
       image_urls: getRowImages(course),
       imageFiles: [],
       imagePreviews: [],
@@ -4093,6 +4096,7 @@ export function AdminCourses({ user }) {
         show_price: form.show_price, description: form.description, features: form.features,
         badge: form.badge || null, is_active: form.is_active, is_featured: form.is_featured,
         hot: form.hot, order_index: parseInt(form.order_index) || 0,
+        category: form.category,
         image_urls: imageUrls, image_url: imageUrls[0] || null,
       };
       if (editingId) {
@@ -4206,6 +4210,19 @@ export function AdminCourses({ user }) {
                   className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
                   style={{ borderColor: COLORS.light, color: COLORS.ink }} />
               </div>
+            </div>
+
+            <div>
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>카테고리 (클래스 탭)</label>
+              <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}
+                className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                style={{ borderColor: COLORS.light, color: COLORS.ink }}>
+                <option value="PMU">PMU</option>
+                <option value="원데이">원데이</option>
+                <option value="SMP">SMP</option>
+                <option value="속눈썹">속눈썹</option>
+                <option value="기타">기타</option>
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-2">

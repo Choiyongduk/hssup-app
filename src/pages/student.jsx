@@ -265,7 +265,9 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
   const [courses, setCourses] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('order');
+  const [courseCategory, setCourseCategory] = useState('전체');
   const [loading, setLoading] = useState(true);
+  const COURSE_CATEGORIES = ['전체', 'PMU', '원데이', 'SMP', '속눈썹', '기타'];
 
   useEffect(() => {
     supabase.from('courses').select('*').eq('is_active', true).order('order_index', { ascending: true })
@@ -275,6 +277,7 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
   // 🍊 검색 + 정렬
   const filtered = courses
     .filter(c => {
+      if (courseCategory !== '전체' && c.category !== courseCategory) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const titleMatch = (c.title || '').toLowerCase().includes(q);
@@ -292,7 +295,7 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
       return (a.order_index || 0) - (b.order_index || 0);
     });
 
-  const isFiltering = searchQuery.trim().length > 0;
+  const isFiltering = searchQuery.trim().length > 0 || courseCategory !== '전체';
 
   const openCourse = (c) => {
     setSelectedCourse(c);
@@ -316,6 +319,24 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
               <X size={12} style={{ color: COLORS.stone }} />
             </button>
           )}
+        </div>
+      </div>
+
+      {/* 🏷️ 카테고리 탭 */}
+      <div className="px-5 mb-3">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {COURSE_CATEGORIES.map(cat => (
+            <button key={cat} onClick={() => setCourseCategory(cat)}
+              className="shrink-0 px-4 py-2 rounded-full font-body text-xs font-semibold transition-transform active:scale-95"
+              style={{
+                background: courseCategory === cat ? COLORS.primary : COLORS.card,
+                color: courseCategory === cat ? COLORS.white : COLORS.ink,
+                border: `1px solid ${courseCategory === cat ? COLORS.primary : COLORS.light}`,
+                boxShadow: courseCategory === cat ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none',
+              }}>
+              {cat}
+            </button>
+          ))}
         </div>
       </div>
 
