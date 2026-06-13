@@ -362,7 +362,12 @@ export default function HSSUPApp() {
       container.removeEventListener('touchend', onTouchEnd);
     };
   }, [refreshing]);
- 
+
+  // 🍊 페이지 전환 시 항상 맨 위에서 시작 (상세글을 열면 목록의 스크롤 위치가 남아 중간부터 보이던 문제)
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [currentPage, routeId]);
+
   const loadProfile = async (userId) => {
     setLoading(true);
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();

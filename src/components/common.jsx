@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { COLORS, getInitial, AVATAR_COLORS } from '../lib/colors';
 import { subscribeToast, toast } from '../lib/toast';
 import { subscribeConfirm, confirmDialog } from '../lib/dialog';
-import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
 
 // =============================================================
 // 📂 CategoryMover - 관리자/스태프용 카테고리 이동 버튼 (공용)
@@ -258,19 +258,21 @@ export function ImageCarousel({ images, className = '', rounded = 'rounded-2xl',
   );
 }
 
-// 전체화면 이미지 뷰어: 전체 보기(화면 맞춤) ↔ 탭하면 실제 크기로 확대(스크롤해서 디테일 확인)
-// 여러 장이면 좌우 화살표/스와이프로 이동. 배경/X/Esc로 닫기.
+// 전체화면 이미지 뷰어. 갇힘 방지 설계:
+//  - 상단 바(확대/축소·닫기)는 이미지 영역과 분리된 flex 형제라 확대해도 항상 누를 수 있음
+//  - 확대는 이미지 탭이 아니라 명시적 버튼으로(iOS 더블탭 줌 충돌 방지)
+//  - 축소 상태에선 빈 곳/이미지를 탭하면 닫힘. 여러 장은 좌우 화살표/스와이프, Esc로 닫기.
 export function Lightbox({ images, index = 0, onClose }) {
   const list = (images || []).filter(Boolean);
   const [idx, setIdx] = useState(index);
-  const [zoomed, setZoomed] = useState(false);
+  const [zoom, setZoom] = useState(false);
   const startX = useRef(null);
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowRight') { setZoomed(false); setIdx(i => Math.min(i + 1, list.length - 1)); }
-      else if (e.key === 'ArrowLeft') { setZoomed(false); setIdx(i => Math.max(i - 1, 0)); }
+      else if (e.key === 'ArrowRight') { setZoom(false); setIdx(i => Math.min(i + 1, list.length - 1)); }
+      else if (e.key === 'ArrowLeft') { setZoom(false); setIdx(i => Math.max(i - 1, 0)); }
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -279,43 +281,54 @@ export function Lightbox({ images, index = 0, onClose }) {
   }, [onClose, list.length]);
 
   if (list.length === 0) return null;
-  const go = (d) => { setZoomed(false); setIdx(i => Math.max(0, Math.min(list.length - 1, i + d))); };
-  const btn = { background: 'rgba(255,255,255,0.16)', color: '#fff' };
+  const go = (d) => { setZoom(false); setIdx(i => Math.max(0, Math.min(list.length - 1, i + d))); };
+  const btn = { background: 'rgba(255,255,255,0.18)', color: '#fff' };
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.94)' }} onClick={onClose}>
-      <button onClick={onClose} aria-label="닫기"
-        className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full flex items-center justify-center" style={btn}>
-        <X size={22} />
-      </button>
-      {list.length > 1 && (
-        <span className="absolute top-5 left-1/2 -translate-x-1/2 z-10 font-mono text-xs font-bold px-3 py-1 rounded-full" style={btn}>
-          {idx + 1} / {list.length}
+    <div className="fixed inset-0 z-[120] flex flex-col" style={{ background: 'rgba(0,0,0,0.96)' }}>
+      {/* 상단 바 — 이미지/스크롤 영역과 분리되어 항상 탭 가능 */}
+      <div className="shrink-0 flex items-center justify-between px-3 z-20"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)', paddingBottom: 10 }}>
+        <button onClick={() => setZoom(z => !z)}
+          className="h-11 px-4 rounded-full flex items-center gap-1.5 font-body text-sm font-bold" style={btn}>
+          {zoom ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          {zoom ? '축소' : '확대'}
+        </button>
+        <span className="font-mono text-xs font-bold" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          {list.length > 1 ? `${idx + 1} / ${list.length}` : ''}
         </span>
-      )}
-      <div className={`w-full h-full ${zoomed ? 'overflow-auto' : 'overflow-hidden flex items-center justify-center'}`}
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => { startX.current = e.touches[0].clientX; }}
+        <button onClick={onClose} aria-label="닫기"
+          className="w-11 h-11 rounded-full flex items-center justify-center" style={btn}>
+          <X size={24} />
+        </button>
+      </div>
+
+      {/* 이미지 영역: 확대 시 스크롤로 보기, 축소 시 탭하면 닫힘 */}
+      <div className={`flex-1 min-h-0 ${zoom ? 'overflow-auto' : 'flex items-center justify-center px-2 pb-4'}`}
+        onClick={zoom ? undefined : onClose}
+        onTouchStart={(e) => { if (!zoom) startX.current = e.touches[0].clientX; }}
         onTouchEnd={(e) => {
-          if (zoomed || startX.current == null) return;
+          if (zoom || startX.current == null) return;
           const dx = e.changedTouches[0].clientX - startX.current;
           if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
           startX.current = null;
         }}>
         <img src={list[idx]} alt=""
-          onClick={() => setZoomed(z => !z)}
-          className={zoomed ? 'w-auto max-w-none cursor-zoom-out mx-auto' : 'max-w-full max-h-full object-contain cursor-zoom-in mx-auto'}
-          style={zoomed ? { minWidth: '100%' } : {}} />
+          onClick={zoom ? (e) => e.stopPropagation() : undefined}
+          className={zoom ? 'max-w-none block mx-auto' : 'max-w-full max-h-full object-contain mx-auto'}
+          style={zoom ? { width: '175%' } : {}} />
       </div>
-      {list.length > 1 && !zoomed && (
+
+      {/* 좌우 이동 (여러 장, 축소 상태) */}
+      {list.length > 1 && !zoom && (
         <>
-          <button onClick={(e) => { e.stopPropagation(); go(-1); }}
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center"
+          <button onClick={() => go(-1)}
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full flex items-center justify-center"
             style={{ ...btn, opacity: idx === 0 ? 0.3 : 1 }}>
             <ChevronLeft size={24} />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); go(1); }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center"
+          <button onClick={() => go(1)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full flex items-center justify-center"
             style={{ ...btn, opacity: idx === list.length - 1 ? 0.3 : 1 }}>
             <ChevronRight size={24} />
           </button>
