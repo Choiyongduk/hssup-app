@@ -3,6 +3,26 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 // =============================================================
+// 🔗 useDetailItem - 상세 페이지 딥링크용
+//   앱 내 이동 시엔 propItem(state)을 그대로, URL 직접 진입/새로고침 시엔
+//   routeId로 DB에서 단건 조회. { item, fetching } 반환.
+// =============================================================
+export function useDetailItem(propItem, routeId, table) {
+  const [loaded, setLoaded] = useState(null);
+  const [fetching, setFetching] = useState(!!routeId && !propItem);
+  useEffect(() => {
+    let alive = true;
+    if (!propItem && routeId) {
+      setFetching(true);
+      supabase.from(table).select('*').eq('id', routeId).maybeSingle()
+        .then(({ data }) => { if (alive) { setLoaded(data); setFetching(false); } });
+    }
+    return () => { alive = false; };
+  }, [propItem, routeId, table]);
+  return { item: propItem || loaded, fetching };
+}
+
+// =============================================================
 // 📝 useDraft - 작성 중 글 자동 저장 (localStorage)
 // =============================================================
 export function useDraft(key, initialValue, excludeKeys = []) {

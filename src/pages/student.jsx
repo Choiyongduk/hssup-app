@@ -7,7 +7,7 @@ import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
 import { subscribeToNotifications, unsubscribeFromNotifications, checkNotificationStatus } from '../lib/notifications';
 import { LEGAL_TERMS, LEGAL_PRIVACY, LEGAL_REFUND } from '../lib/legal';
-import { useDraft, useLatestLecture, useRecentUpdates } from '../hooks';
+import { useDraft, useLatestLecture, useRecentUpdates, useDetailItem } from '../hooks';
 import {
   ImageCarousel, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, MultiImageField,
 } from '../components/common';
@@ -125,7 +125,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
           {notices.length === 0 ? (
             <p className="font-body text-xs text-center py-8" style={{ color: COLORS.stone }}>공지가 없습니다</p>
           ) : notices.map((n, i) => (
-            <button key={n.id} onClick={() => { setSelectedNotice(n); setCurrentPage('notice-detail'); }}
+            <button key={n.id} onClick={() => { setSelectedNotice(n); setCurrentPage('notice-detail', n.id); }}
               className="w-full text-left flex items-center gap-3 p-4 transition-transform active:scale-[0.98]"
               style={{ borderBottom: i !== notices.length - 1 ? `1px solid ${COLORS.light}` : 'none' }}>
               <span className="font-mono text-[9px] font-bold tracking-widest px-2 py-1 rounded" style={{
@@ -142,11 +142,14 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   );
 }
 
-export function NoticeDetailPage({ notice, user }) {
+export function NoticeDetailPage({ notice: propNotice, user, routeId }) {
+  const { item: notice, fetching } = useDetailItem(propNotice, routeId, 'notices');
   if (!notice) {
     return (
       <div className="px-5 py-10 text-center">
-        <p className="font-body text-sm" style={{ color: COLORS.stone }}>공지를 찾을 수 없습니다.</p>
+        {fetching
+          ? <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary, margin: '0 auto' }} />
+          : <p className="font-body text-sm" style={{ color: COLORS.stone }}>공지를 찾을 수 없습니다.</p>}
       </div>
     );
   }
@@ -226,7 +229,7 @@ export function NoticePage({ user, setCurrentPage, setSelectedNotice }) {
  
   const openDetail = (n) => {
     setSelectedNotice(n);
-    setCurrentPage('notice-detail');
+    setCurrentPage('notice-detail', n.id);
   };
  
   if (loading) return <div className="flex justify-center p-10"><Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} /></div>;
@@ -868,7 +871,8 @@ export function MyCasePage({ user }) {
   );
 }
 
-export function QnaDetailPage({ qna, user, setCurrentPage }) {
+export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
+  const { item: qna, fetching } = useDetailItem(propQna, routeId, 'questions');
   const [author, setAuthor] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: '', content: '', category: '시술' });
@@ -888,7 +892,9 @@ export function QnaDetailPage({ qna, user, setCurrentPage }) {
   if (!qna) {
     return (
       <div className="px-5 py-10 text-center">
-        <p className="font-body text-sm" style={{ color: COLORS.stone }}>질문을 찾을 수 없습니다.</p>
+        {fetching
+          ? <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary, margin: '0 auto' }} />
+          : <p className="font-body text-sm" style={{ color: COLORS.stone }}>질문을 찾을 수 없습니다.</p>}
       </div>
     );
   }
@@ -1173,7 +1179,7 @@ export function TrendsPage({ user, setCurrentPage, setSelectedTrend }) {
             </p>
           </div>
         ) : filtered.map(t => (
-          <button key={t.id} onClick={() => { setSelectedTrend(t); setCurrentPage('trend-detail'); }}
+          <button key={t.id} onClick={() => { setSelectedTrend(t); setCurrentPage('trend-detail', t.id); }}
             className="w-full text-left rounded-3xl overflow-hidden transition-transform active:scale-[0.98]"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             {getRowImages(t).length > 0 && (
@@ -1226,11 +1232,14 @@ export function TrendsPage({ user, setCurrentPage, setSelectedTrend }) {
   );
 }
 
-export function TrendDetailPage({ trend, user }) {
+export function TrendDetailPage({ trend: propTrend, user, routeId }) {
+  const { item: trend, fetching } = useDetailItem(propTrend, routeId, 'trends');
   if (!trend) {
     return (
       <div className="px-5 py-10 text-center">
-        <p className="font-body text-sm" style={{ color: COLORS.stone }}>트렌드를 찾을 수 없습니다.</p>
+        {fetching
+          ? <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary, margin: '0 auto' }} />
+          : <p className="font-body text-sm" style={{ color: COLORS.stone }}>트렌드를 찾을 수 없습니다.</p>}
       </div>
     );
   }
@@ -1378,7 +1387,7 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
 
   const openDetail = (q) => {
     setSelectedQna(q);
-    setCurrentPage('qna-detail');
+    setCurrentPage('qna-detail', q.id);
   };
  
   const categories = ['전체', '시술', '재료', '수업', '창업'];
@@ -1485,7 +1494,7 @@ export function LibraryPage({ setCurrentPage, setSelectedLibrary }) {
 
   const openDetail = (file) => {
     setSelectedLibrary(file);
-    setCurrentPage('library-detail');
+    setCurrentPage('library-detail', file.id);
   };
 
   return (
@@ -1563,11 +1572,14 @@ export function LibraryPage({ setCurrentPage, setSelectedLibrary }) {
   );
 }
 
-export function LibraryDetailPage({ file, setCurrentPage }) {
+export function LibraryDetailPage({ file: propFile, setCurrentPage, routeId }) {
+  const { item: file, fetching } = useDetailItem(propFile, routeId, 'library_files');
   if (!file) {
     return (
       <div className="px-5 py-10 text-center">
-        <p className="font-body text-sm" style={{ color: COLORS.stone }}>자료를 찾을 수 없습니다.</p>
+        {fetching
+          ? <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary, margin: '0 auto' }} />
+          : <p className="font-body text-sm" style={{ color: COLORS.stone }}>자료를 찾을 수 없습니다.</p>}
       </div>
     );
   }
@@ -1638,7 +1650,7 @@ export function MarketPage({ setCurrentPage, setSelectedProduct }) {
 
   const openDetail = (p) => {
     setSelectedProduct(p);
-    setCurrentPage('product-detail');
+    setCurrentPage('product-detail', p.id);
   };
 
   useEffect(() => {
@@ -1915,7 +1927,7 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
 
   const openDetail = (lecture) => {
     setSelectedLecture(lecture);
-    setCurrentPage('lecture-detail');
+    setCurrentPage('lecture-detail', lecture.id);
   };
 
   return (
@@ -2033,7 +2045,8 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
   );
 }
 
-export function LectureDetailPage({ lecture, user }) {
+export function LectureDetailPage({ lecture: propLecture, user, routeId }) {
+  const { item: lecture, fetching } = useDetailItem(propLecture, routeId, 'lectures');
   // 🍊 오리엔테이션 영상이면 자동 미션 체크
   useEffect(() => {
     if (lecture?.is_orientation && user && !user.onb_video) {
@@ -2057,7 +2070,9 @@ export function LectureDetailPage({ lecture, user }) {
   if (!lecture) {
     return (
       <div className="px-5 py-10 text-center">
-        <p className="font-body text-sm" style={{ color: COLORS.stone }}>강의를 찾을 수 없습니다.</p>
+        {fetching
+          ? <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary, margin: '0 auto' }} />
+          : <p className="font-body text-sm" style={{ color: COLORS.stone }}>강의를 찾을 수 없습니다.</p>}
       </div>
     );
   }
@@ -2139,7 +2154,8 @@ export function LectureDetailPage({ lecture, user }) {
   );
 }
 
-export function PostDetailPage({ post, user, setCurrentPage }) {
+export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }) {
+  const { item: post, fetching } = useDetailItem(propPost, routeId, 'community_posts');
   const [author, setAuthor] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ content: '' });
@@ -2155,7 +2171,9 @@ export function PostDetailPage({ post, user, setCurrentPage }) {
   if (!post) {
     return (
       <div className="px-5 py-10 text-center">
-        <p className="font-body text-sm" style={{ color: COLORS.stone }}>게시글을 찾을 수 없습니다.</p>
+        {fetching
+          ? <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary, margin: '0 auto' }} />
+          : <p className="font-body text-sm" style={{ color: COLORS.stone }}>게시글을 찾을 수 없습니다.</p>}
       </div>
     );
   }
@@ -2348,13 +2366,16 @@ export function PostDetailPage({ post, user, setCurrentPage }) {
   );
 }
 
-export function ProductDetailPage({ product, user, setCurrentPage, setSelectedCourse }) {
+export function ProductDetailPage({ product: propProduct, user, setCurrentPage, setSelectedCourse, routeId }) {
   const [addingToCart, setAddingToCart] = useState(false);
+  const { item: product, fetching } = useDetailItem(propProduct, routeId, 'products');
 
   if (!product) {
     return (
       <div className="px-5 py-10 text-center">
-        <p className="font-body text-sm" style={{ color: COLORS.stone }}>상품을 찾을 수 없습니다.</p>
+        {fetching
+          ? <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary, margin: '0 auto' }} />
+          : <p className="font-body text-sm" style={{ color: COLORS.stone }}>상품을 찾을 수 없습니다.</p>}
       </div>
     );
   }
@@ -3299,7 +3320,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
 
   const openDetail = (p) => {
     setSelectedPost(p);
-    setCurrentPage('post-detail');
+    setCurrentPage('post-detail', p.id);
   };
 
   const placeholder = fixedCategory === '후기'
@@ -3508,7 +3529,7 @@ export function MyActivityPage({ user, setCurrentPage, setSelectedPost }) {
     const { data } = await supabase.from('community_posts').select('*').eq('id', postId).maybeSingle();
     if (data) {
       setSelectedPost(data);
-      setCurrentPage('post-detail');
+      setCurrentPage('post-detail', data.id);
     } else {
       toast('이 게시글은 삭제되었어요');
     }
@@ -5028,7 +5049,7 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
       action: () => {
         if (orientation) {
           setSelectedLecture(orientation);
-          setCurrentPage('lecture-detail');
+          setCurrentPage('lecture-detail', orientation.id);
         } else {
           toast('오리엔테이션 영상이 아직 준비되지 않았어요.\n원장님께 문의해주세요!');
         }
@@ -5352,7 +5373,7 @@ export function TipsPage({ user, setCurrentPage, setSelectedTip }) {
             </p>
           </div>
         ) : filtered.map(t => (
-          <button key={t.id} onClick={() => { setSelectedTip(t); setCurrentPage('tip-detail'); }}
+          <button key={t.id} onClick={() => { setSelectedTip(t); setCurrentPage('tip-detail', t.id); }}
             className="w-full text-left rounded-3xl overflow-hidden transition-transform active:scale-[0.98]"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             {getRowImages(t).length > 0 && (
@@ -5405,11 +5426,14 @@ export function TipsPage({ user, setCurrentPage, setSelectedTip }) {
   );
 }
 
-export function TipDetailPage({ tip, user }) {
+export function TipDetailPage({ tip: propTip, user, routeId }) {
+  const { item: tip, fetching } = useDetailItem(propTip, routeId, 'tips');
   if (!tip) {
     return (
       <div className="px-5 py-10 text-center">
-        <p className="font-body text-sm" style={{ color: COLORS.stone }}>글을 찾을 수 없습니다.</p>
+        {fetching
+          ? <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary, margin: '0 auto' }} />
+          : <p className="font-body text-sm" style={{ color: COLORS.stone }}>글을 찾을 수 없습니다.</p>}
       </div>
     );
   }

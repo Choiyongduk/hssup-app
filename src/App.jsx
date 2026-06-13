@@ -4,10 +4,38 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 
 // 🔗 currentPage(문자열) ↔ URL 경로 매핑 (점진적 react-router 전환용 어댑터)
-const pageToPath = (p) => (!p || p === 'home') ? '/' : '/' + p;
+// 상세 페이지: currentPage ↔ URL prefix (딥링크 /prefix/:id)
+const DETAIL_PAGES = {
+  'product-detail': 'product',
+  'notice-detail': 'notice',
+  'post-detail': 'post',
+  'lecture-detail': 'lecture',
+  'qna-detail': 'qna',
+  'trend-detail': 'trend',
+  'tip-detail': 'tip',
+  'library-detail': 'library',
+};
+const PREFIX_TO_DETAIL = Object.fromEntries(
+  Object.entries(DETAIL_PAGES).map(([page, prefix]) => [prefix, page])
+);
+
+const pageToPath = (p, id) => {
+  if (!p || p === 'home') return '/';
+  const prefix = DETAIL_PAGES[p];
+  if (prefix && id != null && id !== '') return '/' + prefix + '/' + id;
+  return '/' + p;
+};
 const pathToPage = (path) => {
-  const seg = (path || '/').replace(/^\/+/, '').replace(/\/+$/, '');
-  return seg === '' ? 'home' : seg;
+  const segs = (path || '/').split('/').filter(Boolean);
+  if (segs.length === 0) return 'home';
+  // /product/123 처럼 2세그먼트 + 알려진 prefix → 상세 페이지
+  if (segs.length >= 2 && PREFIX_TO_DETAIL[segs[0]]) return PREFIX_TO_DETAIL[segs[0]];
+  return segs[0];
+};
+const pathToId = (path) => {
+  const segs = (path || '/').split('/').filter(Boolean);
+  if (segs.length >= 2 && PREFIX_TO_DETAIL[segs[0]]) return decodeURIComponent(segs[1]);
+  return null;
 };
 import {
   Home, Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles,
@@ -77,7 +105,8 @@ export default function HSSUPApp() {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPage = pathToPage(location.pathname);
-  const setCurrentPage = useCallback((p) => { navigate(pageToPath(p)); }, [navigate]);
+  const routeId = pathToId(location.pathname);  // 상세 페이지 딥링크용 id (/product/:id)
+  const setCurrentPage = useCallback((p, id) => { navigate(pageToPath(p, id)); }, [navigate]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -405,9 +434,10 @@ export default function HSSUPApp() {
         }
       } else {
         // URL이 특정 페이지를 가리킴(새로고침/딥링크) → 그 페이지 유지.
-        //   상세/결제 페이지면 selectedX 를 sessionStorage 에서 복원.
+        //   결제 페이지(/payment, URL에 id 없음)만 selectedX 복원.
+        //   상세 페이지(/product/:id 등)는 routeId로 직접 로딩하므로 복원 안 함(stale 방지).
         const cp = pathToPage(window.location.pathname);
-        if (cp === 'payment' || cp === 'product-detail') {
+        if (cp === 'payment') {
           try {
             const sp = sessionStorage.getItem('hssup_sel_product');
             const sc = sessionStorage.getItem('hssup_sel_course');
@@ -706,7 +736,7 @@ export default function HSSUPApp() {
                     selectedTip={selectedTip} setSelectedTip={setSelectedTip}
                     selectedLibrary={selectedLibrary} setSelectedLibrary={setSelectedLibrary}
                     user={profile} handleLogout={handleLogout} isAdmin={isAdmin} canViewRevenue={canViewRevenue}
-                    refreshUser={refreshUser} />
+                    refreshUser={refreshUser} routeId={routeId} />
                   </Suspense>
                 </div>
               </main>
@@ -1588,7 +1618,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser, routeId }) {
   // Debug route removed
   // 🍊 온보딩 체크 - 졸업생은 인사+후기, 신입생은 전부 필요
   const needsOnboarding = !isAdmin && user && (
@@ -1625,14 +1655,14 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'admin-courses') return <AdminCourses user={user} />;
     if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
   }
-  if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} />;
-  if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} setCurrentPage={setCurrentPage} />;
-  if (currentPage === 'post-detail') return <PostDetailPage post={selectedPost} user={user} setCurrentPage={setCurrentPage} />;
-  if (currentPage === 'lecture-detail') return <LectureDetailPage lecture={selectedLecture} user={user} />;
+  if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} routeId={routeId} />;
+  if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} setCurrentPage={setCurrentPage} routeId={routeId} />;
+  if (currentPage === 'post-detail') return <PostDetailPage post={selectedPost} user={user} setCurrentPage={setCurrentPage} routeId={routeId} />;
+  if (currentPage === 'lecture-detail') return <LectureDetailPage lecture={selectedLecture} user={user} routeId={routeId} />;
   if (currentPage === 'payment') return <PaymentPage course={selectedCourse} product={selectedProduct} user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'payment-success') return <PaymentSuccessPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'payment-fail') return <PaymentFailPage setCurrentPage={setCurrentPage} />;
-  if (currentPage === 'product-detail') return <ProductDetailPage product={selectedProduct} user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} />;
+  if (currentPage === 'product-detail') return <ProductDetailPage product={selectedProduct} user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} routeId={routeId} />;
   if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'notice') return <NoticePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'course') return <CoursePage user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} setSelectedProduct={setSelectedProduct} />;
@@ -1640,13 +1670,13 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'mycase') return <MyCasePage user={user} />;
   if (currentPage === 'qna') return <QnaPage user={user} setCurrentPage={setCurrentPage} setSelectedQna={setSelectedQna} />;
   if (currentPage === 'trends') return <TrendsPage user={user} setCurrentPage={setCurrentPage} setSelectedTrend={setSelectedTrend} />;
-  if (currentPage === 'trend-detail') return <TrendDetailPage trend={selectedTrend} user={user} />;
+  if (currentPage === 'trend-detail') return <TrendDetailPage trend={selectedTrend} user={user} routeId={routeId} />;
   if (currentPage === 'admin-trends') return <AdminTrends user={user} />;
   if (currentPage === 'tips') return <TipsPage user={user} setCurrentPage={setCurrentPage} setSelectedTip={setSelectedTip} />;
-  if (currentPage === 'tip-detail') return <TipDetailPage tip={selectedTip} user={user} />;
+  if (currentPage === 'tip-detail') return <TipDetailPage tip={selectedTip} user={user} routeId={routeId} />;
   if (currentPage === 'admin-tips') return <AdminTips user={user} />;
   if (currentPage === 'library') return <LibraryPage setCurrentPage={setCurrentPage} setSelectedLibrary={setSelectedLibrary} />;
-  if (currentPage === 'library-detail') return <LibraryDetailPage file={selectedLibrary} setCurrentPage={setCurrentPage} />;
+  if (currentPage === 'library-detail') return <LibraryDetailPage file={selectedLibrary} setCurrentPage={setCurrentPage} routeId={routeId} />;
   if (currentPage === 'market') return <MarketPage setCurrentPage={setCurrentPage} setSelectedProduct={setSelectedProduct} />;
   if (currentPage === 'online') return <OnlineLecturePage setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
   if (currentPage === 'community') return <CommunityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} fixedCategory="자유" pageTitle="자유게시판" pageEn="Free Board" pageDesc="자유롭게 이야기 나눠보세요" />;
