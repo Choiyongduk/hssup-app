@@ -7,6 +7,7 @@ import { supabase } from './lib/supabase';
 // 상세 페이지: currentPage ↔ URL prefix (딥링크 /prefix/:id)
 const DETAIL_PAGES = {
   'product-detail': 'product',
+  'course-detail': 'course',
   'notice-detail': 'notice',
   'post-detail': 'post',
   'lecture-detail': 'lecture',
@@ -62,7 +63,7 @@ import {
   MultiImageField, ImageCarousel, LegalPage, SkeletonImage, Avatar, calculateLevel, LevelCard, PageIntro, LikeButton, CommentSection, ToastHost, ConfirmHost,
 } from './components/common';
 import {
-  HomePage, NoticeDetailPage, NoticePage, CoursePage, BestCasePage, MyCasePage, QnaDetailPage, TrendsPage, TrendDetailPage, QnaPage, LibraryPage, LibraryDetailPage, MarketPage, OnlineLecturePage, LectureDetailPage, PostDetailPage, ProductDetailPage, PaymentPage, PaymentSuccessPage, PaymentFailPage, CommunityPage, MyActivityPage, MyPage, MyProfileEditPage, MyOrdersPage, MyPracticeBookingsPage, CartPage, CartCheckoutPage, OnboardingScreen, ImprovementsPage, TipsPage, TipDetailPage, PracticeBookingPage,
+  HomePage, NoticeDetailPage, NoticePage, CoursePage, CourseDetailPage, BestCasePage, MyCasePage, QnaDetailPage, TrendsPage, TrendDetailPage, QnaPage, LibraryPage, LibraryDetailPage, MarketPage, OnlineLecturePage, LectureDetailPage, PostDetailPage, ProductDetailPage, PaymentPage, PaymentSuccessPage, PaymentFailPage, CommunityPage, MyActivityPage, MyPage, MyProfileEditPage, MyOrdersPage, MyPracticeBookingsPage, CartPage, CartCheckoutPage, OnboardingScreen, ImprovementsPage, TipsPage, TipDetailPage, PracticeBookingPage,
 } from './pages/student';
 // 🚀 admin 페이지는 코드 스플리팅 — 운영진이 admin 화면에 진입할 때만 별도 청크를 로드합니다.
 //    (학생 사용자는 admin 코드를 다운로드하지 않음 → 초기 로딩 가벼워짐)
@@ -1663,6 +1664,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'payment-success') return <PaymentSuccessPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'payment-fail') return <PaymentFailPage setCurrentPage={setCurrentPage} />;
   if (currentPage === 'product-detail') return <ProductDetailPage product={selectedProduct} user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} routeId={routeId} />;
+  if (currentPage === 'course-detail') return <CourseDetailPage course={selectedCourse} user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} setSelectedProduct={setSelectedProduct} routeId={routeId} />;
   if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'notice') return <NoticePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'course') return <CoursePage user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} setSelectedProduct={setSelectedProduct} />;

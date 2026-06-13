@@ -294,6 +294,11 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
 
   const isFiltering = searchQuery.trim().length > 0;
 
+  const openCourse = (c) => {
+    setSelectedCourse(c);
+    setCurrentPage('course-detail', c.id);
+  };
+
   return (
     <>
       <PageIntro ko="클래스" en="Class" desc="당신의 시그니처를 만들어보세요" />
@@ -348,145 +353,162 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
             )}
           </div>
         ) : filtered.map(c => {
-          const features = c.features ? c.features.split('\n').filter(f => f.trim()) : [];
           const discount = c.original_price && c.show_price && c.original_price > c.price
             ? Math.round(((c.original_price - c.price) / c.original_price) * 100)
             : 0;
-
           return (
-            <div key={c.id} className="rounded-3xl overflow-hidden relative" style={{
-              background: c.is_featured ? COLORS.cardElev : COLORS.card,
-              border: `1px solid ${c.is_featured ? 'rgba(255, 92, 31, 0.4)' : COLORS.light}`,
-              boxShadow: c.is_featured ? '0 0 40px rgba(255, 92, 31, 0.3), inset 0 0 30px rgba(255, 92, 31, 0.06)' : 'none'
-            }}>
-              {getRowImages(c).length > 0 && (
-                <div className="aspect-video relative overflow-hidden">
-                  <ImageCarousel images={getRowImages(c)} className="w-full h-full" rounded="" bordered={false} />
-                  <div className="absolute top-3 left-3 flex gap-1.5 z-10">
-                    {c.badge && (
-                      <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
-                        background: c.badge === 'BEST' ? COLORS.ink : c.badge === 'NEW' ? COLORS.primary : COLORS.peach,
-                        color: c.badge === 'SALE' ? COLORS.deep : (c.badge === 'BEST' ? COLORS.primary : COLORS.white),
-                        boxShadow: c.badge === 'NEW' ? '0 0 16px rgba(255, 92, 31, 0.5)' : 'none'
-                      }}>{c.badge}</span>
-                    )}
-                    {c.hot && (
-                      <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
-                        background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.5)'
-                      }}>🔥 HOT</span>
-                    )}
-                    {c.is_featured && (
-                      <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
-                        background: 'rgba(0,0,0,0.6)', color: COLORS.primary, backdropFilter: 'blur(8px)'
-                      }}>⭐ FEATURED</span>
-                    )}
-                  </div>
+            <button key={c.id} onClick={() => openCourse(c)}
+              className="w-full text-left rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
+              style={{
+                background: c.is_featured ? COLORS.cardElev : COLORS.card,
+                border: `1px solid ${c.is_featured ? 'rgba(255, 92, 31, 0.4)' : COLORS.light}`,
+                boxShadow: c.is_featured ? '0 0 24px rgba(255, 92, 31, 0.2)' : 'none',
+              }}>
+              {getRowImages(c).length > 0 ? (
+                <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden" style={{ border: `1px solid ${COLORS.light}` }}>
+                  <img src={getRowImages(c)[0]} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-16 h-16 shrink-0 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+                  <BookOpen size={22} style={{ color: COLORS.primary }} />
                 </div>
               )}
-
-              {c.is_featured && (
-                <>
-                  <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,92,31,0.25), transparent 70%)` }}></div>
-                  <div className="absolute -bottom-20 -left-20 w-60 h-60 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,92,31,0.15), transparent 70%)` }}></div>
-                </>
-              )}
-
-              <div className="p-5 relative">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                      <p className="font-mono text-[10px] font-bold tracking-[0.2em] uppercase" style={{ color: COLORS.primary }}>{c.level}</p>
-                      {getRowImages(c).length === 0 && c.hot && (
-                        <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>🔥 HOT</span>
-                      )}
-                      {getRowImages(c).length === 0 && c.badge && (
-                        <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{
-                          background: c.badge === 'BEST' ? COLORS.ink : c.badge === 'NEW' ? COLORS.primary : COLORS.peach,
-                          color: c.badge === 'BEST' ? COLORS.primary : (c.badge === 'SALE' ? COLORS.deep : COLORS.white),
-                        }}>{c.badge}</span>
-                      )}
-                      {getRowImages(c).length === 0 && c.is_featured && (
-                        <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,92,31,0.15)', color: COLORS.primary }}>⭐ FEATURED</span>
-                      )}
-                    </div>
-                    <h3 className="font-display text-3xl mt-1.5 tracking-tighter leading-none" style={{ color: COLORS.ink }}>{c.title}</h3>
-                    {c.en_title && <p className="font-serif-italic text-sm mt-0.5" style={{ color: COLORS.stone, opacity: 0.7 }}>{c.en_title}</p>}
-                  </div>
-                  {c.duration && (
-                    <div className="text-right shrink-0 ml-3">
-                      <p className="font-mono text-[10px] font-bold tracking-widest" style={{ color: COLORS.primary }}>DURATION</p>
-                      <p className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{c.duration}</p>
-                    </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="font-mono text-[9px] font-bold tracking-[0.15em] uppercase" style={{ color: COLORS.primary }}>{c.level}</p>
+                  {c.badge && (
+                    <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{
+                      background: c.badge === 'BEST' ? COLORS.ink : c.badge === 'NEW' ? COLORS.primary : COLORS.peach,
+                      color: c.badge === 'BEST' ? COLORS.primary : (c.badge === 'SALE' ? COLORS.deep : COLORS.white),
+                    }}>{c.badge}</span>
+                  )}
+                  {c.hot && (
+                    <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>🔥 HOT</span>
                   )}
                 </div>
-
-                {c.description && (
-                  <p className="font-body text-sm font-medium leading-relaxed" style={{ color: COLORS.stone }}>{c.description}</p>
-                )}
-
-                {features.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {features.map((f, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: COLORS.primary, boxShadow: '0 0 8px rgba(255, 92, 31, 0.4)' }}>
-                          <Check size={10} strokeWidth={3} style={{ color: COLORS.white }} />
-                        </div>
-                        <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.ink }}>{f}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-end justify-between mt-5 pt-4" style={{ borderTop: `1px solid ${c.is_featured ? 'rgba(255,92,31,0.2)' : COLORS.light}` }}>
-                  <div>
-                    <p className="font-mono text-[9px] font-bold tracking-widest" style={{ color: COLORS.primary }}>
-                      {c.show_price ? 'PRICE' : 'INQUIRY'}
-                    </p>
-                    {c.show_price ? (
-                      <>
-                        {discount > 0 && (
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <p className="font-mono text-[10px] line-through" style={{ color: COLORS.stone }}>
-                              ₩{(c.original_price / 10000).toFixed(0)}만
-                            </p>
-                            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.4)' }}>
-                              {discount}% OFF
-                            </span>
-                          </div>
-                        )}
-                        <p className="font-display text-xl tracking-tight" style={{ color: COLORS.ink }}>
-                          ₩{(c.price / 10000).toFixed(0)}<span className="font-body text-xs font-medium">만</span>
-                        </p>
-                      </>
-                    ) : (
-                      <p className="font-display text-xl tracking-tight" style={{ color: COLORS.ink }}>문의하기</p>
-                    )}
-                  </div>
-                  <button onClick={() => {
-                    if (!c.show_price) {
-                      toast('📞 자세한 안내를 위해 원장님께 문의해주세요!');
-                      return;
-                    }
-                    setSelectedProduct(null);
-                    sessionStorage.removeItem('hssup_sel_product');  // stale 상품 제거 (새로고침 시 혼동 방지)
-                    setSelectedCourse(c);
-                    setCurrentPage('payment');
-                  }}
-                    className="font-heading text-xs px-5 py-2.5 rounded-full flex items-center gap-1.5"
-                    style={{
-                      background: COLORS.primary,
-                      color: COLORS.white,
-                      boxShadow: '0 0 20px rgba(255, 92, 31, 0.5)'
-                    }}>
-                    {c.show_price ? '신청하기' : '문의하기'} <ArrowUpRight size={12} />
-                  </button>
-                </div>
+                <h3 className="font-heading text-base mt-0.5 truncate" style={{ color: COLORS.ink }}>{c.title}</h3>
+                {c.duration && <p className="font-mono text-[10px] mt-0.5 truncate" style={{ color: COLORS.stone }}>{c.duration}</p>}
               </div>
-            </div>
+              <div className="text-right shrink-0 flex flex-col items-end">
+                {c.show_price ? (
+                  <>
+                    {discount > 0 && (
+                      <p className="font-mono text-[9px] line-through" style={{ color: COLORS.muted }}>₩{(c.original_price / 10000).toFixed(0)}만</p>
+                    )}
+                    <p className="font-display text-lg tracking-tight" style={{ color: COLORS.ink }}>₩{(c.price / 10000).toFixed(0)}<span className="font-body text-[11px]">만</span></p>
+                  </>
+                ) : (
+                  <p className="font-heading text-xs" style={{ color: COLORS.primary }}>문의</p>
+                )}
+                <ChevronRight size={14} style={{ color: COLORS.stone }} className="mt-1" />
+              </div>
+            </button>
           );
         })}
       </div>
     </>
+  );
+}
+
+export function CourseDetailPage({ course: propCourse, user, setCurrentPage, setSelectedCourse, setSelectedProduct, routeId }) {
+  const { item: c, fetching } = useDetailItem(propCourse, routeId, 'courses');
+  if (!c) {
+    return (
+      <div className="px-5 py-10 text-center">
+        {fetching
+          ? <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary, margin: '0 auto' }} />
+          : <p className="font-body text-sm" style={{ color: COLORS.stone }}>클래스를 찾을 수 없습니다.</p>}
+      </div>
+    );
+  }
+  const features = c.features ? c.features.split('\n').filter(f => f.trim()) : [];
+  const discount = c.original_price && c.show_price && c.original_price > c.price
+    ? Math.round(((c.original_price - c.price) / c.original_price) * 100) : 0;
+
+  const apply = () => {
+    if (!c.show_price) { toast('📞 자세한 안내를 위해 원장님께 문의해주세요!'); return; }
+    setSelectedProduct?.(null);
+    sessionStorage.removeItem('hssup_sel_product');
+    setSelectedCourse?.(c);
+    setCurrentPage('payment');
+  };
+
+  return (
+    <div className="pb-28">
+      {getRowImages(c).length > 0 && (
+        <ImageCarousel images={getRowImages(c)} className="aspect-video w-full" rounded="" bordered={false} />
+      )}
+      <div className="px-5 pt-5">
+        <div className="flex items-center gap-1.5 flex-wrap mb-2">
+          <p className="font-mono text-[10px] font-bold tracking-[0.2em] uppercase" style={{ color: COLORS.primary }}>{c.level}</p>
+          {c.badge && (
+            <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{
+              background: c.badge === 'BEST' ? COLORS.ink : c.badge === 'NEW' ? COLORS.primary : COLORS.peach,
+              color: c.badge === 'BEST' ? COLORS.primary : (c.badge === 'SALE' ? COLORS.deep : COLORS.white),
+            }}>{c.badge}</span>
+          )}
+          {c.hot && <span className="font-mono text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>🔥 HOT</span>}
+        </div>
+        <h1 className="font-display text-3xl tracking-tight leading-tight" style={{ color: COLORS.ink }}>{c.title}</h1>
+        {c.en_title && <p className="font-serif-italic text-base mt-1" style={{ color: COLORS.stone, opacity: 0.7 }}>{c.en_title}</p>}
+        {c.duration && <p className="font-mono text-xs mt-2" style={{ color: COLORS.primary }}>⏱ {c.duration}</p>}
+      </div>
+
+      {c.description && (
+        <div className="px-5 mt-4">
+          <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.stone }}>{c.description}</p>
+          </div>
+        </div>
+      )}
+
+      {features.length > 0 && (
+        <div className="px-5 mt-4">
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.primary }}>━━ 커리큘럼</p>
+          <div className="rounded-2xl p-4 space-y-2.5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            {features.map((f, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: COLORS.primary, boxShadow: '0 0 8px rgba(255,92,31,0.4)' }}>
+                  <Check size={10} strokeWidth={3} style={{ color: COLORS.white }} />
+                </div>
+                <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink }}>{f}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="px-5 mt-4">
+        <div className="rounded-2xl p-4" style={{ background: COLORS.cardElev }}>
+          <p className="font-mono text-[9px] font-bold tracking-widest" style={{ color: COLORS.primary }}>{c.show_price ? 'PRICE' : 'INQUIRY'}</p>
+          {c.show_price ? (
+            <>
+              {discount > 0 && (
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="font-mono text-[11px] line-through" style={{ color: COLORS.stone }}>₩{(c.original_price / 10000).toFixed(0)}만</p>
+                  <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>{discount}% OFF</span>
+                </div>
+              )}
+              <p className="font-display text-3xl tracking-tight" style={{ color: COLORS.ink }}>₩{(c.price / 10000).toFixed(0)}<span className="font-body text-sm">만</span></p>
+            </>
+          ) : (
+            <p className="font-display text-2xl tracking-tight mt-1" style={{ color: COLORS.ink }}>문의하기</p>
+          )}
+        </div>
+      </div>
+
+      {/* 하단 고정 CTA */}
+      <div className="fixed left-0 right-0 px-5 py-3" style={{
+        background: 'rgba(10, 10, 10, 0.85)', backdropFilter: 'blur(20px)',
+        borderTop: `1px solid ${COLORS.light}`, maxWidth: '480px', margin: '0 auto',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)',
+      }}>
+        <button onClick={apply} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2"
+          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+          {c.show_price ? `₩${(c.price / 10000).toFixed(0)}만원 신청하기` : '문의하기'} <ArrowUpRight size={16} />
+        </button>
+      </div>
+    </div>
   );
 }
 
