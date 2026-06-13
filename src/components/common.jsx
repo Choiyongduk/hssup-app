@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { COLORS, getInitial, AVATAR_COLORS } from '../lib/colors';
 import { subscribeToast, toast } from '../lib/toast';
 import { subscribeConfirm, confirmDialog } from '../lib/dialog';
-import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // =============================================================
 // 📂 CategoryMover - 관리자/스태프용 카테고리 이동 버튼 (공용)
@@ -258,21 +258,26 @@ export function ImageCarousel({ images, className = '', rounded = 'rounded-2xl',
   );
 }
 
-// 전체화면 이미지 뷰어. 갇힘 방지 설계:
-//  - 상단 바(확대/축소·닫기)는 이미지 영역과 분리된 flex 형제라 확대해도 항상 누를 수 있음
-//  - 확대는 이미지 탭이 아니라 명시적 버튼으로(iOS 더블탭 줌 충돌 방지)
-//  - 축소 상태에선 빈 곳/이미지를 탭하면 닫힘. 여러 장은 좌우 화살표/스와이프, Esc로 닫기.
+// 전체화면 이미지 뷰어 + 두 손가락 핀치줌(앱 전역 user-scalable=no라 직접 구현).
+// 갇힘 방지: 상단 바(닫기)는 이미지와 분리된 flex 형제라 확대 상태에서도 항상 누를 수 있음.
+//  - 두 손가락 핀치: 확대/축소(1~4배), 확대 후 한 손가락 드래그로 이동
+//  - 더블탭: 확대(2.5배) ↔ 원래대로 토글
+//  - 배경(이미지 바깥) 탭/X/Esc: 닫기 · 여러 장은 좌우 화살표/스와이프(원본 크기일 때)
 export function Lightbox({ images, index = 0, onClose }) {
   const list = (images || []).filter(Boolean);
   const [idx, setIdx] = useState(index);
-  const [zoom, setZoom] = useState(false);
-  const startX = useRef(null);
+  const [t, setT] = useState({ scale: 1, x: 0, y: 0 });
+  const [gesturing, setGesturing] = useState(false);
+  const imgRef = useRef(null);
+  const g = useRef({});
+
+  useEffect(() => { setT({ scale: 1, x: 0, y: 0 }); }, [idx]); // 사진 바뀌면 확대 초기화
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowRight') { setZoom(false); setIdx(i => Math.min(i + 1, list.length - 1)); }
-      else if (e.key === 'ArrowLeft') { setZoom(false); setIdx(i => Math.max(i - 1, 0)); }
+      else if (e.key === 'ArrowRight') setIdx(i => Math.min(i + 1, list.length - 1));
+      else if (e.key === 'ArrowLeft') setIdx(i => Math.max(i - 1, 0));
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -281,19 +286,81 @@ export function Lightbox({ images, index = 0, onClose }) {
   }, [onClose, list.length]);
 
   if (list.length === 0) return null;
-  const go = (d) => { setZoom(false); setIdx(i => Math.max(0, Math.min(list.length - 1, i + d))); };
+  const go = (d) => setIdx(i => Math.max(0, Math.min(list.length - 1, i + d)));
   const btn = { background: 'rgba(255,255,255,0.18)', color: '#fff' };
 
+  const distOf = (touches) => Math.hypot(
+    touches[0].clientX - touches[1].clientX,
+    touches[0].clientY - touches[1].clientY
+  );
+  // 화면 밖으로 사라지지 않게 이동 범위 제한 (base = 원본 크기일 때 실제 표시 크기)
+  const clampPan = (scale, x, y) => {
+    const b = g.current.base;
+    if (!b) return { x, y };
+    const maxX = Math.max(0, (b.w * scale - window.innerWidth) / 2);
+    const maxY = Math.max(0, (b.h * scale - window.innerHeight) / 2);
+    return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+  };
+
+  const onTouchStart = (e) => {
+    setGesturing(true);
+    if (t.scale === 1 && imgRef.current) {
+      const r = imgRef.current.getBoundingClientRect();
+      g.current.base = { w: r.width, h: r.height }; // 원본(맞춤) 크기 기억
+    }
+    if (e.touches.length === 2) {
+      g.current.mode = 'pinch';
+      g.current.startDist = distOf(e.touches);
+      g.current.startScale = t.scale;
+    } else if (e.touches.length === 1) {
+      g.current.mode = t.scale > 1 ? 'pan' : 'swipe';
+      g.current.startX = e.touches[0].clientX;
+      g.current.startY = e.touches[0].clientY;
+      g.current.origX = t.x;
+      g.current.origY = t.y;
+    }
+  };
+  const onTouchMove = (e) => {
+    if (g.current.mode === 'pinch' && e.touches.length === 2) {
+      let scale = g.current.startScale * (distOf(e.touches) / g.current.startDist);
+      scale = Math.max(1, Math.min(4, scale));
+      setT(s => ({ scale, ...clampPan(scale, s.x, s.y) }));
+    } else if (g.current.mode === 'pan' && e.touches.length === 1) {
+      const dx = e.touches[0].clientX - g.current.startX;
+      const dy = e.touches[0].clientY - g.current.startY;
+      setT(s => ({ scale: s.scale, ...clampPan(s.scale, g.current.origX + dx, g.current.origY + dy) }));
+    }
+  };
+  const onTouchEnd = (e) => {
+    setGesturing(false);
+    const cx = e.changedTouches[0]?.clientX ?? 0;
+    const cy = e.changedTouches[0]?.clientY ?? 0;
+    const moved = Math.abs(cx - g.current.startX) + Math.abs(cy - g.current.startY);
+    if (g.current.mode === 'swipe' && list.length > 1 && moved > 50) {
+      go(cx < g.current.startX ? 1 : -1);
+    } else if (g.current.mode !== 'pinch' && moved < 10 && e.touches.length === 0) {
+      // 더블탭 = 확대 토글
+      const now = Date.now();
+      if (now - (g.current.lastTap || 0) < 300) {
+        setT(s => s.scale > 1 ? { scale: 1, x: 0, y: 0 } : { scale: 2.5, x: 0, y: 0 });
+        g.current.lastTap = 0;
+      } else {
+        g.current.lastTap = now;
+      }
+    }
+    if (e.touches.length === 0 && t.scale <= 1.02) setT({ scale: 1, x: 0, y: 0 }); // 거의 원본이면 스냅
+    if (e.touches.length === 0) g.current.mode = null;
+  };
+
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex flex-col" style={{ background: 'rgba(0,0,0,0.96)' }}>
-      {/* 상단 바 — 이미지/스크롤 영역과 분리되어 항상 탭 가능 */}
+    <div className="fixed inset-0 z-[120] flex flex-col" style={{ background: 'rgba(0,0,0,0.96)' }} onClick={onClose}>
+      {/* 상단 바 — 이미지와 분리되어 항상 탭 가능 */}
       <div className="shrink-0 flex items-center justify-between px-3 z-20"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)', paddingBottom: 10 }}>
-        <button onClick={() => setZoom(z => !z)}
-          className="h-11 px-4 rounded-full flex items-center gap-1.5 font-body text-sm font-bold" style={btn}>
-          {zoom ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-          {zoom ? '축소' : '확대'}
-        </button>
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)', paddingBottom: 10 }}
+        onClick={(e) => e.stopPropagation()}>
+        <span className="font-body text-[11px] px-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
+          두 손가락으로 확대
+        </span>
         <span className="font-mono text-xs font-bold" style={{ color: 'rgba(255,255,255,0.85)' }}>
           {list.length > 1 ? `${idx + 1} / ${list.length}` : ''}
         </span>
@@ -303,31 +370,30 @@ export function Lightbox({ images, index = 0, onClose }) {
         </button>
       </div>
 
-      {/* 이미지 영역: 확대 시 스크롤로 보기, 축소 시 탭하면 닫힘 */}
-      <div className={`flex-1 min-h-0 ${zoom ? 'overflow-auto' : 'flex items-center justify-center px-2 pb-4'}`}
-        onClick={zoom ? undefined : onClose}
-        onTouchStart={(e) => { if (!zoom) startX.current = e.touches[0].clientX; }}
-        onTouchEnd={(e) => {
-          if (zoom || startX.current == null) return;
-          const dx = e.changedTouches[0].clientX - startX.current;
-          if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
-          startX.current = null;
-        }}>
-        <img src={list[idx]} alt=""
-          onClick={zoom ? (e) => e.stopPropagation() : undefined}
-          className={zoom ? 'max-w-none block mx-auto' : 'max-w-full max-h-full object-contain mx-auto'}
-          style={zoom ? { width: '175%' } : {}} />
+      {/* 이미지 영역: 핀치/팬 제스처 처리. 이미지 바깥(배경) 탭은 닫기 */}
+      <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden px-2 pb-4"
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+        style={{ touchAction: 'none' }}>
+        <img ref={imgRef} src={list[idx]} alt=""
+          onClick={(e) => e.stopPropagation()}
+          className="max-w-full max-h-full object-contain select-none"
+          draggable={false}
+          style={{
+            transform: `translate3d(${t.x}px, ${t.y}px, 0) scale(${t.scale})`,
+            transformOrigin: 'center center',
+            transition: gesturing ? 'none' : 'transform 0.2s ease-out',
+          }} />
       </div>
 
-      {/* 좌우 이동 (여러 장, 축소 상태) */}
-      {list.length > 1 && !zoom && (
+      {/* 좌우 이동 (여러 장, 원본 크기일 때) */}
+      {list.length > 1 && t.scale === 1 && (
         <>
-          <button onClick={() => go(-1)}
+          <button onClick={(e) => { e.stopPropagation(); go(-1); }}
             className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full flex items-center justify-center"
             style={{ ...btn, opacity: idx === 0 ? 0.3 : 1 }}>
             <ChevronLeft size={24} />
           </button>
-          <button onClick={() => go(1)}
+          <button onClick={(e) => { e.stopPropagation(); go(1); }}
             className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full flex items-center justify-center"
             style={{ ...btn, opacity: idx === list.length - 1 ? 0.3 : 1 }}>
             <ChevronRight size={24} />
