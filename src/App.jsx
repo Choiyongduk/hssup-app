@@ -1,6 +1,14 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
+
+// 🔗 currentPage(문자열) ↔ URL 경로 매핑 (점진적 react-router 전환용 어댑터)
+const pageToPath = (p) => (!p || p === 'home') ? '/' : '/' + p;
+const pathToPage = (path) => {
+  const seg = (path || '/').replace(/^\/+/, '').replace(/\/+$/, '');
+  return seg === '' ? 'home' : seg;
+};
 import {
   Home, Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles,
   ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock,
@@ -65,8 +73,11 @@ export default function HSSUPApp() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [currentPage, setCurrentPage] = useState('home');
-  const isPoppingRef = useRef(false);
+  // 🔗 페이지 상태를 URL과 연결 (뒤로가기·새로고침·딥링크는 react-router가 처리)
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentPage = pathToPage(location.pathname);
+  const setCurrentPage = useCallback((p) => { navigate(pageToPath(p)); }, [navigate]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -256,10 +267,11 @@ export default function HSSUPApp() {
     if (!profile) return;
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
+    // 쿼리(?orderId= 등)를 보존해야 PaymentSuccessPage가 주문을 조회할 수 있음
     if (paymentStatus === 'success') {
-      setCurrentPage('payment-success');
+      navigate('/payment-success' + window.location.search, { replace: true });
     } else if (paymentStatus === 'fail') {
-      setCurrentPage('payment-fail');
+      navigate('/payment-fail' + window.location.search, { replace: true });
     }
   }, [profile]);
 
@@ -269,10 +281,7 @@ export default function HSSUPApp() {
     const params = new URLSearchParams(window.location.search);
     const targetPage = params.get('page');
     if (!targetPage) return;
-    setCurrentPage(targetPage);
-    // URL 정리 (?page= 제거)
-    const cleanUrl = window.location.pathname + window.location.hash;
-    window.history.replaceState({}, '', cleanUrl);
+    setCurrentPage(targetPage);  // navigate가 ?page= 쿼리를 정리함
   }, [profile]);
 
   // 🍊 Pull-to-Refresh 로직
@@ -329,9 +338,10 @@ export default function HSSUPApp() {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data);
-      // 🍊 마지막 페이지 복원 (앱 재진입 시)
-      const lastPage = sessionStorage.getItem('hssup_last_page');
       const defaultPage = (data.role === 'admin' || data.role === 'staff') ? 'dashboard' : 'home';
+      const atRoot = window.location.pathname === '/';
+      // ?payment= / ?page= 로 진입했으면 복원하지 않음(아래 별도 useEffect가 처리, 쿼리 보존)
+      const hasDeepLinkParam = /[?&](payment|page)=/.test(window.location.search);
 
       // 🍊 최우선: Safari에서 결제 완료된 직후 PWA로 돌아왔다면 결제 성공 페이지로 자동 이동
       //    (PaymentSuccessPage가 Safari에서 작성한 flag를 PWA가 읽음)
@@ -356,41 +366,55 @@ export default function HSSUPApp() {
         } catch (e) { /* 무시 */ }
       }
 
-      // 1. sessionStorage에 결제 페이지가 남아있으면 우선 복원
-      if (lastPage === 'payment' || lastPage === 'product-detail') {
-        try {
-          const sp = sessionStorage.getItem('hssup_sel_product');
-          const sc = sessionStorage.getItem('hssup_sel_course');
-          if (sp) setSelectedProduct(JSON.parse(sp));
-          if (sc) setSelectedCourse(JSON.parse(sc));
-        } catch (e) { /* 파싱 실패는 무시 */ }
-        setCurrentPage(lastPage);
-      } else if (lastPage) {
-        // 2. 그 외 일반 페이지는 단순 복원
-        setCurrentPage(lastPage);
-      } else {
-        // 3. sessionStorage가 비어있음 (PWA 강제종료 후 재시작 등)
-        //    → localStorage 백업에서 결제·상세를 30분 TTL로 복원 시도
-        let restored = false;
-        try {
-          const raw = localStorage.getItem('hssup_payment_resume');
-          if (raw) {
-            const resume = JSON.parse(raw);
-            const RESUME_TTL = 30 * 60 * 1000;  // 30분
-            const isFresh = Date.now() - (resume.ts || 0) < RESUME_TTL;
-            const isSameUser = resume.userId === data.id;
-            const isPaymentFlow = resume.page === 'payment' || resume.page === 'product-detail';
-            if (isFresh && isSameUser && isPaymentFlow) {
-              if (resume.product) setSelectedProduct(resume.product);
-              if (resume.course) setSelectedCourse(resume.course);
-              setCurrentPage(resume.page);
-              restored = true;
-            } else {
-              localStorage.removeItem('hssup_payment_resume');
+      if (hasDeepLinkParam) {
+        // ?payment= / ?page= 진입 → 아래 useEffect 가 처리 (여기선 복원 스킵)
+      } else if (atRoot) {
+        // 루트로 진입(PWA 콜드스타트 등) → 마지막 페이지·결제 resume 복원
+        const lastPage = sessionStorage.getItem('hssup_last_page');
+        if (lastPage === 'payment' || lastPage === 'product-detail') {
+          try {
+            const sp = sessionStorage.getItem('hssup_sel_product');
+            const sc = sessionStorage.getItem('hssup_sel_course');
+            if (sp) setSelectedProduct(JSON.parse(sp));
+            if (sc) setSelectedCourse(JSON.parse(sc));
+          } catch (e) { /* 무시 */ }
+          setCurrentPage(lastPage);
+        } else if (lastPage) {
+          setCurrentPage(lastPage);
+        } else {
+          let restored = false;
+          try {
+            const raw = localStorage.getItem('hssup_payment_resume');
+            if (raw) {
+              const resume = JSON.parse(raw);
+              const RESUME_TTL = 30 * 60 * 1000;  // 30분
+              const isFresh = Date.now() - (resume.ts || 0) < RESUME_TTL;
+              const isSameUser = resume.userId === data.id;
+              const isPaymentFlow = resume.page === 'payment' || resume.page === 'product-detail';
+              if (isFresh && isSameUser && isPaymentFlow) {
+                if (resume.product) setSelectedProduct(resume.product);
+                if (resume.course) setSelectedCourse(resume.course);
+                setCurrentPage(resume.page);
+                restored = true;
+              } else {
+                localStorage.removeItem('hssup_payment_resume');
+              }
             }
-          }
-        } catch (e) { /* 무시 */ }
-        if (!restored) setCurrentPage(defaultPage);
+          } catch (e) { /* 무시 */ }
+          if (!restored && defaultPage !== 'home') setCurrentPage(defaultPage);
+        }
+      } else {
+        // URL이 특정 페이지를 가리킴(새로고침/딥링크) → 그 페이지 유지.
+        //   상세/결제 페이지면 selectedX 를 sessionStorage 에서 복원.
+        const cp = pathToPage(window.location.pathname);
+        if (cp === 'payment' || cp === 'product-detail') {
+          try {
+            const sp = sessionStorage.getItem('hssup_sel_product');
+            const sc = sessionStorage.getItem('hssup_sel_course');
+            if (sp) setSelectedProduct(JSON.parse(sp));
+            if (sc) setSelectedCourse(JSON.parse(sc));
+          } catch (e) { /* 무시 */ }
+        }
       }
     }
     setLoading(false);
@@ -417,21 +441,9 @@ export default function HSSUPApp() {
     : ['home', 'course', 'market', 'community', 'mypage'];
   const isSubPage = profile && !TOP_LEVEL_PAGES.includes(currentPage);
 
-  // 🔙 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 모바일/브라우저 뒤로가기 버튼 연동
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 뒤로가기/앞으로가기·히스토리 기록은 이제 react-router(URL)가 처리합니다.
 
-  // 페이지가 바뀔 때마다 브라우저 히스토리에 자동 기록
-  useEffect(() => {
-    if (!profile) return; // 로그인 전에는 작동 안 함
-    if (isPoppingRef.current) {
-      isPoppingRef.current = false;
-      return; // 🍊 뒤로가기로 바뀐 거면 기록 다시 안 쌓음
-    }
-    window.history.pushState({ page: currentPage }, '', '');
-  }, [currentPage, profile]);
-
-  // 🍊 페이지 상태를 sessionStorage에 저장 (앱 재진입 시 복원용)
+  // 🍊 페이지 상태를 sessionStorage에 저장 (PWA 콜드스타트 복원용)
   useEffect(() => {
     if (!profile || !currentPage) return;
     const SAVABLE_PAGES = [
@@ -453,14 +465,10 @@ export default function HSSUPApp() {
   // 🍊 결제 대상(상품/클래스)을 sessionStorage에 저장 — 앱 재시작 시 결제/상세 페이지 복원용
   // (금액 검증은 nicepay-return Edge Function이 DB에서 재확인하므로 위변조 무관)
   useEffect(() => {
-    if (selectedProduct) {
-      sessionStorage.setItem('hssup_sel_product', JSON.stringify(selectedProduct));
-    }
+    if (selectedProduct) sessionStorage.setItem('hssup_sel_product', JSON.stringify(selectedProduct));
   }, [selectedProduct]);
   useEffect(() => {
-    if (selectedCourse) {
-      sessionStorage.setItem('hssup_sel_course', JSON.stringify(selectedCourse));
-    }
+    if (selectedCourse) sessionStorage.setItem('hssup_sel_course', JSON.stringify(selectedCourse));
   }, [selectedCourse]);
 
   // 🍊 결제·상세 페이지일 땐 localStorage에도 백업 (PWA가 OS에 의해 강제 종료될 때 sessionStorage가 사라지는 문제 대응)
@@ -483,27 +491,14 @@ export default function HSSUPApp() {
     }
   }, [currentPage, profile, selectedProduct, selectedCourse]);
 
-  // 사용자가 뒤로가기 누르면 → 이전 페이지로 이동
+  // 🍊 드로어가 열려 있을 때 뒤로가기 → 드로어만 닫기 (페이지 이동 대신)
   useEffect(() => {
-    const handlePopState = (e) => {
-      // 드로어(햄버거 메뉴)가 열려있으면 → 드로어만 닫기
-      if (drawerOpen) {
-        setDrawerOpen(false);
-        window.history.pushState({ page: currentPage }, '', '');
-        return;
-      }
-      // 페이지 이동
-      isPoppingRef.current = true;
-      if (e.state && e.state.page) {
-        setCurrentPage(e.state.page);
-      } else {
-        // 더 갈 곳이 없으면 홈/대시보드로
-        setCurrentPage(isAdmin ? 'dashboard' : 'home');
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [drawerOpen, currentPage, isAdmin]);
+    if (!drawerOpen) return;
+    window.history.pushState({ drawer: true }, '');
+    const onPop = () => setDrawerOpen(false);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [drawerOpen]);
 
   const studentTabs = [
   { id: 'home', label: '홈', icon: Home },

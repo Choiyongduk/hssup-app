@@ -15,7 +15,9 @@
       "Bash(awk -F: '$1>=2511 && $1<=2980')",
       "Bash(awk 'NR>=4600 && NR<=4820 && /결제|동의|안전|암호화/' src/pages/student.jsx)",
       "Bash(grep -rnoE \".{0,8}confirm\\\\\\(\" src/pages/student.jsx src/pages/admin.jsx src/App.jsx)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(npm install *)"
     ]
   }
 }

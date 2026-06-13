@@ -465,6 +465,7 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
                       return;
                     }
                     setSelectedProduct(null);
+                    sessionStorage.removeItem('hssup_sel_product');  // stale 상품 제거 (새로고침 시 혼동 방지)
                     setSelectedCourse(c);
                     setCurrentPage('payment');
                   }}
@@ -2502,6 +2503,7 @@ export function ProductDetailPage({ product, user, setCurrentPage, setSelectedCo
           <button onClick={() => {
                   if (product.stock === 0) { toast('품절된 상품입니다.'); return; }
                   setSelectedCourse(null);
+                  sessionStorage.removeItem('hssup_sel_course');  // stale 클래스 제거 (새로고침 시 혼동 방지)
                   setCurrentPage('payment');
                 }}
             disabled={product.stock === 0}
@@ -3017,8 +3019,7 @@ export function PaymentSuccessPage({ user, setCurrentPage }) {
           localStorage.removeItem('hssup_payment_completed');
         }
 
-        // URL 정리
-        window.history.replaceState({}, '', '/');
+        // (URL은 react-router가 관리 — 수동 정리 불필요)
       } catch (err) {
         console.error('주문 조회 에러:', err);
       }
@@ -3095,7 +3096,7 @@ export function PaymentSuccessPage({ user, setCurrentPage }) {
           )}
         </div>
 
-        <button onClick={() => { window.history.replaceState({}, '', '/'); setCurrentPage('home'); }} className="w-full mt-3 font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+        <button onClick={() => setCurrentPage('home')} className="w-full mt-3 font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
           홈으로 가기
         </button>
       </div>
@@ -3120,7 +3121,7 @@ export function PaymentFailPage({ setCurrentPage }) {
       </div>
 
       <div className="px-5">
-        <button onClick={() => { window.history.replaceState({}, '', '/'); setCurrentPage('course'); }} className="w-full font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+        <button onClick={() => setCurrentPage('course')} className="w-full font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
           클래스 다시 보기
         </button>
       </div>
