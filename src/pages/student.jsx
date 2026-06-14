@@ -3313,6 +3313,8 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
   const [videoPreview, setVideoPreview] = useState(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [showAttach, setShowAttach] = useState(false);
+  // 인사 게시판은 작성 폼을 접어두고 "작성하기"를 눌러야 펼침(다른 사람 인사부터 보이게). 그 외엔 기존처럼 항상 펼침.
+  const [showComposer, setShowComposer] = useState(fixedCategory !== '인사');
   const videoInputRef = useRef(null);
 
   const handleVideoSelect = (e) => {
@@ -3512,8 +3514,16 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
     <>
       <PageIntro ko={pageTitle || "커뮤니티"} en={pageEn || "Community"} desc={pageDesc || "동료들과 이야기 나눠보세요"} />
       <div className="px-5 space-y-3">
-        {/* 가입 인사 양식 + 규정 안내 (인사 게시판 전용) */}
-        {fixedCategory === '인사' && (
+        {/* 인사 게시판: 접힌 상태면 "작성하기" 버튼만 보이고, 아래 다른 사람들의 인사 목록이 먼저 보임 */}
+        {fixedCategory === '인사' && !showComposer && (
+          <button onClick={() => setShowComposer(true)}
+            className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-1.5"
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+            <Edit3 size={14} /> 가입 인사 작성하기
+          </button>
+        )}
+        {/* 가입 인사 양식 + 규정 안내 (인사 게시판 전용, 작성 모드일 때만) */}
+        {fixedCategory === '인사' && showComposer && (
           <div className="rounded-2xl p-4" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
             <p className="font-heading text-sm flex items-center gap-1.5" style={{ color: COLORS.deep }}>
               <Sparkles size={14} /> 가입 인사 작성 안내
@@ -3537,7 +3547,8 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
             </button>
           </div>
         )}
-        {/* 글 작성 */}
+        {/* 글 작성 (인사 게시판은 "작성하기"를 눌렀을 때만 표시) */}
+        {showComposer && (
         <div className="rounded-2xl p-3 space-y-2" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <textarea value={newPost} onChange={e => setNewPost(e.target.value)}
             placeholder={placeholder} rows={fixedCategory === '인사' ? 11 : 3}
@@ -3580,11 +3591,21 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
               style={{ background: showAttach ? COLORS.peach : COLORS.cream, color: showAttach ? COLORS.primary : COLORS.stone, border: `1px solid ${COLORS.light}` }}>
               <ImageIcon size={12} /> 사진/영상
             </button>
-            <button onClick={submit} disabled={loading} className="font-heading text-[11px] px-4 py-2 rounded-full flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
-              {loading ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}Post
-            </button>
+            <div className="flex items-center gap-2">
+              {fixedCategory === '인사' && (
+                <button onClick={() => setShowComposer(false)}
+                  className="font-heading text-[11px] px-3 py-2 rounded-full"
+                  style={{ background: COLORS.cream, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                  목록 보기
+                </button>
+              )}
+              <button onClick={submit} disabled={loading} className="font-heading text-[11px] px-4 py-2 rounded-full flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+                {loading ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}Post
+              </button>
+            </div>
           </div>
         </div>
+        )}
 
         {/* 게시글 목록 */}
         {posts.length === 0 ? (
