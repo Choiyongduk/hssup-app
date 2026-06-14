@@ -61,17 +61,18 @@ export function AdminImprovements({ user }) {
     if (error) {
       toast('답변 실패: ' + error.message);
     } else {
-      // 학생에게 알림 보내기
-      await supabase.from('notifications').insert({
-        user_id: item.user_id,
-        type: 'improvement_reply',
-        title: '개선 제안에 답변이 등록되었어요',
-        message: reply.substring(0, 50) + (reply.length > 50 ? '...' : ''),
-        link_type: 'improvements',
-        is_read: false
-      });
-      // 🍊 운영진이면 원장님께 별도 알림
-      await notifyAdminsOfStaffActivity(user, `개선 제안 답변`, reply.substring(0, 60));
+      // 알림은 실패해도 답변 자체는 완료되도록 try/catch로 격리
+      try {
+        await supabase.from('notifications').insert({
+          user_id: item.user_id,
+          type: 'improvement_reply',
+          title: '개선 제안에 답변이 등록되었어요',
+          message: reply.substring(0, 50) + (reply.length > 50 ? '...' : ''),
+          link_type: 'improvements',
+          is_read: false
+        });
+        await notifyAdminsOfStaffActivity(user, `개선 제안 답변`, reply.substring(0, 60));
+      } catch (e) { console.error('알림 발송 실패:', e); }
 
       setReply('');
       setSelectedId(null);
@@ -674,13 +675,15 @@ export function AdminTrends({ user }) {
 
   const remove = async (trend) => {
     if (!await confirmDialog('이 트렌드를 삭제하시겠습니까?')) return;
+    const { error } = await supabase.from('trends').delete().eq('id', trend.id);
+    if (error) { toast('삭제 실패: ' + error.message); return; }
     for (const url of getRowImages(trend)) await deleteImageFromBucket(url, 'trend-images');
-    await supabase.from('trends').delete().eq('id', trend.id);
     await load();
   };
 
   const toggleActive = async (trend) => {
-    await supabase.from('trends').update({ is_active: !trend.is_active }).eq('id', trend.id);
+    const { error } = await supabase.from('trends').update({ is_active: !trend.is_active }).eq('id', trend.id);
+    if (error) { toast('변경 실패: ' + error.message); return; }
     await load();
   };
 
@@ -989,14 +992,16 @@ export function AdminTips({ user }) {
 
   const remove = async (tip) => {
     if (!await confirmDialog('이 글을 삭제하시겠습니까?')) return;
+    const { error } = await supabase.from('tips').delete().eq('id', tip.id);
+    if (error) { toast('삭제 실패: ' + error.message); return; }
     for (const url of getRowImages(tip)) await deleteImageFromBucket(url, 'tip-images');
     if (tip.video_url) await deletePostVideo(tip.video_url);
-    await supabase.from('tips').delete().eq('id', tip.id);
     await load();
   };
 
   const toggleActive = async (tip) => {
-    await supabase.from('tips').update({ is_active: !tip.is_active }).eq('id', tip.id);
+    const { error } = await supabase.from('tips').update({ is_active: !tip.is_active }).eq('id', tip.id);
+    if (error) { toast('변경 실패: ' + error.message); return; }
     await load();
   };
 
@@ -1394,10 +1399,11 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
     e?.stopPropagation();
     if (!await confirmDialog('정말 삭제하시겠습니까?')) return;
     const notice = notices.find(n => n.id === id);
+    const { error } = await supabase.from('notices').delete().eq('id', id);
+    if (error) { toast('삭제 실패: ' + error.message); return; }
     const imgs = notice?.image_urls && notice.image_urls.length ? notice.image_urls : (notice?.image_url ? [notice.image_url] : []);
     for (const u of imgs) await deleteNoticeImage(u);
     if (notice?.video_url) await deletePostVideo(notice.video_url);
-    await supabase.from('notices').delete().eq('id', id);
     await load();
   };
 
@@ -2641,7 +2647,8 @@ export function AdminApprovals({ user }) {
 
   const revoke = async (userId) => {
     if (!await confirmDialog('이 회원의 승인을 취소하시겠습니까?\n승인 대기 상태로 돌아갑니다.')) return;
-    await supabase.from('profiles').update({ status: 'pending' }).eq('id', userId);
+    const { error } = await supabase.from('profiles').update({ status: 'pending' }).eq('id', userId);
+    if (error) { toast('승인 취소 실패: ' + error.message); return; }
     await load();
   };
 
@@ -3246,10 +3253,11 @@ export function AdminCases() {
 
   const toggleBest = async (caseItem) => {
     const newValue = !caseItem.is_best;
-    await supabase
+    const { error } = await supabase
       .from('cases')
       .update({ is_best: newValue, best_badge: newValue ? 'TOP PICK' : null })
       .eq('id', caseItem.id);
+    if (error) { toast('변경 실패: ' + error.message); return; }
     await load();
   };
 
@@ -3429,15 +3437,17 @@ export function AdminLectures({ user }) {
 
   const remove = async (id) => {
     if (!await confirmDialog('이 강의를 삭제하시겠습니까?')) return;
-    await supabase.from('lectures').delete().eq('id', id);
+    const { error } = await supabase.from('lectures').delete().eq('id', id);
+    if (error) { toast('삭제 실패: ' + error.message); return; }
     await load();
   };
 
   const togglePublish = async (lecture) => {
-    await supabase
+    const { error } = await supabase
       .from('lectures')
       .update({ is_published: !lecture.is_published })
       .eq('id', lecture.id);
+    if (error) { toast('변경 실패: ' + error.message); return; }
     await load();
   };
 
@@ -3797,10 +3807,11 @@ export function AdminProducts({ user }) {
   };
 
   const toggleActive = async (product) => {
-    await supabase
+    const { error } = await supabase
       .from('products')
       .update({ is_active: !product.is_active })
       .eq('id', product.id);
+    if (error) { toast('변경 실패: ' + error.message); return; }
     await load();
   };
 
@@ -4144,12 +4155,14 @@ export function AdminCourses({ user }) {
   };
 
   const toggleActive = async (course) => {
-    await supabase.from('courses').update({ is_active: !course.is_active }).eq('id', course.id);
+    const { error } = await supabase.from('courses').update({ is_active: !course.is_active }).eq('id', course.id);
+    if (error) { toast('변경 실패: ' + error.message); return; }
     await load();
   };
 
   const togglePrice = async (course) => {
-    await supabase.from('courses').update({ show_price: !course.show_price }).eq('id', course.id);
+    const { error } = await supabase.from('courses').update({ show_price: !course.show_price }).eq('id', course.id);
+    if (error) { toast('변경 실패: ' + error.message); return; }
     await load();
   };
 
@@ -4550,11 +4563,12 @@ export function AdminLibrary({ user }) {
 
   const remove = async (file) => {
     if (!await confirmDialog('이 자료를 삭제하시겠습니까?\n파일·사진도 함께 삭제됩니다.')) return;
+    const { error } = await supabase.from('library_files').delete().eq('id', file.id);
+    if (error) { toast('삭제 실패: ' + error.message); return; }
     if (file.file_url) await deleteLibraryFile(file.file_url);
     for (const url of (Array.isArray(file.image_urls) ? file.image_urls : [])) {
       await deleteImageFromBucket(url, 'library-files');
     }
-    await supabase.from('library_files').delete().eq('id', file.id);
     await load();
   };
 
@@ -4777,10 +4791,15 @@ export function AdminQna({ user }) {
   const submitAnswer = async () => {
     if (!answer.trim()) return;
     setLoading(true);
-    await supabase.from('questions').update({
+    const { error: answerError } = await supabase.from('questions').update({
       answer, status: 'answered',
       answered_by: user.id, answered_at: new Date().toISOString()
     }).eq('id', selected.id);
+    if (answerError) {
+      toast('답변 저장 실패: ' + answerError.message);
+      setLoading(false);
+      return;
+    }
 
     // 📢 질문자에게 알림
     if (selected.user_id && selected.user_id !== user.id) {

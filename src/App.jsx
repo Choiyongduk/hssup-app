@@ -62,7 +62,7 @@ import { useDraft, useNewPages, useLatestLecture, useRecentUpdates } from './hoo
 import {
   MultiImageField, ImageCarousel, LegalPage, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, ToastHost, ConfirmHost,
 } from './components/common';
-import { useLevel, markAttendance, FEATURE_TIER, TIER_RANK, TIERS } from './lib/level';
+import { useLevel, FEATURE_TIER, TIER_RANK, TIERS } from './lib/level';
 import {
   HomePage, NoticeDetailPage, NoticePage, CoursePage, CourseDetailPage, BestCasePage, MyCasePage, QnaDetailPage, TrendsPage, TrendDetailPage, QnaPage, LibraryPage, LibraryDetailPage, MarketPage, OnlineLecturePage, LectureDetailPage, PostDetailPage, ProductDetailPage, PaymentPage, PaymentSuccessPage, PaymentFailPage, CommunityPage, MyActivityPage, MyPage, MyProfileEditPage, MyOrdersPage, MyPracticeBookingsPage, CartPage, CartCheckoutPage, OnboardingScreen, ImprovementsPage, TipsPage, TipDetailPage, PracticeBookingPage,
 } from './pages/student';
@@ -472,11 +472,9 @@ export default function HSSUPApp() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'staff';
   const canViewRevenue = profile?.role === 'admin';
 
-  // 🏅 등급(수강생만 계산; 운영진은 null → 로딩 없이 면제)
+  // 🏅 등급(수강생만 계산; 운영진은 null → 로딩 없이 면제). mark:true → 점수조회 전 오늘 출석 기록
   const studentId = isAdmin ? null : profile?.id;
-  const level = useLevel(studentId);
-  // 출석 기록 — 수강생이 그날 처음 접속하면 1회 (MASTER 점수용)
-  useEffect(() => { if (studentId) markAttendance(studentId); }, [studentId]);
+  const level = useLevel(studentId, { mark: true });
 
   // 🔝 탑 레벨 페이지 (뒤로가기 버튼 안 보임, 햄버거만)
   const TOP_LEVEL_PAGES = isAdmin
@@ -1665,12 +1663,12 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
   }
 
-  // 🏅 등급별 기능 잠금 (수강생만; 운영진 면제). 등급 로딩 중엔 잠깐 로딩 표시.
-  if (!isAdmin) {
+  // 🏅 등급별 기능 잠금 (수강생만; 운영진 면제). 등급이 아직 안 정해졌으면(로딩/프로필 미확정) 잠금 대신 로딩 표시.
+  if (!isAdmin && user) {
     const need = FEATURE_TIER[currentPage];
     if (need) {
-      if (level?.loading) return <LoadingScreen />;
-      if (TIER_RANK[level?.tier || 'member'] < TIER_RANK[need]) {
+      if (!level || level.loading) return <LoadingScreen />;
+      if (TIER_RANK[level.tier || 'member'] < TIER_RANK[need]) {
         return <TierLockScreen need={need} level={level} setCurrentPage={setCurrentPage} />;
       }
     }
@@ -1942,8 +1940,8 @@ function TierLockScreen({ need, level, setCurrentPage }) {
         <p className="font-body text-xs font-bold mb-2" style={{ color: COLORS.ink }}>승급 조건</p>
         {need === 'crew' && (
           <>
+            <LockCond done={level?.greetingDone} label="가입 인사 작성" />
             <LockCond done={(level?.reviewsAll || 0) >= 1} label="수강 후기 작성 1회" />
-            <LockCond done={(level?.casesAll || 0) >= 1} label="시술·연습 사진(1:1 피드백) 업로드 1회" />
           </>
         )}
         {need === 'master' && (

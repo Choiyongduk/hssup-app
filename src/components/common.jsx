@@ -568,8 +568,8 @@ export function LevelCard({ userId, setCurrentPage }) {
               <p className="font-body text-xs font-bold" style={{ color: COLORS.ink }}>
                 다음 등급 <span style={{ color: TIERS.crew.color }}>CREW</span> 승급 조건
               </p>
+              <Cond done={lv.greetingDone} label="가입 인사 작성" />
               <Cond done={lv.reviewsAll >= 1} label="수강 후기 작성 1회" />
-              <Cond done={lv.casesAll >= 1} label="시술·연습 사진(1:1 피드백) 업로드 1회" />
             </div>
           )}
           {isCrew && (
@@ -652,15 +652,19 @@ export function PageIntro({ ko, en, desc }) {
   );
 }
 
-export function LikeButton({ targetType, targetId, userId, size = 14 }) {
-  const [liked, setLiked] = useState(false);
-  const [count, setCount] = useState(0);
+// initialCount/initialLiked가 주어지면 자체 쿼리 없이 그 값으로 표시(목록 N+1 방지).
+// 부모가 한 번에 모아서 내려주는 용도. 주어지지 않으면 기존처럼 스스로 조회.
+export function LikeButton({ targetType, targetId, userId, size = 14, initialCount, initialLiked }) {
+  const hasInitial = initialCount !== undefined;
+  const [liked, setLiked] = useState(!!initialLiked);
+  const [count, setCount] = useState(initialCount || 0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (hasInitial) { setLiked(!!initialLiked); setCount(initialCount || 0); return; }
     if (!targetId || !userId) return;
     load();
-  }, [targetType, targetId, userId]);
+  }, [targetType, targetId, userId, hasInitial, initialCount, initialLiked]);
 
   const load = async () => {
     // 전체 좋아요 수 카운트

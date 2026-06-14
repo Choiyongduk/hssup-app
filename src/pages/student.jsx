@@ -3375,7 +3375,26 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
     const profileMap = {};
     (profilesData || []).forEach(p => { profileMap[p.id] = p; });
 
-    const enriched = postsData.map(p => ({ ...p, profile: profileMap[p.user_id] || { name: '익명' } }));
+    // 좋아요: 표시된 글들만 한 번에 (글마다 따로 조회하던 N+1 제거)
+    const postIds = postsData.map(p => p.id);
+    const { data: likesData } = await supabase
+      .from('likes')
+      .select('target_id, user_id')
+      .eq('target_type', 'community_post')
+      .in('target_id', postIds);
+    const likeCounts = {};
+    const likedByMe = new Set();
+    (likesData || []).forEach(l => {
+      likeCounts[l.target_id] = (likeCounts[l.target_id] || 0) + 1;
+      if (l.user_id === user.id) likedByMe.add(l.target_id);
+    });
+
+    const enriched = postsData.map(p => ({
+      ...p,
+      profile: profileMap[p.user_id] || { name: '익명' },
+      like_count: likeCounts[p.id] || 0,
+      liked_by_me: likedByMe.has(p.id),
+    }));
     setPosts(enriched);
   };
 
@@ -3614,7 +3633,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
             )}
             <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
               <div onClick={(e) => e.stopPropagation()}>
-                <LikeButton targetType="community_post" targetId={p.id} userId={user.id} size={12} />
+                <LikeButton targetType="community_post" targetId={p.id} userId={user.id} size={12} initialCount={p.like_count} initialLiked={p.liked_by_me} />
               </div>
               <button onClick={(e) => { e.stopPropagation(); openDetail(p); }}
                 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold" style={{ color: COLORS.stone }}>

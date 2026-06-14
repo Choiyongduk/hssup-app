@@ -29,7 +29,7 @@ export const TIERS = {
   crew: {
     key: 'crew', label: 'CREW', color: '#FF5C1F',
     tagline: '수강 후기 인증 회원',
-    conditions: ['수강 후기 작성 1회', '시술 또는 연습 사진 업로드 1회'],
+    conditions: ['가입 인사 작성', '수강 후기 작성 1회'],
     benefits: ['MEMBER 혜택 전체', '연습베드 예약', '자료실', 'Q&A', '수업 꿀팁'],
   },
   master: {
@@ -74,17 +74,20 @@ export function score30(s) {
 }
 
 // 통계 → 등급 판정
+// CREW 승급 = 가입 인사 작성(onb_greeting) AND 수강 후기 1회.
+// crewMet은 liveCrew(현재 조건 충족) 또는 crewEarned(한 번이라도 달성) 중 하나면 true → 영구 유지.
 export function computeTier(s) {
   const score = score30(s);
-  const crewMet = (s.reviewsAll || 0) >= 1 && (s.casesAll || 0) >= 1;
+  const liveCrew = !!s.greetingDone && (s.reviewsAll || 0) >= 1;
+  const crewMet = liveCrew || !!s.crewEarned;
   let tier = 'member';
   if (crewMet && score >= MASTER_SCORE) tier = 'master';
   else if (crewMet) tier = 'crew';
-  return { tier, score, crewMet, ...s };
+  return { tier, score, crewMet, liveCrew, ...s };
 }
 
 const ZERO = {
-  reviewsAll: 0, casesAll: 0,
+  reviewsAll: 0, greetingDone: false,
   attendance30: 0, likes30: 0, comments30: 0, posts30: 0, cases30: 0, best30: 0,
 };
 
@@ -94,18 +97,25 @@ export async function loadLevelStats(userId) {
   const sinceTs = new Date(Date.now() - 30 * 86400000).toISOString();
   const sinceDay = sinceTs.slice(0, 10);
   const cnt = async (q) => { const { count, error } = await q; return error ? 0 : (count || 0); };
+  const profRow = async () => {
+    const { data, error } = await supabase.from('profiles').select('crew_earned, onb_greeting').eq('id', userId).maybeSingle();
+    return error ? {} : (data || {});
+  };
 
-  const [reviewsAll, casesAll, attendance30, likes30, comments30, posts30, cases30, best30] = await Promise.all([
+  const [reviewsAll, attendance30, likes30, comments30, posts30, cases30, best30, prof] = await Promise.all([
     cnt(supabase.from('community_posts').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('category', '후기')),
-    cnt(supabase.from('cases').select('*', { count: 'exact', head: true }).eq('user_id', userId)),
     cnt(supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('day', sinceDay)),
     cnt(supabase.from('likes').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', sinceTs)),
     cnt(supabase.from('comments').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', sinceTs)),
     cnt(supabase.from('community_posts').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', sinceTs)),
     cnt(supabase.from('cases').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', sinceTs)),
     cnt(supabase.from('cases').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('is_best', true).gte('created_at', sinceTs)),
+    profRow(),
   ]);
-  return { reviewsAll, casesAll, attendance30, likes30, comments30, posts30, cases30, best30 };
+  return {
+    reviewsAll, attendance30, likes30, comments30, posts30, cases30, best30,
+    crewEarned: !!prof.crew_earned, greetingDone: !!prof.onb_greeting,
+  };
 }
 
 // 오늘 출석 기록 (그날 처음 접속 시 1회) — 수강생용
@@ -118,17 +128,26 @@ export async function markAttendance(userId) {
   } catch { /* attendance 테이블 미생성 등은 무시(점수만 0) */ }
 }
 
-// 등급 상태 훅 — userId 없으면(운영진 등) 로딩 없이 member 기본값
-export function useLevel(userId) {
+// 등급 상태 훅 — userId 없으면(운영진 등) 로딩 없이 member 기본값.
+// opts.mark=true면 점수 조회 전에 오늘 출석을 먼저 기록(본인 화면에서만 사용 — 남의 등급 조회 시엔 false).
+export function useLevel(userId, { mark = false } = {}) {
   const [state, setState] = useState({ loading: !!userId, tier: 'member', score: 0, crewMet: false, ...ZERO });
   useEffect(() => {
     if (!userId) { setState({ loading: false, tier: 'member', score: 0, crewMet: false, ...ZERO }); return; }
     let alive = true;
     setState(s => ({ ...s, loading: true }));
-    loadLevelStats(userId).then(stats => {
-      if (alive) setState({ loading: false, ...computeTier(stats) });
-    });
+    (async () => {
+      if (mark) { try { await markAttendance(userId); } catch { /* 출석 실패 무시 */ } }
+      const stats = await loadLevelStats(userId);
+      if (!alive) return;
+      const result = computeTier(stats);
+      setState({ loading: false, ...result });
+      // CREW를 이번에 처음 달성했으면 영구 플래그 저장
+      if (result.liveCrew && !stats.crewEarned) {
+        supabase.from('profiles').update({ crew_earned: true }).eq('id', userId).then(() => {}, () => {});
+      }
+    })();
     return () => { alive = false; };
-  }, [userId]);
+  }, [userId, mark]);
   return state;
 }
