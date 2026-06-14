@@ -60,8 +60,9 @@ import {
 } from './lib/notifications';
 import { useDraft, useNewPages, useLatestLecture, useRecentUpdates } from './hooks';
 import {
-  MultiImageField, ImageCarousel, LegalPage, SkeletonImage, Avatar, calculateLevel, LevelCard, PageIntro, LikeButton, CommentSection, ToastHost, ConfirmHost,
+  MultiImageField, ImageCarousel, LegalPage, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, ToastHost, ConfirmHost,
 } from './components/common';
+import { useLevel, markAttendance, FEATURE_TIER, TIER_RANK, TIERS } from './lib/level';
 import {
   HomePage, NoticeDetailPage, NoticePage, CoursePage, CourseDetailPage, BestCasePage, MyCasePage, QnaDetailPage, TrendsPage, TrendDetailPage, QnaPage, LibraryPage, LibraryDetailPage, MarketPage, OnlineLecturePage, LectureDetailPage, PostDetailPage, ProductDetailPage, PaymentPage, PaymentSuccessPage, PaymentFailPage, CommunityPage, MyActivityPage, MyPage, MyProfileEditPage, MyOrdersPage, MyPracticeBookingsPage, CartPage, CartCheckoutPage, OnboardingScreen, ImprovementsPage, TipsPage, TipDetailPage, PracticeBookingPage,
 } from './pages/student';
@@ -471,6 +472,12 @@ export default function HSSUPApp() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'staff';
   const canViewRevenue = profile?.role === 'admin';
 
+  // 🏅 등급(수강생만 계산; 운영진은 null → 로딩 없이 면제)
+  const studentId = isAdmin ? null : profile?.id;
+  const level = useLevel(studentId);
+  // 출석 기록 — 수강생이 그날 처음 접속하면 1회 (MASTER 점수용)
+  useEffect(() => { if (studentId) markAttendance(studentId); }, [studentId]);
+
   // 🔝 탑 레벨 페이지 (뒤로가기 버튼 안 보임, 햄버거만)
   const TOP_LEVEL_PAGES = isAdmin
     ? ['dashboard', 'admin-students', 'admin-qna', 'admin-notice', 'mypage']
@@ -710,7 +717,7 @@ export default function HSSUPApp() {
                 transform: pullDistance > 0 ? `translateY(${pullDistance}px)` : 'none',
                 transition: pullDistance === 0 && !refreshing ? 'transform 0.3s ease' : 'none'
               }}>
-                {/* 🍊 Pull-to-Refresh 인디케이터 */}
+                {/* Pull-to-Refresh 인디케이터 */}
                 {(pullDistance > 0 || refreshing) && (
                   <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-50"
                     style={{
@@ -742,7 +749,7 @@ export default function HSSUPApp() {
                     selectedTip={selectedTip} setSelectedTip={setSelectedTip}
                     selectedLibrary={selectedLibrary} setSelectedLibrary={setSelectedLibrary}
                     user={profile} handleLogout={handleLogout} isAdmin={isAdmin} canViewRevenue={canViewRevenue}
-                    refreshUser={refreshUser} routeId={routeId} />
+                    refreshUser={refreshUser} routeId={routeId} level={level} />
                   </Suspense>
                 </div>
               </main>
@@ -751,7 +758,7 @@ export default function HSSUPApp() {
                 <Drawer fullMenu={fullMenu} user={profile} isAdmin={isAdmin}
                   currentPage={currentPage}
                   setCurrentPage={(p) => { setCurrentPage(p); setDrawerOpen(false); }}
-                  onClose={() => setDrawerOpen(false)} handleLogout={handleLogout} />
+                  onClose={() => setDrawerOpen(false)} handleLogout={handleLogout} level={level} />
               )}
             </>
           )}
@@ -779,7 +786,7 @@ export default function HSSUPApp() {
       {/* 스플래시 화면 (설치된 앱 첫 진입 시) */}
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
 
-      {/* 🔔 전역 토스트 + 확인 모달 */}
+      {/* 전역 토스트 + 확인 모달 */}
       <ToastHost />
       <ConfirmHost />
     </div>
@@ -845,7 +852,7 @@ function UpdateBanner({ onUpdate, onDismiss }) {
           <Sparkles size={18} style={{ color: COLORS.white }} strokeWidth={2.5} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-heading text-sm" style={{ color: COLORS.white }}>새 버전이 있어요! ✨</p>
+          <p className="font-heading text-sm" style={{ color: COLORS.white }}>새 버전이 있어요! </p>
           <p className="font-body text-[11px] mt-0.5" style={{ color: COLORS.white, opacity: 0.9 }}>업데이트하면 새 기능을 만날 수 있어요</p>
         </div>
         <button onClick={onDismiss} className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.15)' }}>
@@ -880,7 +887,7 @@ function PendingApprovalScreen({ user, handleLogout }) {
       
       <div className="rounded-2xl p-5 mt-6 w-full max-w-sm" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
         <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink }}>
-          <strong>{user.name}</strong>님 안녕하세요! 🌸<br /><br />
+          <strong>{user.name}</strong>님 안녕하세요! <br /><br />
           가입 신청이 접수되었어요.<br />
           원장님께서 확인 후 승인해드릴게요.<br /><br />
           승인되면 모든 콘텐츠를 이용하실 수 있어요!
@@ -889,7 +896,7 @@ function PendingApprovalScreen({ user, handleLogout }) {
 
       <div className="mt-6 p-3 rounded-xl max-w-sm" style={{ background: COLORS.peach }}>
         <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.deep }}>
-          💡 보통 1~24시간 내에 승인됩니다.<br />
+          보통 1~24시간 내에 승인됩니다.<br />
           급한 경우 원장님께 직접 문의해주세요.
         </p>
       </div>
@@ -985,19 +992,19 @@ function IOSInstallGuide({ onClose }) {
       n: '1',
       title: '공유 버튼 탭',
       desc: 'Safari 하단의 공유 아이콘을 눌러주세요',
-      icon: '⬆️'
+      icon: ''
     },
     {
       n: '2',
       title: '"홈 화면에 추가" 선택',
       desc: '메뉴를 아래로 스크롤해서 찾아주세요',
-      icon: '➕'
+      icon: ''
     },
     {
       n: '3',
       title: '"추가" 탭',
       desc: '우측 상단의 "추가" 버튼을 눌러 완료!',
-      icon: '✨'
+      icon: ''
     },
   ];
 
@@ -1041,7 +1048,7 @@ function IOSInstallGuide({ onClose }) {
         {/* 안내 메시지 */}
         <div className="mt-5 p-3 rounded-xl text-center" style={{ background: COLORS.peach }}>
           <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.deep }}>
-            🍎 iPhone은 Apple 정책상 자동 설치가 불가능해서<br />수동으로 추가해주셔야 해요!
+            iPhone은 Apple 정책상 자동 설치가 불가능해서<br />수동으로 추가해주셔야 해요!
           </p>
         </div>
 
@@ -1192,7 +1199,7 @@ function AuthScreen() {
     if (error) {
       setError(error.message);
     } else {
-      setInfo(`✉️ ${findPwEmail}로 비밀번호 재설정 메일을 보냈어요!\n메일을 확인해주세요.`);
+      setInfo(`${findPwEmail}로 비밀번호 재설정 메일을 보냈어요!\n메일을 확인해주세요.`);
       setFindPwEmail('');
     }
     setLoading(false);
@@ -1234,7 +1241,7 @@ function AuthScreen() {
               <h2 className="font-heading text-base" style={{ color: COLORS.ink }}>비밀번호 찾기</h2>
             </div>
             <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.stone }}>
-              가입 시 사용한 이메일을 입력하면<br/>비밀번호 재설정 링크를 보내드려요 🍊
+              가입 시 사용한 이메일을 입력하면<br/>비밀번호 재설정 링크를 보내드려요 
             </p>
             <div>
               <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>EMAIL</label>
@@ -1351,7 +1358,7 @@ function AuthScreen() {
                   </select>
                 </div>
 
-                {/* 🎓 신입생 / 졸업생 선택 */}
+                {/* 신입생 / 졸업생 선택 */}
                 <div className="pt-2">
                   <label className="font-mono text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.stone }}>STUDENT TYPE *</label>
                   <div className="grid grid-cols-2 gap-2 mt-2">
@@ -1362,12 +1369,8 @@ function AuthScreen() {
                         border: `1px solid ${!signupForm.is_graduate ? COLORS.primary : COLORS.light}`,
                         boxShadow: !signupForm.is_graduate ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
                       }}>
-                      <p className="text-xl mb-1">🌱</p>
                       <p className="font-body text-xs font-semibold" style={{ color: !signupForm.is_graduate ? COLORS.primary : COLORS.ink }}>
                         신입생
-                      </p>
-                      <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>
-                        처음 등록
                       </p>
                     </button>
                     <button type="button" onClick={() => setSignupForm({ ...signupForm, is_graduate: true })}
@@ -1377,12 +1380,8 @@ function AuthScreen() {
                         border: `1px solid ${signupForm.is_graduate ? COLORS.primary : COLORS.light}`,
                         boxShadow: signupForm.is_graduate ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
                       }}>
-                      <p className="text-xl mb-1">🎓</p>
                       <p className="font-body text-xs font-semibold" style={{ color: signupForm.is_graduate ? COLORS.primary : COLORS.ink }}>
                         졸업생
-                      </p>
-                      <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>
-                        영상 면제
                       </p>
                     </button>
                   </div>
@@ -1422,7 +1421,7 @@ function AuthScreen() {
 
                 {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
 
-                {/* 📜 약관 동의 (필수) */}
+                {/* 약관 동의 (필수) */}
                 <div className="rounded-2xl p-4 space-y-3 my-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
                   <label className="flex items-center gap-3 cursor-pointer pb-3" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
                     <input type="checkbox" checked={allAgreed} onChange={e => toggleAll(e.target.checked)}
@@ -1471,7 +1470,7 @@ function AuthScreen() {
         )}
       </div>
 
-      {/* 📜 약관 보기 모달 (회원가입 화면용) */}
+      {/* 약관 보기 모달 (회원가입 화면용) */}
       {legalModal && (
         <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: COLORS.cream }}>
           <div className="flex items-center justify-between p-4 shrink-0" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
@@ -1567,7 +1566,7 @@ function BottomTabBar({ tabs, currentPage, setCurrentPage, setDrawerOpen }) {
   );
 }
  
-function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose, handleLogout }) {
+function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose, handleLogout, level }) {
   const newPages = useNewPages();
 
   return (
@@ -1601,12 +1600,20 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
               {section.items.map(item => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id;
+                const needTier = !isAdmin ? FEATURE_TIER[item.id] : null;
+                const locked = needTier && TIER_RANK[level?.tier || 'member'] < TIER_RANK[needTier];
                 return (
                   <button key={item.id} onClick={() => setCurrentPage(item.id)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-body text-sm font-medium transition-transform active:scale-[0.98]"
-                    style={{ background: isActive ? COLORS.primary : 'transparent', color: isActive ? COLORS.white : COLORS.ink, boxShadow: isActive ? '0 0 12px rgba(255, 92, 31, 0.3)' : 'none' }}>
+                    style={{ background: isActive ? COLORS.primary : 'transparent', color: isActive ? COLORS.white : (locked ? COLORS.stone : COLORS.ink), boxShadow: isActive ? '0 0 12px rgba(255, 92, 31, 0.3)' : 'none' }}>
                     <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
                     {item.label}
-                    {newPages.includes(item.id) && (
+                    {locked && (
+                      <span className="ml-auto flex items-center gap-1">
+                        <span className="font-mono text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded" style={{ background: TIERS[needTier].color, color: '#fff' }}>{TIERS[needTier].label}</span>
+                        <Lock size={12} style={{ color: COLORS.stone }} />
+                      </span>
+                    )}
+                    {!locked && newPages.includes(item.id) && (
                       <span className="ml-auto w-2 h-2 rounded-full animate-pulse" style={{ background: isActive ? COLORS.white : '#FF3B30' }} />
                     )}
                   </button>
@@ -1624,7 +1631,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser, routeId }) {
+function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser, routeId, level }) {
   // Debug route removed
   // 🍊 온보딩 체크 - 가입 인사만 작성하면 전체 오픈 (신입생/졸업생 동일)
   const needsOnboarding = !isAdmin && user && !user.onb_greeting;
@@ -1657,6 +1664,18 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
     if (currentPage === 'admin-courses') return <AdminCourses user={user} />;
     if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
   }
+
+  // 🏅 등급별 기능 잠금 (수강생만; 운영진 면제). 등급 로딩 중엔 잠깐 로딩 표시.
+  if (!isAdmin) {
+    const need = FEATURE_TIER[currentPage];
+    if (need) {
+      if (level?.loading) return <LoadingScreen />;
+      if (TIER_RANK[level?.tier || 'member'] < TIER_RANK[need]) {
+        return <TierLockScreen need={need} level={level} setCurrentPage={setCurrentPage} />;
+      }
+    }
+  }
+
   if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} routeId={routeId} />;
   if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} setCurrentPage={setCurrentPage} routeId={routeId} />;
   if (currentPage === 'post-detail') return <PostDetailPage post={selectedPost} user={user} setCurrentPage={setCurrentPage} routeId={routeId} />;
@@ -1898,6 +1917,67 @@ function NoPermissionScreen({ setCurrentPage }) {
         style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.4)' }}>
         대시보드로 가기
       </button>
+    </div>
+  );
+}
+
+// =============================================================
+// 🔒 TierLockScreen - 등급 미달 잠금 화면 (수강생용)
+// =============================================================
+function TierLockScreen({ need, level, setCurrentPage }) {
+  const t = TIERS[need];
+  return (
+    <div className="px-5 py-16 text-center">
+      <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"
+        style={{ background: COLORS.card, border: `2px solid ${t.color}` }}>
+        <Lock size={32} style={{ color: t.color }} strokeWidth={2.5} />
+      </div>
+      <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.stone }}>━━ {t.label} 전용</p>
+      <h2 className="font-display text-2xl mt-3 tracking-tight" style={{ color: COLORS.ink }}>
+        <span style={{ color: t.color }}>{t.label}</span> 등급부터 이용할 수 있어요
+      </h2>
+      <p className="font-body text-sm mt-2" style={{ color: COLORS.stone }}>{t.tagline}</p>
+
+      <div className="mt-6 rounded-2xl p-5 text-left max-w-sm mx-auto" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        <p className="font-body text-xs font-bold mb-2" style={{ color: COLORS.ink }}>승급 조건</p>
+        {need === 'crew' && (
+          <>
+            <LockCond done={(level?.reviewsAll || 0) >= 1} label="수강 후기 작성 1회" />
+            <LockCond done={(level?.casesAll || 0) >= 1} label="시술·연습 사진(1:1 피드백) 업로드 1회" />
+          </>
+        )}
+        {need === 'master' && (
+          <>
+            <LockCond done={level?.crewMet} label="CREW 등급 달성" />
+            <LockCond done={(level?.score || 0) >= 100} label={`최근 30일 활동 점수 100점 이상 (현재 ${level?.score || 0}점)`} />
+          </>
+        )}
+        <p className="font-body text-[11px] mt-3" style={{ color: COLORS.primary }}>혜택 · {t.benefits.join(' · ')}</p>
+      </div>
+
+      <div className="flex gap-2 justify-center mt-6">
+        <button onClick={() => setCurrentPage('mypage')}
+          className="font-heading text-sm px-6 py-3 rounded-full"
+          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.4)' }}>
+          내 등급 확인
+        </button>
+        <button onClick={() => setCurrentPage('home')}
+          className="font-heading text-sm px-6 py-3 rounded-full"
+          style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+          홈으로
+        </button>
+      </div>
+    </div>
+  );
+}
+function LockCond({ done, label }) {
+  return (
+    <div className="flex items-center gap-2 mt-1.5">
+      <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 font-bold"
+        style={{ background: done ? COLORS.primary : 'transparent', border: done ? 'none' : `1.5px solid ${COLORS.light}`, color: '#fff', fontSize: 10 }}>
+        {done ? '✓' : ''}
+      </span>
+      <span className="font-body text-xs" style={{ color: done ? COLORS.ink : COLORS.stone }}>{label}</span>
     </div>
   );
 }

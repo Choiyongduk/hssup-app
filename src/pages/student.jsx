@@ -44,7 +44,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
         </h2>
       </section>
 
-      {/* 🆕 NEW 업데이트 (수강생) */}
+      {/* NEW 업데이트 (수강생) */}
       {homeUpdates.length > 0 && (
         <section className="px-5 mb-5">
           <div className="flex items-center justify-between mb-2 px-1">
@@ -75,7 +75,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
             <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">━━ ONLINE CLASS{heroLecture.isNew && ' · NEW'}</p>
             <h3 className="font-display text-2xl mt-2 leading-tight tracking-tight">{heroLecture.isNew ? <>새로운 강의가<br />업데이트 되었습니다</> : <>온라인 강의로<br />실력을 키워보세요</>}</h3>
             {heroLecture.latest && (
-              <p className="font-body text-xs mt-2 opacity-90 truncate">{heroLecture.isNew ? '🆕 ' : '최신 · '}{heroLecture.latest.title}</p>
+              <p className="font-body text-xs mt-2 opacity-90 truncate">{heroLecture.isNew ? '' : '최신 · '}{heroLecture.latest.title}</p>
             )}
             <div className="flex items-center justify-end mt-5">
               <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
@@ -306,7 +306,7 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
     <>
       <PageIntro ko="클래스" en="Class" desc="당신의 시그니처를 만들어보세요" />
 
-      {/* 🔍 검색바 */}
+      {/* 검색바 */}
       <div className="px-5 mb-3">
         <div className="relative">
           <Search size={16} style={{ color: COLORS.stone, position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -322,7 +322,7 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
         </div>
       </div>
 
-      {/* 🏷️ 카테고리 탭 */}
+      {/* 카테고리 탭 */}
       <div className="px-5 mb-3">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {COURSE_CATEGORIES.map(cat => (
@@ -340,7 +340,7 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
         </div>
       </div>
 
-      {/* 📊 정렬 + 결과 카운트 */}
+      {/* 정렬 + 결과 카운트 */}
       <div className="px-5 mb-4 flex items-center justify-between">
         <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
           {isFiltering ? '검색 결과 ' : '총 '}
@@ -404,7 +404,7 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
                     }}>{c.badge}</span>
                   )}
                   {c.hot && (
-                    <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>🔥 HOT</span>
+                    <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>HOT</span>
                   )}
                 </div>
                 <h3 className="font-heading text-base mt-0.5 truncate" style={{ color: COLORS.ink }}>{c.title}</h3>
@@ -447,7 +447,7 @@ export function CourseDetailPage({ course: propCourse, user, setCurrentPage, set
     ? Math.round(((c.original_price - c.price) / c.original_price) * 100) : 0;
 
   const apply = () => {
-    if (!c.show_price) { toast('📞 자세한 안내를 위해 원장님께 문의해주세요!'); return; }
+    if (!c.show_price) { toast('자세한 안내를 위해 원장님께 문의해주세요!'); return; }
     setSelectedProduct?.(null);
     sessionStorage.removeItem('hssup_sel_product');
     setSelectedCourse?.(c);
@@ -468,11 +468,11 @@ export function CourseDetailPage({ course: propCourse, user, setCurrentPage, set
               color: c.badge === 'BEST' ? COLORS.primary : (c.badge === 'SALE' ? COLORS.deep : COLORS.white),
             }}>{c.badge}</span>
           )}
-          {c.hot && <span className="font-mono text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>🔥 HOT</span>}
+          {c.hot && <span className="font-mono text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>HOT</span>}
         </div>
         <h1 className="font-display text-3xl tracking-tight leading-tight" style={{ color: COLORS.ink }}>{c.title}</h1>
         {c.en_title && <p className="font-serif-italic text-base mt-1" style={{ color: COLORS.stone, opacity: 0.7 }}>{c.en_title}</p>}
-        {c.duration && <p className="font-mono text-xs mt-2" style={{ color: COLORS.primary }}>⏱ {c.duration}</p>}
+        {c.duration && <p className="font-mono text-xs mt-2" style={{ color: COLORS.primary }}>{c.duration}</p>}
       </div>
 
       {c.description && (
@@ -578,7 +578,7 @@ export function BestCasePage() {
     <>
       <PageIntro ko="베스트 케이스" en="Best Case" desc="동료들의 작품에서 영감을 얻으세요" />
 
-      {/* 🎁 베스트 케이스 선정 혜택 안내 */}
+      {/* 베스트 케이스 선정 혜택 안내 */}
       <div className="px-5 mb-4">
         <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
           <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
@@ -587,7 +587,7 @@ export function BestCasePage() {
           <div>
             <p className="font-heading text-sm" style={{ color: COLORS.deep }}>베스트 케이스에 선정되면?</p>
             <p className="font-body text-xs mt-1 leading-relaxed" style={{ color: COLORS.ink }}>
-              올려주신 작업 사진이 베스트 케이스로 선정되면 <b>추후 수강 할인 혜택</b> 또는 <b>소정의 선물</b>을 드려요. 멋진 작업물을 1:1 피드백에 많이 남겨주세요! 🍊
+              올려주신 작업 사진이 베스트 케이스로 선정되면 <b>추후 수강 할인 혜택</b> 또는 <b>소정의 선물</b>을 드려요. 멋진 작업물을 1:1 피드백에 많이 남겨주세요! 
             </p>
           </div>
         </div>
@@ -783,7 +783,7 @@ export function MyCasePage({ user }) {
 
   return (
     <>
-      <PageIntro ko="1:1 피드백" en="Personal Feedback" desc="원장님의 1:1 개별 피드백을 받아보세요 🔒" />
+      <PageIntro ko="1:1 피드백" en="Personal Feedback" desc="원장님의 1:1 개별 피드백을 받아보세요 " />
       <div className="px-5 space-y-3">
 
         {/* 새 케이스 추가 버튼 */}
@@ -974,9 +974,9 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
     }).eq('id', qna.id);
     setActionLoading(false);
     if (error) {
-      toast('❌ 수정 실패: ' + error.message);
+      toast('수정 실패: ' + error.message);
     } else {
-      toast('✏️ 수정 완료!');
+      toast('수정 완료!');
       setEditing(false);
       setCurrentPage('qna');
     }
@@ -1008,22 +1008,22 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
       
       if (error) {
         console.error('삭제 에러:', error);
-        toast('❌ 삭제 실패: ' + error.message);
+        toast('삭제 실패: ' + error.message);
         setActionLoading(false);
         return;
       }
       
       if (count === 0) {
-        toast('⚠️ 삭제 권한이 없습니다.\n본인이 작성한 질문만 삭제할 수 있어요.');
+        toast('삭제 권한이 없습니다.\n본인이 작성한 질문만 삭제할 수 있어요.');
         setActionLoading(false);
         return;
       }
       
-      toast('🗑️ 삭제되었습니다');
+      toast('삭제되었습니다');
       setCurrentPage('qna');
     } catch (err) {
       console.error('삭제 예외:', err);
-      toast('❌ 삭제 실패: ' + err.message);
+      toast('삭제 실패: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -1119,7 +1119,7 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
               })()}
             </div>
 
-            {/* 🍊 수정/삭제 버튼 (본인 또는 관리자) */}
+            {/* 수정/삭제 버튼 (본인 또는 관리자) */}
             {(canEdit || canDelete) && (
               <div className="flex gap-1.5">
                 {canEdit && (
@@ -1445,7 +1445,7 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: `❓ [${form.category}] 새 질문이 등록되었어요`,
+          title: `[${form.category}] 새 질문이 등록되었어요`,
           body: `${user.name}: ${form.title}`,
           url: '/',
           targetRole: 'admin',
@@ -1471,7 +1471,7 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
     <>
       <PageIntro ko="Q&A" en="Questions" desc="궁금한 점을 물어보세요" />
 
-      {/* 🍊 카테고리 필터 - 재료샵 스타일 */}
+      {/* 카테고리 필터 - 재료샵 스타일 */}
       <div className="px-5 mb-3">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {categories.map(cat => (
@@ -1488,7 +1488,7 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
         </div>
       </div>
 
-      {/* 📊 결과 카운트 */}
+      {/* 결과 카운트 */}
       <div className="px-5 mb-4">
         <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
           {filter === '전체' ? '총 ' : `${filter} 카테고리 `}
@@ -1709,7 +1709,7 @@ export function LibraryDetailPage({ file: propFile, setCurrentPage, routeId }) {
         </div>
       ) : (
         <div className="px-5 mt-4">
-          <p className="font-mono text-[11px] text-center" style={{ color: COLORS.muted }}>📎 첨부파일이 없는 자료입니다</p>
+          <p className="font-mono text-[11px] text-center" style={{ color: COLORS.muted }}>첨부파일이 없는 자료입니다</p>
         </div>
       )}
     </div>
@@ -1799,7 +1799,7 @@ export function MarketPage({ setCurrentPage, setSelectedProduct }) {
     <>
       <PageIntro ko="재료샵" en="Market" desc="수강생 전용 가격으로 만나보세요" />
 
-      {/* 🔍 검색바 */}
+      {/* 검색바 */}
       <div className="px-5 mb-3">
         <div className="relative">
           <Search size={16} style={{ color: COLORS.stone, position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -1832,7 +1832,7 @@ export function MarketPage({ setCurrentPage, setSelectedProduct }) {
         </div>
       </div>
 
-      {/* 📊 정렬 + 결과 카운트 */}
+      {/* 정렬 + 결과 카운트 */}
       <div className="px-5 mb-4 flex items-center justify-between">
         <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
           {isFiltering ? '검색 결과 ' : '총 '}
@@ -1875,7 +1875,7 @@ export function MarketPage({ setCurrentPage, setSelectedProduct }) {
                     <SkeletonImage src={p.image_url} alt={p.name} className="w-full h-full" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-5xl" style={{ color: COLORS.primary }}>{p.emoji || '🛍️'}</span>
+                      <span className="text-5xl" style={{ color: COLORS.primary }}>{p.emoji || ''}</span>
                     </div>
                   )}
                   {/* 배지 - BEST/NEW/SALE만 표시 */}
@@ -1911,7 +1911,7 @@ export function MarketPage({ setCurrentPage, setSelectedProduct }) {
                   <p className="font-display text-base mt-0.5 tracking-tight" style={{ color: COLORS.ink }}>
                     {p.price?.toLocaleString()}<span className="font-body text-[10px] font-medium" style={{ color: COLORS.stone }}>원</span>
                   </p>
-                  {/* 🔥 인기순일 때만 좋아요 수 표시 */}
+                  {/* 인기순일 때만 좋아요 수 표시 */}
                   {sortBy === 'popular' && p.like_count > 0 && (
                     <p className="font-mono text-[9px] mt-1 flex items-center gap-1" style={{ color: COLORS.primary }}>
                       <Heart size={9} fill={COLORS.primary} strokeWidth={2.5} />{p.like_count}
@@ -2009,14 +2009,14 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
     <>
       <PageIntro ko="온라인 강의" en="Lectures" desc="언제 어디서나 학습하세요 · 9월 오픈 예정" />
 
-      {/* 🗓️ 9월 오픈 안내 배너 */}
+      {/* 9월 오픈 안내 배너 */}
       <div className="px-5 mb-4">
         <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
           <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
             <PlayCircle size={16} style={{ color: COLORS.white }} />
           </div>
           <div>
-            <p className="font-heading text-sm" style={{ color: COLORS.deep }}>온라인 강의 9월 오픈 예정 🎬</p>
+            <p className="font-heading text-sm" style={{ color: COLORS.deep }}>온라인 강의 9월 오픈 예정 </p>
             <p className="font-body text-xs mt-1 leading-relaxed" style={{ color: COLORS.ink }}>
               현재 강의 영상을 정성껏 준비하고 있어요. 9월에 오픈되면 알려드릴게요!
             </p>
@@ -2024,7 +2024,7 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
         </div>
       </div>
 
-      {/* 🔍 검색바 */}
+      {/* 검색바 */}
       <div className="px-5 mb-3">
         <div className="relative">
           <Search size={16} style={{ color: COLORS.stone, position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -2057,7 +2057,7 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
         </div>
       </div>
 
-      {/* 📊 정렬 + 결과 카운트 */}
+      {/* 정렬 + 결과 카운트 */}
       <div className="px-5 mb-4 flex items-center justify-between">
         <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
           {isFiltering ? '검색 결과 ' : '총 '}
@@ -2120,7 +2120,7 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
                 <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
                   {l.instructor} · {l.level || 'Basic'}
                 </p>
-                {/* 🔥 인기순일 때만 좋아요 수 표시 */}
+                {/* 인기순일 때만 좋아요 수 표시 */}
                 {sortBy === 'popular' && l.like_count > 0 && (
                   <p className="font-mono text-[10px] flex items-center gap-1" style={{ color: COLORS.primary }}>
                     <Heart size={10} fill={COLORS.primary} strokeWidth={2.5} />{l.like_count}
@@ -2145,11 +2145,11 @@ export function LectureDetailPage({ lecture: propLecture, user, routeId }) {
         setTimeout(() => {
           if (!user.onb_greeting || !user.onb_review) {
             // 다른 미션 남았으면 알림
-            toast('🎬 오리엔테이션 시청 완료!');
+            toast('오리엔테이션 시청 완료!');
             window.location.reload();
           } else {
             // 마지막 미션이면 축하
-            toast('🎉 모든 미션 완료! HSSUP 시작!');
+            toast('모든 미션 완료! HSSUP 시작!');
             window.location.reload();
           }
         }, 3000);
@@ -2281,9 +2281,9 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
     }).eq('id', post.id);
     setActionLoading(false);
     if (error) {
-      toast('❌ 수정 실패: ' + error.message);
+      toast('수정 실패: ' + error.message);
     } else {
-      toast('✏️ 수정 완료!');
+      toast('수정 완료!');
       setEditing(false);
       // 카테고리별로 돌아갈 페이지 결정
       const backPage = post.category === '인사' ? 'greetings'
@@ -2317,13 +2317,13 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
       const { error } = await supabase.from('community_posts').delete().eq('id', post.id);
       if (error) throw error;
       
-      toast('🗑️ 삭제되었습니다');
+      toast('삭제되었습니다');
       const backPage = post.category === '인사' ? 'greetings'
                       : post.category === '후기' ? 'reviews'
                       : 'freeboard';
       setCurrentPage(backPage);
     } catch (err) {
-      toast('❌ 삭제 실패: ' + err.message);
+      toast('삭제 실패: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -2343,8 +2343,8 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
     setActionLoading(true);
     const { error } = await supabase.from('community_posts').update({ category: newCat }).eq('id', post.id);
     setActionLoading(false);
-    if (error) { toast('❌ 이동 실패: ' + error.message); return; }
-    toast(`📂 "${target.label}"(으)로 이동했어요`);
+    if (error) { toast('이동 실패: ' + error.message); return; }
+    toast(`"${target.label}"(으)로 이동했어요`);
     setCurrentPage(target.page);
   };
 
@@ -2418,7 +2418,7 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
               <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(post.created_at).toLocaleString('ko-KR')}</p>
             </div>
 
-            {/* 🍊 수정/삭제 버튼 (본인 또는 관리자) */}
+            {/* 수정/삭제 버튼 (본인 또는 관리자) */}
             {(canEdit || canDelete) && (
               <div className="flex gap-1.5">
                 {canEdit && (
@@ -2440,7 +2440,7 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
             )}
           </div>
 
-          {/* 📂 카테고리 이동 (관리자/스태프 전용) */}
+          {/* 카테고리 이동 (관리자/스태프 전용) */}
           {isAdmin && (
             <div className="flex items-center gap-1.5 flex-wrap mb-4 pb-4" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
               <span className="font-mono text-[10px] font-bold tracking-widest uppercase mr-1" style={{ color: COLORS.stone }}>이동</span>
@@ -2554,7 +2554,7 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
           <ImageCarousel images={getRowImages(product)} className="w-full h-full" rounded="" bordered={false} zoomable />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <span className="text-9xl" style={{ color: COLORS.primary }}>{product.emoji || '🛍️'}</span>
+            <span className="text-9xl" style={{ color: COLORS.primary }}>{product.emoji || ''}</span>
           </div>
         )}
         {product.badge && (
@@ -2680,13 +2680,14 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
   const [legalModal, setLegalModal] = useState(null); // 'refund' | 'terms' | 'privacy' | null
   const allAgreed = agreedPurchase && agreedRefund;
 
-  // 배송 정보 (재료 구매 시만 사용)
-  const [shippingRecipientName, setShippingRecipientName] = useState(user?.name || '');
-  const [shippingRecipientPhone, setShippingRecipientPhone] = useState(user?.phone || '');
-  const [shippingPostalCode, setShippingPostalCode] = useState('');
-  const [shippingAddress, setShippingAddress] = useState('');
-  const [shippingAddressDetail, setShippingAddressDetail] = useState('');
-  const [shippingMemo, setShippingMemo] = useState('');
+  // 배송 정보 (재료 구매 시만 사용) — 저장된 기본 배송지가 있으면 자동 입력
+  const [shippingRecipientName, setShippingRecipientName] = useState(user?.ship_name || user?.name || '');
+  const [shippingRecipientPhone, setShippingRecipientPhone] = useState(user?.ship_phone || user?.phone || '');
+  const [shippingPostalCode, setShippingPostalCode] = useState(user?.ship_postal || '');
+  const [shippingAddress, setShippingAddress] = useState(user?.ship_addr || '');
+  const [shippingAddressDetail, setShippingAddressDetail] = useState(user?.ship_addr_detail || '');
+  const [shippingMemo, setShippingMemo] = useState(user?.ship_memo || '');
+  const [saveDefaultShip, setSaveDefaultShip] = useState(true);
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const postcodeContainerRef = useRef(null);
 
@@ -2785,6 +2786,17 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
       if (!shippingAddressDetail?.trim()) {
         toast('상세 주소를 입력해주세요. (동/호수 등)');
         return;
+      }
+      // 기본 배송지 저장 (선택)
+      if (saveDefaultShip) {
+        supabase.from('profiles').update({
+          ship_name: shippingRecipientName.trim(),
+          ship_phone: shippingRecipientPhone.trim(),
+          ship_postal: shippingPostalCode,
+          ship_addr: shippingAddress,
+          ship_addr_detail: shippingAddressDetail.trim(),
+          ship_memo: shippingMemo?.trim() || null,
+        }).eq('id', user.id).then(() => {}, () => {});
       }
     }
 
@@ -2903,7 +2915,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
           </div>
         </div>
 
-        {/* 📦 배송 정보 (재료 구매 시에만 표시) */}
+        {/* 배송 정보 (재료 구매 시에만 표시) */}
         {isProduct && (
           <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
@@ -2982,6 +2994,12 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
               style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}
             />
 
+            <label className="flex items-center gap-2 font-body text-xs cursor-pointer pt-1" style={{ color: COLORS.ink }}>
+              <input type="checkbox" checked={saveDefaultShip} onChange={e => setSaveDefaultShip(e.target.checked)}
+                className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+              <span>이 배송지를 기본 배송지로 저장</span>
+            </label>
+
             <p className="font-body text-[10px] mt-1" style={{ color: COLORS.muted }}>
               결제 완료 시 1~3 영업일 내 발송됩니다
             </p>
@@ -3021,7 +3039,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
           </p>
         </div>
 
-        {/* 📜 결제 동의 (필수) */}
+        {/* 결제 동의 (필수) */}
         <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={agreedPurchase} onChange={e => setAgreedPurchase(e.target.checked)}
@@ -3056,7 +3074,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
         </p>
       </div>
 
-      {/* 📜 약관 보기 모달 (결제 페이지용) */}
+      {/* 약관 보기 모달 (결제 페이지용) */}
       {legalModal && (
         <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: COLORS.cream }}>
           <div className="flex items-center justify-between p-4 shrink-0" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
@@ -3083,7 +3101,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
       )}
 
       {/* 우편번호 검색 모달 (Daum Postcode embed) — 풀스크린 + 헤더 패턴
-          ⚠️ Portal로 document.body에 렌더: 부모 <main>의 transform 인라인 스타일이
+          Portal로 document.body에 렌더: 부모 <main>의 transform 인라인 스타일이
               containing block을 만들어 fixed가 갇히는 문제를 우회. */}
       {postcodeOpen && createPortal(
         <div style={{
@@ -3198,12 +3216,12 @@ export function PaymentSuccessPage({ user, setCurrentPage }) {
         <p className="font-body text-xs mt-2" style={{ color: COLORS.stone }}>안전하게 결제 검증이 완료되었어요</p>
       </div>
 
-      {/* 🍊 Safari에서 열렸으면 PWA로 돌아가도록 안내.
+      {/* Safari에서 열렸으면 PWA로 돌아가도록 안내.
           iOS PWA와 Safari의 localStorage가 분리돼서 hasPwaInstalled를 신뢰할 수 없어
           기준을 단순화: standalone이 아니면(=Safari) 안내 노출. */}
       {!isStandalone && (
         <div className="mx-5 mb-3 rounded-2xl p-4" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
-          <p className="font-heading text-sm" style={{ color: COLORS.deep }}>📱 HSSUP 앱에서 자세한 내역을 확인하세요</p>
+          <p className="font-heading text-sm" style={{ color: COLORS.deep }}>HSSUP 앱에서 자세한 내역을 확인하세요</p>
           <p className="font-body text-xs mt-1" style={{ color: COLORS.deep, opacity: 0.85 }}>
             홈 화면의 HSSUP 아이콘을 누르시면 결제 상세와 배송 정보를 보실 수 있어요.
             (방금 받은 푸시 알림을 눌러도 앱이 열려요.)
@@ -3407,7 +3425,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
         missionDone = true;
       }
       if (missionDone) {
-        toast('🎉 미션 완료! 온보딩으로 돌아갑니다.');
+        toast('미션 완료! 온보딩으로 돌아갑니다.');
         clearNewPost();
         resetComposer();
         await load();
@@ -3418,11 +3436,10 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
       // 📢 알림 발송 (학생→관리자, 관리자→학생)
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const categoryEmoji = fixedCategory === '인사' ? '👋' : fixedCategory === '후기' ? '⭐' : '💬';
         const targetRole = isAdmin ? 'student' : 'admin';
-        const titlePrefix = isAdmin 
-          ? `${categoryEmoji} [${pageTitle || '게시판'}] 원장님이 글을 남겼어요`
-          : `${categoryEmoji} [${pageTitle || '게시판'}] 새 글이 등록됐어요`;
+        const titlePrefix = isAdmin
+          ? `[${pageTitle || '게시판'}] 원장님이 글을 남겼어요`
+          : `[${pageTitle || '게시판'}] 새 글이 등록됐어요`;
         
         await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
           method: 'POST',
@@ -3476,7 +3493,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
     <>
       <PageIntro ko={pageTitle || "커뮤니티"} en={pageEn || "Community"} desc={pageDesc || "동료들과 이야기 나눠보세요"} />
       <div className="px-5 space-y-3">
-        {/* 👋 가입 인사 양식 + 규정 안내 (인사 게시판 전용) */}
+        {/* 가입 인사 양식 + 규정 안내 (인사 게시판 전용) */}
         {fixedCategory === '인사' && (
           <div className="rounded-2xl p-4" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
             <p className="font-heading text-sm flex items-center gap-1.5" style={{ color: COLORS.deep }}>
@@ -3508,7 +3525,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
             className="w-full font-body text-sm font-medium p-3 outline-none resize-y rounded leading-relaxed"
             style={{ background: COLORS.cream, color: COLORS.ink }} />
 
-          {/* 📎 첨부 영역 */}
+          {/* 첨부 영역 */}
           {showAttach && (
             <div className="space-y-2 animate-fade-in">
               <MultiImageField label="사진 (여러 장)" value={media} onChange={(v) => setMedia({ ...media, ...v })} max={6} />
@@ -3607,7 +3624,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
           </div>
         ))}
         
-        {/* 🍊 더 보기 버튼 */}
+        {/* 더 보기 버튼 */}
         {total > posts.length && (
           <button onClick={() => setDisplayCount(c => c + POSTS_PER_PAGE)}
             className="w-full rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
@@ -3808,7 +3825,7 @@ export function MyActivityPage({ user, setCurrentPage, setSelectedPost }) {
 }
 
 export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' || user.role === 'staff';
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [currentColor, setCurrentColor] = useState(user.avatar_color || 'orange');
   const [currentAvatar, setCurrentAvatar] = useState(user.avatar_url || null);
@@ -3867,7 +3884,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
     try {
       const { error } = await supabase.from('profiles').update({
         status: 'deleted',
-        role: 'student',  // 🍊 운영진 권한 자동 해제
+        role: 'student',  // 운영진 권한 자동 해제
         name: '탈퇴한 회원',
         phone: null,
         deleted_at: new Date().toISOString(),
@@ -3894,7 +3911,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
     const result = await subscribeToNotifications(user.id);
     if (result.success) {
       setNotifStatus('subscribed');
-      toast('✨ 알림이 설정되었습니다!\n공지, Q&A 답변 등을 실시간으로 받아보세요.');
+      toast('알림이 설정되었습니다!\n공지, Q&A 답변 등을 실시간으로 받아보세요.');
     } else {
       toast('알림 설정에 실패했습니다.\n' + result.error);
     }
@@ -4007,10 +4024,10 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
           </section>
         )}
 
-        {/* ⭐ 등급 카드 (admin 제외) */}
+        {/* 등급 카드 (admin 제외) */}
         {!isAdmin && <LevelCard userId={user.id} setCurrentPage={setCurrentPage} />}
 
-        {/* 📋 내 활동 바로가기 (모든 사용자) */}
+        {/* 내 활동 바로가기 (모든 사용자) */}
         <button onClick={() => setCurrentPage('my-activity')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -4024,7 +4041,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
           <ChevronRight size={16} style={{ color: COLORS.stone }} />
         </button>
 
-        {/* 📦 주문 내역 (모든 사용자) */}
+        {/* 주문 내역 (모든 사용자) */}
         <button onClick={() => setCurrentPage('my-orders')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -4038,7 +4055,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
           <ChevronRight size={16} style={{ color: COLORS.stone }} />
         </button>
 
-        {/* ✏️ 내 정보 수정 (모든 사용자) */}
+        {/* 내 정보 수정 (모든 사용자) */}
         <button onClick={() => setCurrentPage('my-profile-edit')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -4052,7 +4069,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
           <ChevronRight size={16} style={{ color: COLORS.stone }} />
         </button>
 
-        {/* 🛒 장바구니 (모든 사용자) */}
+        {/* 장바구니 (모든 사용자) */}
         <button onClick={() => setCurrentPage('cart')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -4066,7 +4083,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
           <ChevronRight size={16} style={{ color: COLORS.stone }} />
         </button>
 
-        {/* 🛏️ 내 예약 (모든 사용자) */}
+        {/* 내 예약 (모든 사용자) */}
         <button onClick={() => setCurrentPage('my-bookings')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -4088,10 +4105,10 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
               <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Notifications</p>
               <h3 className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>푸시 알림</h3>
               <p className="font-body text-xs mt-1 leading-relaxed" style={{ color: COLORS.stone }}>
-                {notifStatus === 'subscribed' && '✨ 공지, 답변을 실시간으로 받습니다'}
+                {notifStatus === 'subscribed' && '공지, 답변을 실시간으로 받습니다'}
                 {notifStatus === 'unsubscribed' && '알림을 켜면 공지를 놓치지 않아요'}
                 {notifStatus === 'default' && '알림을 켜면 공지를 놓치지 않아요'}
-                {notifStatus === 'denied' && '⚠️ 브라우저 설정에서 알림을 허용해주세요'}
+                {notifStatus === 'denied' && '브라우저 설정에서 알림을 허용해주세요'}
                 {notifStatus === 'unsupported' && '이 기기는 알림을 지원하지 않습니다'}
                 {notifStatus === 'checking' && '확인 중...'}
               </p>
@@ -4181,7 +4198,7 @@ export function MyProfileEditPage({ user, setCurrentPage, refreshUser }) {
       return;
     }
     if (refreshUser) await refreshUser();
-    toast('✅ 저장되었습니다');
+    toast('저장되었습니다');
     setCurrentPage('mypage');
   };
 
@@ -4762,7 +4779,7 @@ export function CartPage({ user, setCurrentPage }) {
                     {p?.image_url ? (
                       <SkeletonImage src={p.image_url} alt={p?.name} className="w-full h-full" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-3xl" style={{ color: COLORS.primary }}>{p?.emoji || '🛍️'}</div>
+                      <div className="w-full h-full flex items-center justify-center text-3xl" style={{ color: COLORS.primary }}>{p?.emoji || ''}</div>
                     )}
                   </div>
                   {/* 정보 */}
@@ -4843,12 +4860,13 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedRefund, setAgreedRefund] = useState(false);
 
-  const [shippingRecipientName, setShippingRecipientName] = useState(user?.name || '');
-  const [shippingRecipientPhone, setShippingRecipientPhone] = useState(user?.phone || '');
-  const [shippingPostalCode, setShippingPostalCode] = useState('');
-  const [shippingAddress, setShippingAddress] = useState('');
-  const [shippingAddressDetail, setShippingAddressDetail] = useState('');
-  const [shippingMemo, setShippingMemo] = useState('');
+  const [shippingRecipientName, setShippingRecipientName] = useState(user?.ship_name || user?.name || '');
+  const [shippingRecipientPhone, setShippingRecipientPhone] = useState(user?.ship_phone || user?.phone || '');
+  const [shippingPostalCode, setShippingPostalCode] = useState(user?.ship_postal || '');
+  const [shippingAddress, setShippingAddress] = useState(user?.ship_addr || '');
+  const [shippingAddressDetail, setShippingAddressDetail] = useState(user?.ship_addr_detail || '');
+  const [shippingMemo, setShippingMemo] = useState(user?.ship_memo || '');
+  const [saveDefaultShip, setSaveDefaultShip] = useState(true);
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const postcodeContainerRef = useRef(null);
 
@@ -4919,6 +4937,18 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
     if (!shippingRecipientPhone?.trim()) { toast('받는 사람 연락처를 입력해주세요.'); return; }
     if (!shippingPostalCode || !shippingAddress) { toast('"주소 검색" 버튼을 눌러 주소를 입력해주세요.'); return; }
     if (!shippingAddressDetail?.trim()) { toast('상세 주소를 입력해주세요. (동/호수 등)'); return; }
+
+    // 기본 배송지 저장 (선택)
+    if (saveDefaultShip) {
+      supabase.from('profiles').update({
+        ship_name: shippingRecipientName.trim(),
+        ship_phone: shippingRecipientPhone.trim(),
+        ship_postal: shippingPostalCode,
+        ship_addr: shippingAddress,
+        ship_addr_detail: shippingAddressDetail.trim(),
+        ship_memo: shippingMemo?.trim() || null,
+      }).eq('id', user.id).then(() => {}, () => {});
+    }
 
     setLoading(true);
     try {
@@ -5065,7 +5095,7 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
                 {it.product.image_url ? (
                   <SkeletonImage src={it.product.image_url} alt={it.product.name} className="w-full h-full" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xl" style={{ color: COLORS.primary }}>🛍️</div>
+                  <div className="w-full h-full flex items-center justify-center text-xl" style={{ color: COLORS.primary }}></div>
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -5105,6 +5135,11 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
           <input type="text" placeholder="배송 메모 (선택, 예: 부재시 경비실)" value={shippingMemo} onChange={(e) => setShippingMemo(e.target.value)}
             className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
             style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          <label className="flex items-center gap-2 font-body text-xs cursor-pointer pt-1" style={{ color: COLORS.ink }}>
+            <input type="checkbox" checked={saveDefaultShip} onChange={(e) => setSaveDefaultShip(e.target.checked)}
+              className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
+            <span>이 배송지를 기본 배송지로 저장</span>
+          </label>
         </div>
 
         {/* 합계 */}
@@ -5241,7 +5276,7 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
           <span className="glow-text" style={{ color: COLORS.primary }}>{user.name}</span>님
         </h1>
         <p className="font-serif-italic text-base mt-3" style={{ color: COLORS.stone }}>
-          {unlocked ? '가입 인사 완료! 모든 기능이 열렸어요 🎉' : 'HSSUP에 오신 걸 환영해요 🍊'}
+          {unlocked ? '가입 인사 완료! 모든 기능이 열렸어요 ' : 'HSSUP에 오신 걸 환영해요 '}
         </p>
       </div>
 
@@ -5307,7 +5342,7 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
         {!unlocked && (
           <div className="mt-4 p-3 rounded-xl" style={{ background: COLORS.peach }}>
             <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.deep }}>
-              💡 <b>가입 인사</b>만 작성하면 모든 기능을 바로 이용할 수 있어요!<br/>수강 후기·오리엔테이션 영상은 천천히 완료해주세요.
+              <b>가입 인사</b>만 작성하면 모든 기능을 바로 이용할 수 있어요!<br/>수강 후기·오리엔테이션 영상은 천천히 완료해주세요.
             </p>
           </div>
         )}
@@ -5321,7 +5356,7 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
               color: COLORS.white,
               boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)'
             }}>
-            🎉 HSSUP 시작하기!
+            HSSUP 시작하기!
           </button>
         )}
       </div>
@@ -5369,13 +5404,13 @@ export function ImprovementsPage({ user }) {
       setIsAnonymous(false);
       setShowForm(false);
       loadItems();
-      toast('소중한 의견 감사합니다! 원장님께 전달되었어요 🍊');
+      toast('소중한 의견 감사합니다! 원장님께 전달되었어요 ');
     }
   };
 
   return (
     <>
-      <PageIntro ko="어플개선제안" en="Improvements" desc="앱을 사용하며 개선되었으면 하는 점을 자유롭게 남겨주세요 🔒 원장님께만 보입니다" />
+      <PageIntro ko="어플개선제안" en="Improvements" desc="앱을 사용하며 개선되었으면 하는 점을 자유롭게 남겨주세요 원장님께만 보입니다" />
 
       <div className="px-5">
         {!showForm && (
@@ -5405,7 +5440,7 @@ export function ImprovementsPage({ user }) {
                 {isAnonymous && <Check size={12} style={{ color: COLORS.white }} />}
               </div>
               <span className="font-body text-sm" style={{ color: COLORS.ink }}>
-                {isAnonymous ? '🔒 익명으로 제출 (이름 숨김)' : '👤 익명으로 제출하지 않음'}
+                {isAnonymous ? '익명으로 제출 (이름 숨김)' : '익명으로 제출하지 않음'}
               </span>
             </button>
 
@@ -5435,7 +5470,7 @@ export function ImprovementsPage({ user }) {
               아직 등록한 제안이 없어요
             </p>
             <p className="font-body text-xs mt-2" style={{ color: COLORS.muted }}>
-              자유롭게 의견을 남겨주세요 🍊
+              자유롭게 의견을 남겨주세요 
             </p>
           </div>
         ) : (
@@ -5449,11 +5484,11 @@ export function ImprovementsPage({ user }) {
                       background: item.status === 'replied' ? COLORS.peach : COLORS.cardElev, 
                       color: item.status === 'replied' ? COLORS.primary : COLORS.stone 
                     }}>
-                    {item.status === 'replied' ? '✓ 답변 완료' : '⏳ 답변 대기'}
+                    {item.status === 'replied' ? '✓ 답변 완료' : '답변 대기'}
                   </span>
                   <span className="font-mono text-[9px] px-2 py-1 rounded"
                     style={{ background: COLORS.cardElev, color: COLORS.stone }}>
-                    {item.is_anonymous ? '🔒 익명' : '👤 실명'}
+                    {item.is_anonymous ? '익명' : '실명'}
                   </span>
                   <p className="font-mono text-[10px] ml-auto" style={{ color: COLORS.stone }}>
                     {new Date(item.created_at).toLocaleDateString('ko-KR')}
@@ -5815,7 +5850,7 @@ export function PracticeBookingPage({ user, setCurrentPage }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: '🗓️ 새 연습 예약',
+          title: '새 연습 예약',
           body: `${user.name || '수강생'}님 · ${slot.slot_date} ${timeStr}`,
           url: '/?page=practice-admin',
           targetRole: 'admin',
@@ -5824,7 +5859,7 @@ export function PracticeBookingPage({ user, setCurrentPage }) {
       });
     } catch (e) { console.error('연습 예약 알림 발송 실패:', e); }
 
-    toast('✅ 예약 완료!');
+    toast('예약 완료!');
     await Promise.all([loadMonth(), loadMyUpcoming()]);
   };
 

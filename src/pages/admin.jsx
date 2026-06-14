@@ -169,7 +169,7 @@ export function AdminImprovements({ user }) {
                   <button onClick={() => toggleAnonymous(item)}
                     className="font-mono text-[9px] px-2 py-1 rounded transition-transform active:scale-95"
                     style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
-                    {item.is_anonymous ? '🔒 익명' : '👤 실명'} (변경)
+                    {item.is_anonymous ? '익명' : '실명'} (변경)
                   </button>
                 </div>
                 <button onClick={() => handleDelete(item)} className="rounded p-1.5" style={{ background: COLORS.cardElev }}>
@@ -374,7 +374,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>오늘의 운영 현황</p>
       </section>
 
-      {/* 💰 이번 달 매출 - 큰 강조 카드 (admin만) */}
+      {/* 이번 달 매출 - 큰 강조 카드 (admin만) */}
       {canViewRevenue && (
       <section className="px-5 mb-3">
         <button onClick={() => setCurrentPage('admin-orders')} className="w-full rounded-3xl p-6 text-left relative overflow-hidden glow-primary" style={{ background: COLORS.primary }}>
@@ -408,7 +408,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
       </section>
       )}
 
-      {/* 📊 매출 트렌드 - 최근 6개월 (admin만) */}
+      {/* 매출 트렌드 - 최근 6개월 (admin만) */}
       {canViewRevenue && stats.monthlyTrend.length > 0 && (
         <section className="px-5 mb-3">
           <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ Revenue Trend (6M)</p>
@@ -446,7 +446,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </section>
       )}
 
-      {/* 🚨 답변 대기 Q&A 알림 */}
+      {/* 답변 대기 Q&A 알림 */}
       {stats.pendingQna > 0 && (
         <section className="px-5 mb-3">
           <button onClick={() => setCurrentPage('admin-qna')} className="w-full rounded-2xl p-4 text-left flex items-center gap-3 transition-transform active:scale-[0.98]" 
@@ -463,7 +463,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </section>
       )}
 
-      {/* 🆕 최근 업데이트 (NEW) */}
+      {/* 최근 업데이트 (NEW) */}
       <section className="px-5 mb-3">
         <div className="flex items-center justify-between mb-2 px-1">
           <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ NEW 업데이트</p>
@@ -485,7 +485,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </div>
       </section>
 
-      {/* 📅 이번 달 통계 - 3개 카드 */}
+      {/* 이번 달 통계 - 3개 카드 */}
       <section className="px-5 mb-3">
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ This Month</p>
         <div className="grid grid-cols-3 gap-2">
@@ -519,7 +519,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </div>
       </section>
 
-      {/* 👥 전체 통계 - 2개 카드 */}
+      {/* 전체 통계 - 2개 카드 */}
       <section className="px-5 mb-6">
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ All Time</p>
         <div className="grid grid-cols-2 gap-2">
@@ -538,7 +538,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </div>
       </section>
 
-      {/* ⚡ Quick Action 3열 그리드 */}
+      {/* Quick Action 3열 그리드 */}
       <section className="px-5">
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-3 px-1" style={{ color: COLORS.primary }}>━━ Quick Action</p>
         <div className="grid grid-cols-3 gap-2">
@@ -753,7 +753,7 @@ export function AdminTrends({ user }) {
                 placeholder="https://news.example.com/..."
                 className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
                 style={{ borderColor: COLORS.light, color: COLORS.ink }} />
-              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>💡 뉴스 기사, 인스타 등 URL 붙여넣기</p>
+              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>뉴스 기사, 인스타 등 URL 붙여넣기</p>
             </div>
 
             <div>
@@ -762,20 +762,20 @@ export function AdminTrends({ user }) {
                 placeholder="https://youtube.com/watch?v=..."
                 className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
                 style={{ borderColor: COLORS.light, color: COLORS.ink }} />
-              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>💡 youtube.com, youtu.be, shorts 모두 가능</p>
+              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>youtube.com, youtu.be, shorts 모두 가능</p>
             </div>
 
             <label className="flex items-center gap-2 cursor-pointer p-2 rounded" style={{ background: COLORS.cream }}>
               <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})}
                 className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-              <span className="font-body text-xs" style={{ color: COLORS.ink }}>✨ 즉시 공개 (체크 해제 시 숨김)</span>
+              <span className="font-body text-xs" style={{ color: COLORS.ink }}>즉시 공개 (체크 해제 시 숨김)</span>
             </label>
 
             {!editingId && (
               <label className="flex items-center gap-2 cursor-pointer p-2 rounded" style={{ background: COLORS.cream }}>
                 <input type="checkbox" checked={form.sendPush} onChange={e => setForm({...form, sendPush: e.target.checked})}
                   className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-                <span className="font-body text-xs" style={{ color: COLORS.ink }}>📢 푸시 알림 발송</span>
+                <span className="font-body text-xs" style={{ color: COLORS.ink }}>푸시 알림 발송</span>
               </label>
             )}
 
@@ -1063,7 +1063,7 @@ export function AdminTips({ user }) {
                 style={{ background: COLORS.cream, color: COLORS.ink }} />
             </div>
 
-            {/* 🎥 동영상 (선택) - 파일 업로드 또는 유튜브 URL */}
+            {/* 동영상 (선택) - 파일 업로드 또는 유튜브 URL */}
             <div>
               <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>동영상 (선택)</label>
               <div className="mt-2 space-y-2">
@@ -1085,16 +1085,16 @@ export function AdminTips({ user }) {
                   <>
                     <label className="w-full rounded-xl flex items-center justify-center gap-2 cursor-pointer py-3" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
                       <Upload size={18} style={{ color: COLORS.primary }} />
-                      <span className="font-heading text-xs" style={{ color: COLORS.ink }}>📱 영상 파일 올리기 (짧은 클립용)</span>
+                      <span className="font-heading text-xs" style={{ color: COLORS.ink }}>영상 파일 올리기 (짧은 클립용)</span>
                       <input type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
                     </label>
                     <input type="url" value={isYouTubeUrl(form.video_url) ? form.video_url : ''} onChange={e => setForm({...form, video_url: e.target.value, videoFile: null, videoPreview: null})}
-                      placeholder="▶️ 또는 유튜브 주소 붙여넣기 (긴 영상용)"
+                      placeholder="또는 유튜브 주소 붙여넣기 (긴 영상용)"
                       className="w-full font-body text-sm font-medium border-b py-2 bg-transparent outline-none"
                       style={{ borderColor: COLORS.light, color: COLORS.ink }} />
                   </>
                 )}
-                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>💡 짧은 클립은 파일, 긴 영상은 유튜브를 추천해요</p>
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>짧은 클립은 파일, 긴 영상은 유튜브를 추천해요</p>
               </div>
             </div>
 
@@ -1109,14 +1109,14 @@ export function AdminTips({ user }) {
             <label className="flex items-center gap-2 cursor-pointer p-2 rounded" style={{ background: COLORS.cream }}>
               <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})}
                 className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-              <span className="font-body text-xs" style={{ color: COLORS.ink }}>✨ 즉시 공개 (체크 해제 시 숨김)</span>
+              <span className="font-body text-xs" style={{ color: COLORS.ink }}>즉시 공개 (체크 해제 시 숨김)</span>
             </label>
 
             {!editingId && (
               <label className="flex items-center gap-2 cursor-pointer p-2 rounded" style={{ background: COLORS.cream }}>
                 <input type="checkbox" checked={form.sendPush} onChange={e => setForm({...form, sendPush: e.target.checked})}
                   className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-                <span className="font-body text-xs" style={{ color: COLORS.ink }}>📢 푸시 알림 발송</span>
+                <span className="font-body text-xs" style={{ color: COLORS.ink }}>푸시 알림 발송</span>
               </label>
             )}
 
@@ -1341,7 +1341,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
       if (editingId) {
         const { error } = await supabase.from('notices').update(noticeData).eq('id', editingId);
         if (error) throw error;
-        toast('✏️ 공지 수정 완료!');
+        toast('공지 수정 완료!');
       } else {
         noticeData.author_id = user.id;
         const { error: insertError } = await supabase.from('notices').insert(noticeData);
@@ -1361,7 +1361,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                title: `${form.urgent ? '🔴 ' : ''}[${form.tag}] ${form.title}`,
+                title: `${form.urgent ? '' : ''}[${form.tag}] ${form.title}`,
                 body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
                 url: '/',
                 targetRole: 'student',
@@ -1371,7 +1371,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
           );
           const result = await response.json();
           if (result.sent > 0) {
-            toast(`✅ 공지 등록 완료!\n📢 ${result.sent}명에게 알림 전송됨`);
+            toast(`공지 등록 완료!\n${result.sent}명에게 알림 전송됨`);
           } else {
             toast('공지 등록 완료! (알림 전송 실패 또는 구독자 없음)');
           }
@@ -1451,10 +1451,10 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                   <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
                 </label>
               </div>
-              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>💡 여러 장 선택 가능 (탭해서 계속 추가)</p>
+              <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>여러 장 선택 가능 (탭해서 계속 추가)</p>
             </div>
 
-            {/* 🎥 동영상 (선택) - 파일 업로드 또는 유튜브 URL */}
+            {/* 동영상 (선택) - 파일 업로드 또는 유튜브 URL */}
             <div>
               <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>동영상 (선택)</label>
               <div className="mt-2 space-y-2">
@@ -1477,16 +1477,16 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                     {/* 파일 업로드 버튼 */}
                     <label className="w-full rounded-xl flex items-center justify-center gap-2 cursor-pointer py-3" style={{ background: COLORS.cream, border: `2px dashed ${COLORS.light}` }}>
                       <Upload size={18} style={{ color: COLORS.primary }} />
-                      <span className="font-heading text-xs" style={{ color: COLORS.ink }}>📱 영상 파일 올리기 (짧은 클립용)</span>
+                      <span className="font-heading text-xs" style={{ color: COLORS.ink }}>영상 파일 올리기 (짧은 클립용)</span>
                       <input type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
                     </label>
                     {/* 유튜브 URL */}
                     <input type="url" value={isYouTubeUrl(form.video_url) ? form.video_url : ''} onChange={e => setForm({...form, video_url: e.target.value, videoFile: null, videoPreview: null})}
-                      placeholder="▶️ 또는 유튜브 주소 붙여넣기 (긴 영상용)"
+                      placeholder="또는 유튜브 주소 붙여넣기 (긴 영상용)"
                       className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }} />
                   </>
                 )}
-                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>💡 짧은 클립은 파일, 긴 영상은 유튜브를 추천해요</p>
+                <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>짧은 클립은 파일, 긴 영상은 유튜브를 추천해요</p>
               </div>
             </div>
 
@@ -1626,7 +1626,7 @@ export function AdminOrders() {
       <PageIntro ko="결제 내역" en="Orders" desc="월별 매출을 한눈에" />
       
       <div className="px-5 space-y-3">
-        {/* 🗓️ 월 선택 네비게이션 */}
+        {/* 월 선택 네비게이션 */}
         <div className="rounded-2xl p-3 flex items-center justify-between" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           <button onClick={() => moveMonth(-1)} 
             className="w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-90" 
@@ -1648,7 +1648,7 @@ export function AdminOrders() {
           </button>
         </div>
 
-        {/* 💰 선택 월 매출 - 강조 카드 */}
+        {/* 선택 월 매출 - 강조 카드 */}
         <div className="rounded-2xl p-5 glow-primary" style={{ background: COLORS.primary }}>
           <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.white, opacity: 0.8 }}>
             {selectedMonth.year}년 {selectedMonth.month + 1}월 매출
@@ -1749,10 +1749,10 @@ export function AdminOrders() {
             <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
               <div>
                 <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
-                  💳 {o.payment_method || '카드'}{o.card_company ? ` · ${o.card_company}` : ''}
+                  {o.payment_method || '카드'}{o.card_company ? ` · ${o.card_company}` : ''}
                 </p>
                 <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
-                  🕐 {new Date(o.paid_at || o.created_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(o.paid_at || o.created_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
               {o.receipt_url && (
@@ -1774,7 +1774,7 @@ export function AdminOrders() {
 
             {/* 연락처 */}
             {(o.profiles?.phone || o.buyer_phone) && (
-              <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>📞 {o.profiles?.phone || o.buyer_phone}</p>
+              <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>{o.profiles?.phone || o.buyer_phone}</p>
             )}
           </div>
         ))}
@@ -1860,7 +1860,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
         setCancelProcessing(null);
         return;
       }
-      toast('✅ 취소가 처리되었습니다');
+      toast('취소가 처리되었습니다');
     } catch (e) {
       toast('취소 승인 에러: ' + e.message);
     }
@@ -1929,7 +1929,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
 
     closeShippingModal();
     await loadOrders();
-    toast('✅ 발송 처리 완료');
+    toast('발송 처리 완료');
   };
 
   const formatPrice = (n) => '₩' + Number(n || 0).toLocaleString('ko-KR');
@@ -2170,7 +2170,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
       </div>
 
       {/* 발송 처리 모달 — Portal + 풀스크린 + 스티키 푸터
-          ⚠️ 부모 <main>의 transform이 fixed containing block을 만들어 모달이 갇히는 문제 + 모바일 키보드가 떴을 때 푸터 버튼이 가려지는 문제를 동시에 해결. */}
+          부모 <main>의 transform이 fixed containing block을 만들어 모달이 갇히는 문제 + 모바일 키보드가 떴을 때 푸터 버튼이 가려지는 문제를 동시에 해결. */}
       {shippingModal && createPortal(
         <div style={{
           position: 'fixed', inset: 0, background: COLORS.cream, zIndex: 9999,
@@ -2599,7 +2599,7 @@ export function AdminApprovals({ user }) {
 
   const approve = async (userId, asGraduate = false) => {
     const msg = asGraduate 
-      ? '🎓 졸업생으로 승인하시겠습니까?\n온보딩 미션이 면제됩니다.' 
+      ? '졸업생으로 승인하시겠습니까?\n온보딩 미션이 면제됩니다.' 
       : '이 회원을 일반 학생으로 승인하시겠습니까?\n온보딩 미션을 받게 됩니다.';
     if (!await confirmDialog(msg)) return;
     
@@ -2703,14 +2703,14 @@ export function AdminApprovals({ user }) {
                   )}
                 </div>
                 <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{u.email}</p>
-                {u.phone && <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>📞 {u.phone}</p>}
+                {u.phone && <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{u.phone}</p>}
                 <p className="font-body text-xs mt-1" style={{ color: COLORS.primary }}>{u.course}</p>
                 <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>가입: {new Date(u.created_at).toLocaleDateString('ko-KR')}</p>
                 
-                {/* 🎓 졸업생 신청 표시 */}
+                {/* 졸업생 신청 표시 */}
                 {u.is_graduate && u.status === 'pending' && (
                   <div className="mt-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid ${COLORS.primary}` }}>
-                    <span className="text-base">🎓</span>
+                    <span className="text-base"></span>
                     <p className="font-body text-xs font-semibold" style={{ color: COLORS.primary }}>
                       졸업생이라고 신청했어요!<br/>
                       <span className="font-mono text-[10px] font-normal" style={{ color: COLORS.deep }}>맞으면 "졸업생 승인" 눌러주세요</span>
@@ -2721,7 +2721,7 @@ export function AdminApprovals({ user }) {
                 {/* 졸업생 표시 (승인 후) */}
                 {u.is_graduate && u.status === 'approved' && (
                   <div className="mt-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(255,92,31,0.08)' }}>
-                    <span className="text-sm">🎓</span>
+                    <span className="text-sm"></span>
                     <p className="font-mono text-[10px] font-bold" style={{ color: COLORS.primary }}>졸업생 (미션 면제)</p>
                   </div>
                 )}
@@ -2755,7 +2755,7 @@ export function AdminApprovals({ user }) {
                   <button onClick={() => approve(u.id, true)}
                     className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
                     style={{ background: COLORS.cardElev, color: COLORS.primary, border: `1px solid ${COLORS.primary}` }}>
-                    🎓 졸업생으로 승인 (미션 면제)
+                    졸업생으로 승인 (미션 면제)
                   </button>
                 </>
               )}
@@ -2811,7 +2811,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
     if (error) {
       toast('변경 실패: ' + error.message);
     } else {
-      toast(isSuspended ? '✅ 정지가 해제되었습니다' : '⚠️ 계정이 정지되었습니다');
+      toast(isSuspended ? '정지가 해제되었습니다' : '계정이 정지되었습니다');
       setCurrentPage('admin-students');
     }
     setUpdating(false);
@@ -2840,7 +2840,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            title: newRole === 'staff' ? '🎉 운영진으로 임명되었어요!' : '운영진 권한이 해제되었어요',
+            title: newRole === 'staff' ? '운영진으로 임명되었어요!' : '운영진 권한이 해제되었어요',
             body: newRole === 'staff' 
               ? '이제 관리자 메뉴를 사용할 수 있어요. 환영합니다!' 
               : '일반 수강생으로 돌아갔어요.',
@@ -2850,7 +2850,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
         });
       } catch (e) { console.error('알림 발송 실패:', e); }
 
-      toast(newRole === 'staff' ? '✅ 운영진으로 임명되었습니다' : '✅ 운영진 권한이 해제되었습니다');
+      toast(newRole === 'staff' ? '운영진으로 임명되었습니다' : '운영진 권한이 해제되었습니다');
       setCurrentPage('admin-students');
     }
     setUpdating(false);
@@ -2907,7 +2907,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
           </div>
         </div>
 
-        {/* 🛡️ 운영진 임명/해제 (admin만 가능) */}
+        {/* 운영진 임명/해제 (admin만 가능) */}
         {canViewRevenue && student.role !== 'admin' && (
           <div className="rounded-2xl p-4" style={{ 
             background: COLORS.card, 
@@ -2947,7 +2947,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
           </div>
         )}
 
-        {/* 🚨 계정 정지/해제 (admin만 가능) */}
+        {/* 계정 정지/해제 (admin만 가능) */}
         {canViewRevenue && student.role !== 'admin' && (
           <div className="rounded-2xl p-4" style={{ 
             background: COLORS.card, 
@@ -2998,7 +2998,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
             { label: 'Email', value: student.email },
             { label: 'Phone', value: student.phone || '미등록' },
             { label: 'Joined', value: new Date(student.created_at).toLocaleDateString('ko-KR') },
-            { label: 'Status', value: student.status === 'approved' ? '✅ 승인됨' : student.status === 'pending' ? '⏳ 대기' : '❌ 거절' },
+            { label: 'Status', value: student.status === 'approved' ? '승인됨' : student.status === 'pending' ? '대기' : '거절' },
           ].map((row, i) => (
             <div key={i} className="flex items-center justify-between px-4 py-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
               <span className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>{row.label}</span>
@@ -3020,7 +3020,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
                   <div className="flex-1 min-w-0 pr-2">
                     <p className="font-body text-xs truncate" style={{ color: COLORS.ink }}>{o.course_title}</p>
                     <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
-                      {o.item_type === 'product' ? '🛍️ 재료샵' : '📚 클래스'} · {new Date(o.paid_at || o.created_at).toLocaleDateString('ko-KR')}
+                      {o.item_type === 'product' ? '재료샵' : '클래스'} · {new Date(o.paid_at || o.created_at).toLocaleDateString('ko-KR')}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
@@ -3121,7 +3121,7 @@ export function AdminStudents({ setCurrentPage, setSelectedStudent }) {
     if (displayCount === PER_PAGE) setLoading(true);
     let query = supabase.from('profiles').select('*', { count: 'exact' })
       .in('role', ['student', 'staff'])
-      .neq('status', 'deleted')  // 🍊 탈퇴한 회원 제외
+      .neq('status', 'deleted')  // 탈퇴한 회원 제외
       .order('role', { ascending: false })  // staff 먼저
       .order('created_at', { ascending: false })
       .range(0, displayCount - 1);
@@ -3156,7 +3156,7 @@ export function AdminStudents({ setCurrentPage, setSelectedStudent }) {
           </div>
         </div>
 
-        {/* 🔍 검색바 */}
+        {/* 검색바 */}
         <div className="relative">
           <Search size={16} style={{ color: COLORS.stone, position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
           <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
@@ -3538,7 +3538,7 @@ export function AdminLectures({ user }) {
                 className="w-full font-body text-sm font-medium border-b py-2 mt-1 bg-transparent outline-none"
                 style={{ borderColor: COLORS.light, color: COLORS.ink }} />
               <p className="font-mono text-[10px] mt-1.5" style={{ color: COLORS.stone }}>
-                💡 youtube.com, youtu.be, shorts URL 모두 가능해요
+                youtube.com, youtu.be, shorts URL 모두 가능해요
               </p>
             </div>
 
@@ -3570,14 +3570,14 @@ export function AdminLectures({ user }) {
             <label className="flex items-center gap-2 font-body text-xs cursor-pointer" style={{ color: COLORS.ink }}>
               <input type="checkbox" checked={form.is_published} onChange={e => setForm({...form, is_published: e.target.checked})}
                 className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-              <span>✨ 즉시 공개 (체크 해제하면 비공개로 등록)</span>
+              <span>즉시 공개 (체크 해제하면 비공개로 등록)</span>
             </label>
 
-            {/* 🎯 오리엔테이션 영상 지정 */}
+            {/* 오리엔테이션 영상 지정 */}
             <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: 'rgba(255,92,31,0.08)' }}>
               <input type="checkbox" checked={form.is_orientation} onChange={e => setForm({...form, is_orientation: e.target.checked})}
                 className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-              <span>🎬 오리엔테이션 영상으로 지정 (신규 학생 필수 시청)</span>
+              <span>오리엔테이션 영상으로 지정 (신규 학생 필수 시청)</span>
             </label>
 
             {/* 저장 버튼 */}
@@ -3773,7 +3773,7 @@ export function AdminProducts({ user }) {
       .eq('product_id', product.id);
     
     const msg = orderCount > 0 
-      ? `📦 이 상품은 ${orderCount}건의 결제 내역이 있어요.\n\n✅ 삭제해도 결제 내역은 그대로 보존돼요\n   (회계/세무용으로 필요)\n✅ 상품명도 결제 내역에 저장돼 있어 추적 가능\n\n정말 삭제하시겠습니까?`
+      ? `이 상품은 ${orderCount}건의 결제 내역이 있어요.\n\n삭제해도 결제 내역은 그대로 보존돼요\n   (회계/세무용으로 필요)\n상품명도 결제 내역에 저장돼 있어 추적 가능\n\n정말 삭제하시겠습니까?`
       : '이 상품을 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.';
     
     if (!await confirmDialog(msg)) return;
@@ -3781,14 +3781,18 @@ export function AdminProducts({ user }) {
     // 🍊 2. 이미지 삭제
     for (const url of getRowImages(product)) await deleteImageFromBucket(url, 'product-images');
     
-    // 🍊 3. 상품 삭제 (orders.product_id는 자동 NULL 처리됨)
+    // 🍊 3. 상품 삭제 (order_items.product_id는 NULL, cart_items는 CASCADE — db/2026-06-14_product_delete_fk.sql)
     const { error } = await supabase.from('products').delete().eq('id', product.id);
     if (error) {
-      toast('❌ 삭제 실패: ' + error.message);
+      if (error.code === '23503' || /foreign key/i.test(error.message)) {
+        toast('주문/장바구니에 연결된 상품이라 바로 삭제할 수 없어요. 결제 내역은 보존하면서 숨기려면 "비활성"을 사용하세요.');
+      } else {
+        toast('삭제 실패: ' + error.message);
+      }
       return;
     }
     
-    toast('🗑️ 상품이 삭제되었습니다');
+    toast('상품이 삭제되었습니다');
     await load();
   };
 
@@ -3842,7 +3846,7 @@ export function AdminProducts({ user }) {
               </button>
             </div>
 
-            {/* 🖼️ 상품 이미지 (여러 장) */}
+            {/* 상품 이미지 (여러 장) */}
             <MultiImageField
               label="상품 이미지 (여러 장)"
               value={form}
@@ -3927,7 +3931,7 @@ export function AdminProducts({ user }) {
             <label className="flex items-center gap-2 font-body text-xs cursor-pointer" style={{ color: COLORS.ink }}>
               <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})}
                 className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-              <span>✨ 판매 활성화 (체크 해제하면 학생에게 안 보임)</span>
+              <span>판매 활성화 (체크 해제하면 학생에게 안 보임)</span>
             </label>
 
             {/* 저장 버튼 */}
@@ -3970,7 +3974,7 @@ export function AdminProducts({ user }) {
                 <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center" style={{ background: COLORS.cream }}>
-                  <span className="text-3xl">{p.emoji || '🛍️'}</span>
+                  <span className="text-3xl">{p.emoji || ''}</span>
                 </div>
               )}
               {p.badge && (
@@ -4025,7 +4029,7 @@ export function AdminCourses({ user }) {
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
     title: '', en_title: '', level: 'BASIC', duration: '', price: '', original_price: '',
-    show_price: true, description: '', features: '', badge: '',
+    show_price: false, description: '', features: '', badge: '',
     is_active: true, is_featured: false, hot: false, order_index: 0,
     category: 'PMU',
     image_urls: [], imageFiles: [], imagePreviews: [],
@@ -4044,7 +4048,7 @@ export function AdminCourses({ user }) {
     form.imagePreviews?.forEach(p => URL.revokeObjectURL(p));
     setForm({
       title: '', en_title: '', level: 'BASIC', duration: '', price: '', original_price: '',
-      show_price: true, description: '', features: '', badge: '',
+      show_price: false, description: '', features: '', badge: '',
       is_active: true, is_featured: false, hot: false, order_index: 0,
       category: 'PMU',
       image_urls: [], imageFiles: [], imagePreviews: [],
@@ -4124,7 +4128,7 @@ export function AdminCourses({ user }) {
       .eq('course_id', course.id);
     
     const msg = orderCount > 0 
-      ? `📦 이 클래스는 ${orderCount}건의 결제 내역이 있어요.\n\n✅ 삭제해도 결제 내역은 그대로 보존돼요\n✅ 클래스명도 결제 내역에 저장돼 있어 추적 가능\n\n정말 삭제하시겠습니까?`
+      ? `이 클래스는 ${orderCount}건의 결제 내역이 있어요.\n\n삭제해도 결제 내역은 그대로 보존돼요\n클래스명도 결제 내역에 저장돼 있어 추적 가능\n\n정말 삭제하시겠습니까?`
       : '이 클래스를 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.';
     
     if (!await confirmDialog(msg)) return;
@@ -4132,10 +4136,10 @@ export function AdminCourses({ user }) {
     for (const url of getRowImages(course)) await deleteImageFromBucket(url, 'course-images');
     const { error } = await supabase.from('courses').delete().eq('id', course.id);
     if (error) {
-      toast('❌ 삭제 실패: ' + error.message);
+      toast('삭제 실패: ' + error.message);
       return;
     }
-    toast('🗑️ 클래스가 삭제되었습니다');
+    toast('클래스가 삭제되었습니다');
     await load();
   };
 
@@ -4179,7 +4183,7 @@ export function AdminCourses({ user }) {
               <button onClick={resetForm}><X size={18} style={{ color: COLORS.stone }} /></button>
             </div>
 
-            {/* 🖼️ 클래스 이미지 (여러 장) */}
+            {/* 클래스 이미지 (여러 장) */}
             <MultiImageField
               label="클래스 이미지 (여러 장, 선택)"
               help="16:9 권장"
@@ -4289,22 +4293,22 @@ export function AdminCourses({ user }) {
               <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: COLORS.cream }}>
                 <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})}
                   className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-                <span>✨ 운영 활성화 (학생에게 표시)</span>
+                <span>운영 활성화 (학생에게 표시)</span>
               </label>
               <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: COLORS.cream }}>
                 <input type="checkbox" checked={form.show_price} onChange={e => setForm({...form, show_price: e.target.checked})}
                   className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-                <span>💰 가격 공개 (체크 해제 시 "문의" 표시)</span>
+                <span>가격 공개 (체크 해제 시 "문의" 표시)</span>
               </label>
               <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: COLORS.cream }}>
                 <input type="checkbox" checked={form.is_featured} onChange={e => setForm({...form, is_featured: e.target.checked})}
                   className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-                <span>⭐ 특별 강조 (검정 배경 + 글로우)</span>
+                <span>특별 강조 (검정 배경 + 글로우)</span>
               </label>
               <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: COLORS.cream }}>
                 <input type="checkbox" checked={form.hot} onChange={e => setForm({...form, hot: e.target.checked})}
                   className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-                <span>🔥 HOT 라벨 표시</span>
+                <span>HOT 라벨 표시</span>
               </label>
             </div>
 
@@ -4333,8 +4337,8 @@ export function AdminCourses({ user }) {
             <div className="p-3">
               <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                 <span className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>{c.level}</span>
-                {c.hot && <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}>🔥</span>}
-                {c.is_featured && <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.ink, color: COLORS.primary }}>⭐</span>}
+                {c.hot && <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white }}></span>}
+                {c.is_featured && <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.ink, color: COLORS.primary }}></span>}
                 {!c.show_price && <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>가격숨김</span>}
               </div>
               <h4 className="font-heading text-sm" style={{ color: COLORS.ink }}>{c.title}</h4>
@@ -4513,7 +4517,7 @@ export function AdminLibrary({ user }) {
         }
         const { error } = await supabase.from('library_files').update(updateData).eq('id', editingId);
         if (error) throw error;
-        toast('✏️ 수정 완료!');
+        toast('수정 완료!');
       } else {
         // 🍊 새 등록 (파일·이미지는 선택사항)
         const insertData = {
@@ -4532,7 +4536,7 @@ export function AdminLibrary({ user }) {
         }
         const { error } = await supabase.from('library_files').insert(insertData);
         if (error) throw error;
-        toast('✅ 등록 완료!');
+        toast('등록 완료!');
       }
       resetForm();
       await load();
@@ -4590,7 +4594,7 @@ export function AdminLibrary({ user }) {
               <button onClick={resetForm}><X size={18} style={{ color: COLORS.stone }} /></button>
             </div>
 
-            {/* 🎯 파일 선택 (드래그앤드롭 지원) */}
+            {/* 파일 선택 (드래그앤드롭 지원) */}
             <div>
               <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>
                 {editingId ? '파일 (선택, 새 파일이면 교체)' : '파일 *'}
@@ -4622,7 +4626,7 @@ export function AdminLibrary({ user }) {
                   }}>
                   <Upload size={28} style={{ color: dragOver ? COLORS.primary : COLORS.stone }} />
                   <span className="font-heading text-sm mt-2" style={{ color: dragOver ? COLORS.primary : COLORS.ink }}>
-                    {dragOver ? '🎯 여기에 놓으세요!' : '📁 파일을 드래그하거나 클릭'}
+                    {dragOver ? '여기에 놓으세요!' : '파일을 드래그하거나 클릭'}
                   </span>
                   <span className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>모든 파일 형식 가능</span>
                   <input type="file" onChange={handleFileSelect} className="hidden" />
@@ -4630,7 +4634,7 @@ export function AdminLibrary({ user }) {
               )}
             </div>
 
-            {/* 🖼️ 사진 (여러 장) */}
+            {/* 사진 (여러 장) */}
             <MultiImageField
               label="사진 (여러 장)"
               help="자료 미리보기용"
@@ -4790,7 +4794,7 @@ export function AdminQna({ user }) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            title: `✅ 원장님이 답변을 남겼어요!`,
+            title: `원장님이 답변을 남겼어요!`,
             body: `Q. ${selected.title}`,
             url: '/',
             targetUserId: selected.user_id,
@@ -4818,9 +4822,9 @@ export function AdminQna({ user }) {
     }).eq('id', selected.id);
     setLoading(false);
     if (error) {
-      toast('❌ 삭제 실패: ' + error.message);
+      toast('삭제 실패: ' + error.message);
     } else {
-      toast('🗑️ 답변이 삭제되었습니다');
+      toast('답변이 삭제되었습니다');
       setAnswer('');
       setSelected(null);
       await load();
@@ -4847,7 +4851,7 @@ export function AdminQna({ user }) {
             {loading && <Loader2 size={12} className="animate-spin" />}{selected?.answer ? '답변 수정하기' : '답변 등록하기'}
           </button>
           
-          {/* 🍊 답변 삭제 (답변 있을 때만 표시) */}
+          {/* 답변 삭제 (답변 있을 때만 표시) */}
           {selected?.answer && (
             <button onClick={deleteAnswer} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cream, color: COLORS.deep, border: `1px solid ${COLORS.light}` }}>
               <Trash2 size={11} strokeWidth={2.5} />답변 삭제하기

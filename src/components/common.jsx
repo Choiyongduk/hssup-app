@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase';
 import { COLORS, getInitial, AVATAR_COLORS } from '../lib/colors';
 import { subscribeToast, toast } from '../lib/toast';
 import { subscribeConfirm, confirmDialog } from '../lib/dialog';
-import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLevel, TIERS, TIER_ORDER, SCORE_TABLE, POINTS, MASTER_SCORE } from '../lib/level';
+import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
 // =============================================================
 // 📂 CategoryMover - 관리자/스태프용 카테고리 이동 버튼 (공용)
@@ -20,8 +21,8 @@ export function CategoryMover({ table, itemId, current, options, onMoved }) {
     setLoading(true);
     const { error } = await supabase.from(table).update({ category: cat }).eq('id', itemId);
     setLoading(false);
-    if (error) { toast('❌ 이동 실패: ' + error.message); return; }
-    toast(`📂 "${cat}" 카테고리로 이동했어요`);
+    if (error) { toast('이동 실패: ' + error.message); return; }
+    toast(`"${cat}" 카테고리로 이동했어요`);
     onMoved?.(cat);
   };
   return (
@@ -98,7 +99,7 @@ export function ToastHost() {
       pointerEvents: 'none', padding: '0 16px',
     }}>
       {toasts.map((t) => {
-        const isErr = t.type === 'error' || /실패|❌|⚠️|오류|에러|없어요|없습니다/.test(t.message);
+        const isErr = t.type === 'error' || /실패|오류|에러|없어요|없습니다/.test(t.message);
         return (
           <div key={t.id} className="animate-slide-up" style={{
             maxWidth: 448, width: '100%', background: COLORS.cardElev, color: COLORS.ink,
@@ -520,199 +521,123 @@ export function Avatar({ user, size = 'md', onClick }) {
   );
 }
 
-export function calculateLevel(stats) {
-  const activityPoints = (stats.cases || 0) * 10 + 
-                         (stats.posts || 0) * 5 + 
-                         (stats.comments || 0) * 2 + 
-                         (stats.likes || 0) * 1;
-  const purchasePoints = (stats.orders || 0) * 30 + 
-                         Math.floor((stats.totalSpent || 0) / 10000);
-  const total = activityPoints + purchasePoints;
-  
-  if (total >= 2000) return { 
-    level: 'vip', label: 'VIP', emoji: '👑', 
-    color: '#FF6B9D', glow: 'rgba(255, 107, 157, 0.6)',
-    next: null, current: total 
-  };
-  if (total >= 1000) return { 
-    level: 'platinum', label: 'PLATINUM', emoji: '💎', 
-    color: '#B9F2FF', glow: 'rgba(185, 242, 255, 0.5)',
-    next: { label: 'VIP', need: 2000 - total, totalForNext: 2000, prevMilestone: 1000 }, current: total 
-  };
-  if (total >= 500) return { 
-    level: 'gold', label: 'GOLD', emoji: '🥇',
-    color: '#FFD700', glow: 'rgba(255, 215, 0, 0.5)',
-    next: { label: 'PLATINUM', need: 1000 - total, totalForNext: 1000, prevMilestone: 500 }, current: total 
-  };
-  if (total >= 100) return { 
-    level: 'silver', label: 'SILVER', emoji: '🥈',
-    color: '#E0E0E0', glow: 'rgba(192, 192, 192, 0.5)',
-    next: { label: 'GOLD', need: 500 - total, totalForNext: 500, prevMilestone: 100 }, current: total 
-  };
-  return { 
-    level: 'bronze', label: 'BRONZE', emoji: '🥉',
-    color: '#CD7F32', glow: 'rgba(205, 127, 50, 0.5)',
-    next: { label: 'SILVER', need: 100 - total, totalForNext: 100, prevMilestone: 0 }, current: total 
-  };
-}
+// 등급 카드 — MEMBER / CREW / MASTER. 현재 등급 + 승급 진행 + 점수내역 + 전체 등급 안내.
+export function LevelCard({ userId, setCurrentPage }) {
+  const lv = useLevel(userId);
 
-export function LevelCard({ userId, hideRevenue, setCurrentPage }) {
-  const [stats, setStats] = useState({ cases: 0, posts: 0, comments: 0, likes: 0, orders: 0, totalSpent: 0 });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!userId) return;
-    const load = async () => {
-      const [
-        { count: cases },
-        { count: posts },
-        { count: comments },
-        { count: likes },
-        { data: ordersData }
-      ] = await Promise.all([
-        supabase.from('cases').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-        supabase.from('community_posts').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-        supabase.from('comments').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-        supabase.from('likes').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-        supabase.from('orders').select('amount').eq('user_id', userId).eq('status', 'paid'),
-      ]);
-      const orders = ordersData?.length || 0;
-      const totalSpent = (ordersData || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
-      setStats({ 
-        cases: cases || 0, 
-        posts: posts || 0, 
-        comments: comments || 0, 
-        likes: likes || 0,
-        orders,
-        totalSpent
-      });
-      setLoading(false);
-    };
-    load();
-  }, [userId]);
-
-  const level = calculateLevel(stats);
-
-  // 진행 바 계산 (이전 등급 기준점에서 다음 등급 기준점까지의 비율)
-  const progress = level.next 
-    ? Math.min(100, Math.max(0, 
-        ((level.current - level.next.prevMilestone) / (level.next.totalForNext - level.next.prevMilestone)) * 100
-      ))
-    : 100;
-
-  const formatMoney = (n) => {
-    if (n >= 10000) return (n / 10000).toFixed(0) + '만';
-    return n.toLocaleString();
-  };
-
-  if (loading) {
+  if (lv.loading) {
     return (
-      <div className="rounded-2xl p-5 flex items-center justify-center" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, minHeight: '180px' }}>
+      <div className="rounded-2xl p-5 flex items-center justify-center" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, minHeight: '160px' }}>
         <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
       </div>
     );
   }
 
+  const def = TIERS[lv.tier];
+  const isMember = lv.tier === 'member';
+  const isCrew = lv.tier === 'crew';
+  const isMaster = lv.tier === 'master';
+  const scorePct = Math.min(100, Math.round((lv.score / MASTER_SCORE) * 100));
+
+  const Cond = ({ done, label }) => (
+    <div className="flex items-center gap-2 mt-1.5">
+      <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+        style={{ background: done ? COLORS.primary : 'transparent', border: done ? 'none' : `1.5px solid ${COLORS.light}` }}>
+        {done && <Check size={11} style={{ color: '#fff' }} strokeWidth={3} />}
+      </span>
+      <span className="font-body text-xs" style={{ color: done ? COLORS.ink : COLORS.stone, textDecoration: done ? 'none' : 'none' }}>{label}</span>
+    </div>
+  );
+
   return (
-    <div className="rounded-2xl p-5 relative overflow-hidden" style={{ background: COLORS.cardElev }}>
-      {/* 배경 글로우 */}
-      <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none" 
-        style={{ background: `radial-gradient(circle, ${level.glow}, transparent 70%)` }}></div>
-      
-      <div className="relative">
-        <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Your Level</p>
-        
-        <div className="flex items-center gap-3 mt-3">
-          <span className="text-5xl">{level.emoji}</span>
-          <div className="flex-1">
-            <p className="font-display text-2xl tracking-tight" style={{ color: level.color }}>{level.label}</p>
-            <p className="font-mono text-[11px] mt-0.5" style={{ color: COLORS.stone }}>활동 점수 {level.current}점</p>
+    <div className="space-y-3">
+      {/* 현재 등급 */}
+      <div className="rounded-2xl p-5 relative overflow-hidden" style={{ background: COLORS.cardElev }}>
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none"
+          style={{ background: `radial-gradient(circle, ${def.color}55, transparent 70%)` }}></div>
+        <div className="relative">
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ My Grade</p>
+          <div className="mt-3">
+            <p className="font-display text-3xl tracking-tight" style={{ color: def.color }}>{def.label}</p>
+            <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>{def.tagline}</p>
           </div>
-          {!hideRevenue && stats.orders > 0 && (
-            <div className="text-right">
-              <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>VIP</p>
-              <p className="font-display text-lg tracking-tight" style={{ color: COLORS.primary }}>{stats.orders}건</p>
+
+          {/* 승급 진행 */}
+          {isMember && (
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+              <p className="font-body text-xs font-bold" style={{ color: COLORS.ink }}>
+                다음 등급 <span style={{ color: TIERS.crew.color }}>CREW</span> 승급 조건
+              </p>
+              <Cond done={lv.reviewsAll >= 1} label="수강 후기 작성 1회" />
+              <Cond done={lv.casesAll >= 1} label="시술·연습 사진(1:1 피드백) 업로드 1회" />
             </div>
           )}
+          {isCrew && (
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: COLORS.cream }}>
+                <div className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${scorePct}%`, background: COLORS.primary, boxShadow: '0 0 12px rgba(255,92,31,0.4)' }}></div>
+              </div>
+              <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>
+                다음 등급 <span style={{ color: TIERS.master.color, fontWeight: 'bold' }}>MASTER</span>까지 최근 30일 점수 <span style={{ color: COLORS.ink, fontWeight: 'bold' }}>{lv.score}</span> / {MASTER_SCORE}점
+              </p>
+            </div>
+          )}
+          {isMaster && (
+            <p className="font-serif-italic text-sm mt-3" style={{ color: def.color }}>최고 등급입니다 · 최근 30일 {lv.score}점</p>
+          )}
         </div>
+      </div>
 
-        {/* 진행 바 */}
-        {level.next && (
-          <>
-            <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ background: COLORS.cream }}>
-              <div className="h-full rounded-full transition-all duration-1000" 
-                style={{ 
-                  width: `${progress}%`, 
-                  background: COLORS.primary, 
-                  boxShadow: '0 0 12px rgba(255, 92, 31, 0.4)' 
-                }}></div>
-            </div>
-            <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>
-              다음 등급 <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>{level.next.label}</span>까지 <span style={{ color: COLORS.ink, fontWeight: 'bold' }}>{level.next.need}점</span>
-            </p>
-          </>
-        )}
-        {!level.next && (
-          <p className="font-serif-italic text-sm mt-3" style={{ color: level.color }}>✨ 최고 등급에 도달했습니다!</p>
-        )}
-
-        {/* 활동 통계 (클릭 가능) */}
-        <div className="grid grid-cols-4 gap-1 mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-          <button onClick={() => setCurrentPage && setCurrentPage('mycase')}
-            disabled={!setCurrentPage}
-            className="text-center rounded-lg p-2 transition-transform active:scale-95 disabled:active:scale-100"
-            style={{ background: setCurrentPage ? 'rgba(255,92,31,0.05)' : 'transparent' }}>
-            <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.cases}</p>
-            <p className="font-mono text-[9px] mt-0.5" style={{ color: setCurrentPage ? COLORS.primary : COLORS.stone }}>케이스</p>
-          </button>
-          <button onClick={() => {
-              if (!setCurrentPage) return;
-              sessionStorage.setItem('hssup_activity_tab', 'posts');
-              setCurrentPage('my-activity');
-            }}
-            disabled={!setCurrentPage}
-            className="text-center rounded-lg p-2 transition-transform active:scale-95 disabled:active:scale-100"
-            style={{ background: setCurrentPage ? 'rgba(255,92,31,0.05)' : 'transparent' }}>
-            <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.posts}</p>
-            <p className="font-mono text-[9px] mt-0.5" style={{ color: setCurrentPage ? COLORS.primary : COLORS.stone }}>게시글</p>
-          </button>
-          <button onClick={() => {
-              if (!setCurrentPage) return;
-              sessionStorage.setItem('hssup_activity_tab', 'comments');
-              setCurrentPage('my-activity');
-            }}
-            disabled={!setCurrentPage}
-            className="text-center rounded-lg p-2 transition-transform active:scale-95 disabled:active:scale-100"
-            style={{ background: setCurrentPage ? 'rgba(255,92,31,0.05)' : 'transparent' }}>
-            <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.comments}</p>
-            <p className="font-mono text-[9px] mt-0.5" style={{ color: setCurrentPage ? COLORS.primary : COLORS.stone }}>댓글</p>
-          </button>
-          <button onClick={() => {
-              if (!setCurrentPage) return;
-              sessionStorage.setItem('hssup_activity_tab', 'likes');
-              setCurrentPage('my-activity');
-            }}
-            disabled={!setCurrentPage}
-            className="text-center rounded-lg p-2 transition-transform active:scale-95 disabled:active:scale-100"
-            style={{ background: setCurrentPage ? 'rgba(255,92,31,0.05)' : 'transparent' }}>
-            <p className="font-display text-base" style={{ color: COLORS.ink }}>{stats.likes}</p>
-            <p className="font-mono text-[9px] mt-0.5" style={{ color: setCurrentPage ? COLORS.primary : COLORS.stone }}>좋아요</p>
-          </button>
-        </div>
-
-        {/* 결제 통계 (admin만 표시) */}
-        {!hideRevenue && stats.orders > 0 && (
-          <div className="grid grid-cols-2 gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-            <div className="text-center rounded-lg py-2" style={{ background: 'rgba(255, 92, 31, 0.08)' }}>
-              <p className="font-display text-base" style={{ color: COLORS.primary }}>{stats.orders}</p>
-              <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>결제 건수</p>
-            </div>
-            <div className="text-center rounded-lg py-2" style={{ background: 'rgba(255, 92, 31, 0.08)' }}>
-              <p className="font-display text-base" style={{ color: COLORS.primary }}>{formatMoney(stats.totalSpent)}</p>
-              <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>구매 금액</p>
-            </div>
+      {/* 최근 30일 점수 내역 (CREW/MASTER) */}
+      {!isMember && (
+        <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.stone }}>최근 30일 활동</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              ['출석', lv.attendance30, POINTS.attendance],
+              ['좋아요', lv.likes30, POINTS.like],
+              ['댓글', lv.comments30, POINTS.comment],
+              ['게시글', lv.posts30, POINTS.post],
+              ['연습사진', lv.cases30, POINTS.case],
+              ['베스트', lv.best30, POINTS.best],
+            ].map(([label, n, pt]) => (
+              <div key={label} className="text-center rounded-lg py-2" style={{ background: COLORS.cardElev }}>
+                <p className="font-display text-base" style={{ color: COLORS.ink }}>{n * pt}</p>
+                <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.stone }}>{label} {n}×{pt}</p>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+      )}
+
+      {/* 전체 등급 안내 */}
+      <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>등급 안내</p>
+        {TIER_ORDER.map(key => {
+          const t = TIERS[key];
+          const cur = key === lv.tier;
+          return (
+            <div key={key} className="rounded-xl p-3" style={{ background: cur ? `${t.color}14` : 'transparent', border: `1px solid ${cur ? t.color : COLORS.light}` }}>
+              <div className="flex items-center gap-2">
+                <span className="font-display text-base tracking-tight" style={{ color: t.color }}>{t.label}</span>
+                {cur && <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: t.color, color: '#fff' }}>현재</span>}
+                <span className="font-body text-[11px] ml-auto" style={{ color: COLORS.stone }}>{t.tagline}</span>
+              </div>
+              {t.conditions && (
+                <p className="font-body text-[11px] mt-2" style={{ color: COLORS.stone }}>
+                  <span style={{ color: COLORS.ink, fontWeight: 'bold' }}>승급조건</span> · {t.conditions.join(' / ')}
+                </p>
+              )}
+              <p className="font-body text-[11px] mt-1" style={{ color: COLORS.ink }}>
+                <span style={{ color: COLORS.primary, fontWeight: 'bold' }}>혜택</span> · {t.benefits.join(' · ')}
+              </p>
+            </div>
+          );
+        })}
+        <p className="font-body text-[10px]" style={{ color: COLORS.stone }}>
+          ※ MASTER는 최근 30일 활동 점수로 유지됩니다 · 점수: {SCORE_TABLE.map(([l, p]) => `${l} ${p}점`).join(', ')}
+        </p>
       </div>
     </div>
   );

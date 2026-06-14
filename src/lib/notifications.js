@@ -87,7 +87,7 @@ export const notifyAdminsOfStaffActivity = async (user, title, body) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: `👮 [운영진] ${title}`,
+          title: `[운영진] ${title}`,
           body: `${user.name}: ${body}`,
           url: '/',
           targetUserId: admin.id,
