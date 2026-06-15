@@ -5248,22 +5248,7 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
   );
 }
 
-export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
-  const [orientation, setOrientation] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.from('lectures').select('*')
-      .eq('is_orientation', true)
-      .eq('is_published', true)
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        setOrientation(data);
-        setLoading(false);
-      });
-  }, []);
-
+export function OnboardingScreen({ user, setCurrentPage }) {
   const missions = [
     {
       id: 'greeting',
@@ -5277,27 +5262,10 @@ export function OnboardingScreen({ user, setCurrentPage, setSelectedLecture }) {
       id: 'review',
       icon: Heart,
       title: '첫 수업 후기 작성',
-      desc: '첫 수업의 인상을 후기로 남겨주세요',
+      desc: '후기를 남기면 CREW로 승급돼요',
       optional: true,
       done: user.onb_review,
       action: () => setCurrentPage('reviews'),
-    },
-    // 🍊 오리엔테이션 영상 (선택)
-    {
-      id: 'video',
-      icon: PlayCircle,
-      title: '오리엔테이션 영상 시청',
-      desc: 'HSSUP 아카데미를 소개해드릴게요',
-      optional: true,
-      done: user.onb_video,
-      action: () => {
-        if (orientation) {
-          setSelectedLecture(orientation);
-          setCurrentPage('lecture-detail', orientation.id);
-        } else {
-          toast('오리엔테이션 영상이 아직 준비되지 않았어요.\n원장님께 문의해주세요!');
-        }
-      },
     },
   ];
 

@@ -1180,6 +1180,26 @@ function AuthScreen() {
       } else {
         setError(error.message);
       }
+    } else {
+      // 📢 가입승인 가능한 사람들(원장+운영진)에게 새 가입신청 알림
+      //    send-push의 targetRole:'admin'은 내부적으로 admin+staff 모두 포함
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: '새 가입 신청',
+            body: `${signupForm.name || '신규 회원'}님 · ${signupForm.course || ''}`,
+            url: '/?page=admin-approvals',
+            targetRole: 'admin',
+          }),
+        });
+      } catch (e) { console.error('가입 신청 알림 발송 실패:', e); }
     }
     setLoading(false);
   };

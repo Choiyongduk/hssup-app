@@ -2604,26 +2604,19 @@ export function AdminApprovals({ user }) {
   };
 
   const approve = async (userId, asGraduate = false) => {
-    const msg = asGraduate 
-      ? '졸업생으로 승인하시겠습니까?\n온보딩 미션이 면제됩니다.' 
-      : '이 회원을 일반 학생으로 승인하시겠습니까?\n온보딩 미션을 받게 됩니다.';
+    // 신입생/졸업생 온보딩은 동일(가입인사 필수). 졸업생 여부는 구분 라벨일 뿐.
+    const msg = asGraduate
+      ? '졸업생으로 승인하시겠습니까?'
+      : '수강생으로 승인하시겠습니까?';
     if (!await confirmDialog(msg)) return;
-    
-    const updates = {
+
+    const { error } = await supabase.from('profiles').update({
       status: 'approved',
       approved_at: new Date().toISOString(),
       approved_by: user.id,
       rejected_reason: null,
       is_graduate: asGraduate,
-    };
-    
-    if (asGraduate) {
-      // 졸업생 승인 = 영상 미션만 면제 (인사/후기는 작성해야 함)
-      updates.onb_video = true;
-      // onb_greeting, onb_review는 false 유지 (작성 필수)
-    }
-    
-    const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
+    }).eq('id', userId);
     if (error) {
       toast('승인 실패: ' + error.message);
     } else {
@@ -2863,6 +2856,22 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
     setUpdating(false);
   };
 
+  const toggleGraduate = async () => {
+    const makeGrad = !student.is_graduate;
+    if (!await confirmDialog(makeGrad
+      ? `${student.name}님을 졸업생으로 변경하시겠습니까?`
+      : `${student.name}님을 수강생으로 변경하시겠습니까?`)) return;
+    setUpdating(true);
+    const { error } = await supabase.from('profiles').update({ is_graduate: makeGrad }).eq('id', student.id);
+    if (error) {
+      toast('변경 실패: ' + error.message);
+    } else {
+      toast(makeGrad ? '졸업생으로 변경되었습니다' : '수강생으로 변경되었습니다');
+      setCurrentPage('admin-students');
+    }
+    setUpdating(false);
+  };
+
   useEffect(() => {
     if (!student?.id) return;
     const load = async () => {
@@ -2913,6 +2922,27 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
             </div>
           </div>
         </div>
+
+        {/* 졸업생/수강생 구분 (라벨 — 졸업하면 전환) */}
+        {student.role !== 'admin' && (
+          <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Student Type</p>
+                <p className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>
+                  현재 {student.is_graduate ? '졸업생' : '수강생'}
+                </p>
+                <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>수강생이 졸업하면 졸업생으로 변경하세요</p>
+              </div>
+              <button onClick={toggleGraduate} disabled={updating}
+                className="font-heading text-xs px-4 py-2.5 rounded-full flex items-center gap-1.5 shrink-0 disabled:opacity-60"
+                style={{ background: COLORS.cream, color: COLORS.deep, border: `1px solid ${COLORS.light}` }}>
+                {updating ? <Loader2 size={12} className="animate-spin" /> : null}
+                {student.is_graduate ? '수강생으로' : '졸업생으로'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 운영진 임명/해제 (admin만 가능) */}
         {canViewRevenue && student.role !== 'admin' && (
