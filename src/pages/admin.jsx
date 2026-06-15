@@ -2722,7 +2722,7 @@ export function AdminApprovals({ user }) {
                 {u.is_graduate && u.status === 'approved' && (
                   <div className="mt-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(255,92,31,0.08)' }}>
                     <span className="text-sm"></span>
-                    <p className="font-mono text-[10px] font-bold" style={{ color: COLORS.primary }}>졸업생 (미션 면제)</p>
+                    <p className="font-mono text-[10px] font-bold" style={{ color: COLORS.primary }}>졸업생</p>
                   </div>
                 )}
                 
@@ -2755,7 +2755,7 @@ export function AdminApprovals({ user }) {
                   <button onClick={() => approve(u.id, true)}
                     className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
                     style={{ background: COLORS.cardElev, color: COLORS.primary, border: `1px solid ${COLORS.primary}` }}>
-                    졸업생으로 승인 (미션 면제)
+                    졸업생으로 승인
                   </button>
                 </>
               )}
