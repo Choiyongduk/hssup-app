@@ -146,6 +146,7 @@ export default function HSSUPApp() {
 
   // 🍊 Pull-to-Refresh 상태
   const mainRef = useRef(null);
+  const scrollPositions = useRef({}); // 페이지별 스크롤 위치(목록 복원용)
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
     
@@ -364,9 +365,25 @@ export default function HSSUPApp() {
     };
   }, [refreshing]);
 
-  // 🍊 페이지 전환 시 항상 맨 위에서 시작 (상세글을 열면 목록의 스크롤 위치가 남아 중간부터 보이던 문제)
+  // 🍊 스크롤 처리: 상세 페이지는 맨 위에서 시작, 목록 페이지는 떠날 때 위치를 저장했다가
+  //    뒤로 돌아오면 그 위치로 복원(상세 보고 목록 복귀 시 보던 곳 유지). 목록은 비동기 로드라
+  //    높이가 늦게 잡히는 점을 감안해 잠깐 재시도.
   useEffect(() => {
-    mainRef.current?.scrollTo({ top: 0 });
+    const el = mainRef.current;
+    if (!el) return;
+    const isDetail = /(-detail$)|^payment/.test(currentPage);
+    const target = isDetail ? 0 : (scrollPositions.current[currentPage] ?? 0);
+    let cancelled = false, tries = 0;
+    const restore = () => {
+      if (cancelled || !el) return;
+      el.scrollTop = target;
+      if (++tries < 12 && el.scrollTop < target - 2) setTimeout(restore, 40);
+    };
+    requestAnimationFrame(restore);
+    return () => {
+      cancelled = true;
+      if (!isDetail) scrollPositions.current[currentPage] = el.scrollTop; // 목록 위치 저장
+    };
   }, [currentPage, routeId]);
 
   const loadProfile = async (userId) => {

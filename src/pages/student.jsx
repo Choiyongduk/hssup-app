@@ -1497,6 +1497,11 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
       </div>
 
       <div className="px-5 space-y-3">
+        <div className="rounded-xl p-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
+          <p className="font-body text-[11px] leading-relaxed" style={{ color: COLORS.deep }}>
+            질문은 익명으로 표시됩니다.
+          </p>
+        </div>
         <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
           <Plus size={16} strokeWidth={2.5} />질문하기
         </button>
