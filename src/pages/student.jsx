@@ -5,11 +5,11 @@ import { COLORS, AVATAR_COLORS } from '../lib/colors';
 import { uploadCaseImage, deleteCaseImage, isYouTubeUrl, getRowImages, uploadImageToBucket, deleteImageFromBucket, persistFormImages, uploadPostVideo, deletePostVideo } from '../lib/images';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
-import { subscribeToNotifications, unsubscribeFromNotifications, checkNotificationStatus } from '../lib/notifications';
+import { subscribeToNotifications, unsubscribeFromNotifications, checkNotificationStatus, notifyEveryone } from '../lib/notifications';
 import { LEGAL_TERMS, LEGAL_PRIVACY, LEGAL_REFUND } from '../lib/legal';
 import { useDraft, useLatestLecture, useRecentUpdates, useDetailItem } from '../hooks';
 import {
-  ImageCarousel, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, MultiImageField, CategoryMover,
+  ImageCarousel, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, MultiImageField, CategoryMover, Pagination,
 } from '../components/common';
 import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar, Gift } from 'lucide-react';
 
@@ -539,21 +539,21 @@ export function BestCasePage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('전체');
-  const [displayCount, setDisplayCount] = useState(PER_PAGE);
+  const [page, setPage] = useState(1);
 
-  // 필터 바뀌면 페이지 초기화
-  useEffect(() => { setDisplayCount(PER_PAGE); }, [filter]);
-  // 🚀 필터·페이지에 맞춰 필요한 만큼만 조회 (서버 필터 + 페이지네이션)
-  useEffect(() => { load(); }, [filter, displayCount]);
+  // 필터 바뀌면 1페이지로 초기화
+  useEffect(() => { setPage(1); }, [filter]);
+  // 🚀 현재 페이지 구간만 조회 (서버 필터 + 페이지네이션)
+  useEffect(() => { load(); }, [filter, page]);
 
   const load = async () => {
-    if (displayCount === PER_PAGE) setLoading(true);
+    setLoading(true);
     let query = supabase
       .from('cases')
       .select('*', { count: 'exact' })
       .eq('is_best', true)
       .order('created_at', { ascending: false })
-      .range(0, displayCount - 1);
+      .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
     if (filter !== '전체') query = query.eq('category', filter);
     const { data, count } = await query;
     const rows = data || [];
@@ -664,13 +664,7 @@ export function BestCasePage() {
               </div>
             </div>
           ))}
-          {total > cases.length && (
-            <button onClick={() => setDisplayCount(n => n + PER_PAGE)}
-              className="w-full rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
-              style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
-              더 보기 ({total - cases.length}개 남음) <ChevronRight size={12} />
-            </button>
-          )}
+          <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
           </>
         )}
       </div>
@@ -1414,13 +1408,13 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('전체');
   const [total, setTotal] = useState(0);
-  const [displayCount, setDisplayCount] = useState(PER_PAGE);
+  const [page, setPage] = useState(1);
 
-  useEffect(() => { setDisplayCount(PER_PAGE); }, [filter]);
-  useEffect(() => { load(); }, [filter, displayCount]);
+  useEffect(() => { setPage(1); }, [filter]);
+  useEffect(() => { load(); }, [filter, page]);
 
   const load = async () => {
-    let query = supabase.from('questions').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(0, displayCount - 1);
+    let query = supabase.from('questions').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
     if (filter !== '전체') query = query.eq('category', filter);
     const { data, count } = await query;
     setQuestions(data || []);
@@ -1545,13 +1539,7 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
             </div>
           </button>
           ))}
-          {total > questions.length && (
-            <button onClick={() => setDisplayCount(n => n + PER_PAGE)}
-              className="w-full rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
-              style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
-              더 보기 ({total - questions.length}개 남음) <ChevronRight size={12} />
-            </button>
-          )}
+          <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
           </>
         )}
       </div>
@@ -3309,7 +3297,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
   const [total, setTotal] = useState(0);
   const [newPost, setNewPost, clearNewPost] = useDraft(`community_${fixedCategory || 'free'}`, '');
   const [loading, setLoading] = useState(false);
-  const [displayCount, setDisplayCount] = useState(POSTS_PER_PAGE);
+  const [page, setPage] = useState(1);
   const isAdmin = user?.role === 'admin';
 
   // 📎 첨부: 사진(여러 장) + 영상(파일 또는 유튜브)
@@ -3352,16 +3340,16 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
     setShowAttach(false);
   };
 
-  // 카테고리 바뀌면 페이지 초기화
-  useEffect(() => { setDisplayCount(POSTS_PER_PAGE); }, [fixedCategory]);
-  // 🚀 필요한 만큼만 DB에서 조회 (displayCount 증가 시 추가 로드) — 전체 풀로딩 방지
-  useEffect(() => { load(); }, [fixedCategory, displayCount]);
+  // 카테고리 바뀌면 1페이지로 초기화
+  useEffect(() => { setPage(1); }, [fixedCategory]);
+  // 🚀 현재 페이지 구간만 DB에서 조회 — 전체 풀로딩 방지
+  useEffect(() => { load(); }, [fixedCategory, page]);
 
   const load = async () => {
     let query = supabase.from('community_posts')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
-      .range(0, displayCount - 1);
+      .range((page - 1) * POSTS_PER_PAGE, page * POSTS_PER_PAGE - 1);
     if (fixedCategory) {
       query = query.eq('category', fixedCategory);
     }
@@ -3459,30 +3447,33 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
         setTimeout(() => window.location.reload(), 500);
         return;
       }
-      // 📢 알림 발송 (학생→관리자, 관리자→학생)
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const targetRole = isAdmin ? 'student' : 'admin';
-        const titlePrefix = isAdmin
-          ? `[${pageTitle || '게시판'}] 원장님이 글을 남겼어요`
-          : `[${pageTitle || '게시판'}] 새 글이 등록됐어요`;
-        
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: titlePrefix,
-            body: `${user.name}: ${newPost.substring(0, 80)}`,
-            url: '/',
-            targetRole,
-            excludeUserId: user.id,
-          }),
+      // 📢 알림 발송: 원장님(admin) 글 → 전원(수강생+운영진) 강제 / 그 외 → 관리자에게만
+      if (isAdmin) {
+        await notifyEveryone({
+          title: `[${pageTitle || '게시판'}] 원장님이 글을 남겼어요`,
+          body: `${user.name}: ${newPost.substring(0, 80)}`,
+          excludeUserId: user.id,
         });
-      } catch (e) { console.error('알림 발송 실패:', e); }
+      } else {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              title: `[${pageTitle || '게시판'}] 새 글이 등록됐어요`,
+              body: `${user.name}: ${newPost.substring(0, 80)}`,
+              url: '/',
+              targetRole: 'admin',
+              excludeUserId: user.id,
+            }),
+          });
+        } catch (e) { console.error('알림 발송 실패:', e); }
+      }
 
       setNewPost('');
       resetComposer();
@@ -3669,20 +3660,8 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
           </div>
         ))}
         
-        {/* 더 보기 버튼 */}
-        {total > posts.length && (
-          <button onClick={() => setDisplayCount(c => c + POSTS_PER_PAGE)}
-            className="w-full rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
-            style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
-            더 보기 ({total - posts.length}개 남음) <ChevronRight size={12} />
-          </button>
-        )}
-
-        {posts.length > 0 && total <= posts.length && (
-          <p className="text-center font-mono text-[10px] py-2" style={{ color: COLORS.stone }}>
-            ━━ 마지막 게시글 ━━
-          </p>
-        )}
+        {/* 페이지 번호 */}
+        <Pagination page={page} total={total} perPage={POSTS_PER_PAGE} onChange={setPage} />
       </div>
     </>
   );

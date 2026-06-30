@@ -5,10 +5,10 @@ import { COLORS } from '../lib/colors';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
 import { compressImage, isYouTubeUrl, uploadPostVideo, deletePostVideo, deleteImageFromBucket, persistFormImages, getRowImages } from '../lib/images';
-import { notifyAdminsOfStaffActivity } from '../lib/notifications';
+import { notifyAdminsOfStaffActivity, notifyEveryone } from '../lib/notifications';
 import { useDraft } from '../hooks';
 import {
-  MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro,
+  MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
 import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck } from 'lucide-react';
 
@@ -639,8 +639,14 @@ export function AdminTrends({ user }) {
         const { error } = await supabase.from('trends').insert(trendData);
         if (error) throw error;
 
-        // 푸시 알림 (신규 등록 + 체크 시)
-        if (form.sendPush) {
+        // 📢 원장님 글 → 전원(수강생+운영진) 강제 알림 / 운영진 글 → 체크 시 수강생에게만
+        if (user.role === 'admin') {
+          await notifyEveryone({
+            title: `[${form.category}] 새 트렌드 속보!`,
+            body: form.title,
+            excludeUserId: user.id,
+          });
+        } else if (form.sendPush) {
           try {
             const { data: { session } } = await supabase.auth.getSession();
             await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
@@ -958,7 +964,14 @@ export function AdminTips({ user }) {
         const { error } = await supabase.from('tips').insert(tipData);
         if (error) throw error;
 
-        if (form.sendPush) {
+        // 📢 원장님 글 → 전원(수강생+운영진) 강제 알림 / 운영진 글 → 체크 시 수강생에게만
+        if (user.role === 'admin') {
+          await notifyEveryone({
+            title: `[${form.category}] 새 꿀팁이 올라왔어요!`,
+            body: form.title,
+            excludeUserId: user.id,
+          });
+        } else if (form.sendPush) {
           try {
             const { data: { session } } = await supabase.auth.getSession();
             await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
@@ -1354,7 +1367,15 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
 
         await notifyAdminsOfStaffActivity(user, `공지 등록: ${form.title}`, form.content?.substring(0, 60) || '');
 
-        if (form.sendPush && subscriberCount > 0) {
+        // 📢 원장님 공지 → 전원(수강생+운영진) 강제 알림 / 운영진 공지 → 체크 시 수강생에게만
+        if (user.role === 'admin') {
+          await notifyEveryone({
+            title: `[${form.tag}] ${form.title}`,
+            body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
+            excludeUserId: user.id,
+          });
+          toast('공지 등록 완료!\n전원에게 알림을 보냈어요.');
+        } else if (form.sendPush && subscriberCount > 0) {
           const { data: { session } } = await supabase.auth.getSession();
           const response = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`,
@@ -1366,7 +1387,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                title: `${form.urgent ? '' : ''}[${form.tag}] ${form.title}`,
+                title: `[${form.tag}] ${form.title}`,
                 body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
                 url: '/',
                 targetRole: 'student',
@@ -1793,7 +1814,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
   const PER_PAGE = 30;
   const [orders, setOrders] = useState([]);
   const [total, setTotal] = useState(0);
-  const [displayCount, setDisplayCount] = useState(PER_PAGE);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('product-pending');
 
@@ -1805,17 +1826,17 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
 
   const isRealAdmin = user?.role === 'admin';
 
-  useEffect(() => { setDisplayCount(PER_PAGE); }, [filter]);
-  useEffect(() => { loadOrders(); }, [filter, displayCount]);
+  useEffect(() => { setPage(1); }, [filter]);
+  useEffect(() => { loadOrders(); }, [filter, page]);
 
   const loadOrders = async () => {
-    if (displayCount === PER_PAGE) setLoading(true);
+    setLoading(true);
     let query = supabase
       .from('orders')
       .select('*', { count: 'exact' })
       .eq('status', 'paid')
       .order('paid_at', { ascending: false })
-      .range(0, displayCount - 1);
+      .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
 
     if (filter === 'product-pending') {
       query = query.eq('item_type', 'product').eq('shipping_status', 'pending');
@@ -2166,12 +2187,8 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
             </div>
           );
         })}
-        {!loading && total > orders.length && (
-          <button onClick={() => setDisplayCount(n => n + PER_PAGE)}
-            className="w-full rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
-            style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
-            더 보기 ({total - orders.length}건 남음) <ChevronRight size={12} />
-          </button>
+        {!loading && (
+          <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
         )}
       </div>
 
@@ -3129,7 +3146,7 @@ export function AdminStudents({ setCurrentPage, setSelectedStudent }) {
   const PER_PAGE = 30;
   const [allUsers, setAllUsers] = useState([]);
   const [total, setTotal] = useState(0);
-  const [displayCount, setDisplayCount] = useState(PER_PAGE);
+  const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [loading, setLoading] = useState(true);
@@ -3150,18 +3167,18 @@ export function AdminStudents({ setCurrentPage, setSelectedStudent }) {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  useEffect(() => { setDisplayCount(PER_PAGE); }, [debouncedQ]);
+  useEffect(() => { setPage(1); }, [debouncedQ]);
   // 🚀 서버 검색 + 페이지네이션 (전체 풀로딩 제거 → 대역폭 절약)
-  useEffect(() => { load(); }, [debouncedQ, displayCount]);
+  useEffect(() => { load(); }, [debouncedQ, page]);
 
   const load = async () => {
-    if (displayCount === PER_PAGE) setLoading(true);
+    setLoading(true);
     let query = supabase.from('profiles').select('*', { count: 'exact' })
       .in('role', ['student', 'staff'])
       .neq('status', 'deleted')  // 탈퇴한 회원 제외
       .order('role', { ascending: false })  // staff 먼저
       .order('created_at', { ascending: false })
-      .range(0, displayCount - 1);
+      .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
     if (debouncedQ) {
       const q = debouncedQ.replace(/[%,()]/g, ' ');
       query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%,course.ilike.%${q}%`);
@@ -3250,13 +3267,7 @@ export function AdminStudents({ setCurrentPage, setSelectedStudent }) {
             <ChevronRight size={16} style={{ color: COLORS.stone }} />
           </button>
           ))}
-          {total > allUsers.length && (
-            <button onClick={() => setDisplayCount(n => n + PER_PAGE)}
-              className="w-full rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
-              style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
-              더 보기 ({total - allUsers.length}명 남음) <ChevronRight size={12} />
-            </button>
-          )}
+          <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
           </>
         )}
       </div>

@@ -736,11 +736,76 @@ export function LikeButton({ targetType, targetId, userId, size = 14, initialCou
   );
 }
 
+// 📄 페이지 번호 네비게이션 (1 2 3 … 형태). 한 페이지면 표시 안 함.
+// page: 현재 페이지(1부터), total: 전체 개수, perPage: 페이지당 개수, onChange(newPage)
+export function Pagination({ page, total, perPage, onChange }) {
+  const pageCount = Math.max(1, Math.ceil((total || 0) / perPage));
+  if (pageCount <= 1) return null;
+
+  // 현재 페이지 주변으로 최대 5개 번호만 노출 (양끝은 첫·마지막 페이지 + …)
+  const WINDOW = 5;
+  let start = Math.max(1, page - Math.floor(WINDOW / 2));
+  const end = Math.min(pageCount, start + WINDOW - 1);
+  start = Math.max(1, end - WINDOW + 1);
+  const nums = [];
+  for (let i = start; i <= end; i++) nums.push(i);
+
+  const go = (n) => {
+    if (n < 1 || n > pageCount || n === page) return;
+    onChange(n);
+    if (typeof window !== 'undefined') window.scrollTo(0, 0);
+  };
+
+  const style = (active) => ({
+    background: active ? COLORS.primary : COLORS.card,
+    color: active ? COLORS.white : COLORS.ink,
+    border: `1px solid ${active ? COLORS.primary : COLORS.light}`,
+    boxShadow: active ? '0 0 16px rgba(255, 92, 31, 0.35)' : 'none',
+  });
+
+  return (
+    <div className="flex items-center justify-center gap-1.5 flex-wrap py-3">
+      <button onClick={() => go(page - 1)} disabled={page <= 1} aria-label="이전 페이지"
+        className="w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-30" style={style(false)}>
+        <ChevronLeft size={14} />
+      </button>
+
+      {start > 1 && (
+        <>
+          <button onClick={() => go(1)} className="w-8 h-8 rounded-full font-mono text-xs" style={style(false)}>1</button>
+          {start > 2 && <span className="font-mono text-xs px-0.5" style={{ color: COLORS.stone }}>…</span>}
+        </>
+      )}
+
+      {nums.map(n => (
+        <button key={n} onClick={() => go(n)}
+          className="w-8 h-8 rounded-full font-mono text-xs font-bold" style={style(n === page)}>
+          {n}
+        </button>
+      ))}
+
+      {end < pageCount && (
+        <>
+          {end < pageCount - 1 && <span className="font-mono text-xs px-0.5" style={{ color: COLORS.stone }}>…</span>}
+          <button onClick={() => go(pageCount)} className="w-8 h-8 rounded-full font-mono text-xs" style={style(false)}>{pageCount}</button>
+        </>
+      )}
+
+      <button onClick={() => go(page + 1)} disabled={page >= pageCount} aria-label="다음 페이지"
+        className="w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-30" style={style(false)}>
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  );
+}
+
 export function CommentSection({ targetType, targetId, user }) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [replyTo, setReplyTo] = useState(null);   // 답글 대상 원댓글 id
+  const [replyText, setReplyText] = useState('');
 
   useEffect(() => {
     if (!targetId) return;
@@ -784,6 +849,28 @@ export function CommentSection({ targetType, targetId, user }) {
     setLoading(false);
   };
 
+  // 원댓글에 달린 답글 작성자에게 푸시 알림 (본인 답글이면 생략)
+  const notifyReplyTarget = async (parent) => {
+    if (!parent || parent.user_id === user.id) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: '내 댓글에 답글이 달렸어요',
+          body: `${user.name || '누군가'}: ${replyText.trim().substring(0, 80)}`,
+          url: '/',
+          targetUserId: parent.user_id,
+        }),
+      });
+    } catch (e) { console.error('답글 알림 실패:', e); }
+  };
+
   const submit = async () => {
     if (!newComment.trim() || posting) return;
     setPosting(true);
@@ -791,12 +878,34 @@ export function CommentSection({ targetType, targetId, user }) {
       target_type: targetType,
       target_id: targetId,
       user_id: user.id,
-      content: newComment.trim()
+      content: newComment.trim(),
+      parent_id: null,
     });
     if (error) {
       toast('댓글 작성 실패: ' + error.message);
     } else {
       setNewComment('');
+      await load();
+    }
+    setPosting(false);
+  };
+
+  const submitReply = async (parent) => {
+    if (!replyText.trim() || posting) return;
+    setPosting(true);
+    const { error } = await supabase.from('comments').insert({
+      target_type: targetType,
+      target_id: targetId,
+      user_id: user.id,
+      content: replyText.trim(),
+      parent_id: parent.id,
+    });
+    if (error) {
+      toast('답글 작성 실패: ' + error.message);
+    } else {
+      await notifyReplyTarget(parent);
+      setReplyText('');
+      setReplyTo(null);
       await load();
     }
     setPosting(false);
@@ -809,6 +918,47 @@ export function CommentSection({ targetType, targetId, user }) {
   };
 
   const isAdmin = user?.role === 'admin';
+
+  // 1단계 트리: 원댓글 + 각 원댓글에 달린 답글 묶기
+  const roots = comments.filter(c => !c.parent_id);
+  const repliesByParent = {};
+  comments.forEach(c => {
+    if (c.parent_id) (repliesByParent[c.parent_id] = repliesByParent[c.parent_id] || []).push(c);
+  });
+
+  const CommentBody = ({ c, isReply }) => (
+    <div className="flex gap-2">
+      <Avatar user={c.profile} size="sm" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{c.profile.name}</p>
+          {c.profile.role === 'admin' && (
+            <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
+          )}
+          <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+            {new Date(c.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </p>
+          {(c.user_id === user.id || isAdmin) && (
+            <button onClick={() => remove(c.id)} className="ml-auto p-0.5">
+              <Trash2 size={11} style={{ color: COLORS.stone }} />
+            </button>
+          )}
+        </div>
+        <p className="font-body text-xs mt-1 leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>
+          {c.content}
+        </p>
+        {/* 답글 버튼은 원댓글에만 (1단계 제한) */}
+        {!isReply && (
+          <button
+            onClick={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyText(''); }}
+            className="font-mono text-[10px] font-bold mt-1.5"
+            style={{ color: replyTo === c.id ? COLORS.primary : COLORS.stone }}>
+            {replyTo === c.id ? '취소' : '답글'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <section className="mt-5 pt-5" style={{ borderTop: `1px solid ${COLORS.light}` }}>
@@ -839,34 +989,41 @@ export function CommentSection({ targetType, targetId, user }) {
         <div className="flex justify-center py-4">
           <Loader2 size={16} className="animate-spin" style={{ color: COLORS.primary }} />
         </div>
-      ) : comments.length === 0 ? (
+      ) : roots.length === 0 ? (
         <p className="text-center font-body text-xs py-4" style={{ color: COLORS.stone }}>
           첫 댓글을 남겨보세요!
         </p>
       ) : (
         <div className="space-y-4">
-          {comments.map(c => (
-            <div key={c.id} className="flex gap-2">
-              <Avatar user={c.profile} size="sm" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{c.profile.name}</p>
-                  {c.profile.role === 'admin' && (
-                    <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
-                  )}
-                  <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
-                    {new Date(c.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                  {(c.user_id === user.id || isAdmin) && (
-                    <button onClick={() => remove(c.id)} className="ml-auto p-0.5">
-                      <Trash2 size={11} style={{ color: COLORS.stone }} />
-                    </button>
-                  )}
+          {roots.map(c => (
+            <div key={c.id}>
+              <CommentBody c={c} isReply={false} />
+
+              {/* 답글 입력창 */}
+              {replyTo === c.id && (
+                <div className="flex gap-2 mt-2 items-center pl-9">
+                  <input type="text" value={replyText} autoFocus
+                    onChange={e => setReplyText(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && submitReply(c)}
+                    placeholder={`${c.profile.name}님에게 답글…`}
+                    className="flex-1 font-body text-xs font-medium border-b py-2 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                  <button onClick={() => submitReply(c)} disabled={posting || !replyText.trim()}
+                    className="px-3 rounded-full flex items-center disabled:opacity-40"
+                    style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+                    {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                  </button>
                 </div>
-                <p className="font-body text-xs mt-1 leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>
-                  {c.content}
-                </p>
-              </div>
+              )}
+
+              {/* 답글 목록 (들여쓰기) */}
+              {(repliesByParent[c.id] || []).length > 0 && (
+                <div className="mt-3 space-y-3 pl-9">
+                  {repliesByParent[c.id].map(r => (
+                    <CommentBody key={r.id} c={r} isReply={true} />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

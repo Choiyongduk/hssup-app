@@ -99,6 +99,29 @@ export const notifyAdminsOfStaffActivity = async (user, title, body) => {
   }
 };
 
+// 📢 원장님(admin) 글 → 전원(수강생 + 운영진) 강제 알림. 작성자 본인은 제외.
+//    send-push에 'student'(수강생)와 'admin'(=admin+staff 포함) 두 그룹으로 각각 발송한다.
+//    체크박스와 무관하게 항상 호출하는 용도.
+export const notifyEveryone = async ({ title, body, url = '/', excludeUserId }) => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = {
+      'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    };
+    await Promise.all(['student', 'admin'].map(targetRole =>
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ title, body, url, targetRole, excludeUserId }),
+      }).catch(e => console.error('전체 알림 실패:', e))
+    ));
+  } catch (e) {
+    console.error('전체 알림 헬퍼 에러:', e);
+  }
+};
+
 // 현재 알림 상태 확인
 export const checkNotificationStatus = async () => {
   if (!('Notification' in window)) return 'unsupported';
