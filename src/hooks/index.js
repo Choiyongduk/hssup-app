@@ -75,12 +75,17 @@ export function useNewPages() {
     const check = async () => {
       try {
         const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-        const [n, t, ti, l, lf] = await Promise.all([
+        const [n, t, ti, l, lf, cf, cg, cr, q] = await Promise.all([
           supabase.from('notices').select('id', { count: 'exact', head: true }).gte('created_at', since),
           supabase.from('trends').select('id', { count: 'exact', head: true }).eq('is_active', true).gte('created_at', since),
           supabase.from('tips').select('id', { count: 'exact', head: true }).eq('is_active', true).gte('created_at', since),
           supabase.from('lectures').select('id', { count: 'exact', head: true }).eq('is_published', true).gte('created_at', since),
           supabase.from('library_files').select('id', { count: 'exact', head: true }).gte('created_at', since),
+          // 👥 회원이 쓰는 커뮤니티 글(자유/인사/후기) + Q&A 도 새 글로 표시
+          supabase.from('community_posts').select('id', { count: 'exact', head: true }).eq('category', '자유').gte('created_at', since),
+          supabase.from('community_posts').select('id', { count: 'exact', head: true }).eq('category', '인사').gte('created_at', since),
+          supabase.from('community_posts').select('id', { count: 'exact', head: true }).eq('category', '후기').gte('created_at', since),
+          supabase.from('questions').select('id', { count: 'exact', head: true }).gte('created_at', since),
         ]);
         const s = [];
         if ((n.count || 0) > 0) s.push('notice');
@@ -88,6 +93,10 @@ export function useNewPages() {
         if ((ti.count || 0) > 0) s.push('tips');
         if ((l.count || 0) > 0) s.push('online');
         if ((lf.count || 0) > 0) s.push('library');
+        if ((cf.count || 0) > 0) s.push('freeboard');
+        if ((cg.count || 0) > 0) s.push('greetings');
+        if ((cr.count || 0) > 0) s.push('reviews');
+        if ((q.count || 0) > 0) s.push('qna');
         setNewPages(s);
       } catch (e) { console.error('NEW 체크 실패:', e); }
     };
@@ -132,19 +141,27 @@ export function useRecentUpdates() {
     const load = async () => {
       try {
         const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-        const [notices, trends, tips, lectures, library] = await Promise.all([
+        const [notices, trends, tips, lectures, library, posts, questions] = await Promise.all([
           supabase.from('notices').select('id, title, created_at').gte('created_at', since).order('created_at', { ascending: false }),
           supabase.from('trends').select('id, title, created_at').eq('is_active', true).gte('created_at', since).order('created_at', { ascending: false }),
           supabase.from('tips').select('id, title, created_at').eq('is_active', true).gte('created_at', since).order('created_at', { ascending: false }),
           supabase.from('lectures').select('id, title, created_at').eq('is_published', true).gte('created_at', since).order('created_at', { ascending: false }),
           supabase.from('library_files').select('id, name, created_at').gte('created_at', since).order('created_at', { ascending: false }),
+          // 👥 회원이 쓰는 커뮤니티 글 + Q&A
+          supabase.from('community_posts').select('id, content, category, created_at').gte('created_at', since).order('created_at', { ascending: false }),
+          supabase.from('questions').select('id, title, created_at').gte('created_at', since).order('created_at', { ascending: false }),
         ]);
+        // 커뮤니티 카테고리 → 이동 페이지 / 표시 라벨
+        const catPage = { '자유': 'freeboard', '인사': 'greetings', '후기': 'reviews' };
+        const catType = { '자유': '자유', '인사': '가입인사', '후기': '수강후기' };
         const all = [
           ...(notices.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '공지', page: 'notice' })),
           ...(trends.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '트렌드', page: 'trends' })),
           ...(tips.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '꿀팁', page: 'tips' })),
           ...(lectures.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '강의', page: 'online' })),
           ...(library.data || []).map(x => ({ id: x.id, title: x.name, created_at: x.created_at, type: '자료', page: 'library' })),
+          ...(posts.data || []).map(x => ({ id: x.id, title: (x.content || '').trim().slice(0, 40) || '(사진)', created_at: x.created_at, type: catType[x.category] || '게시글', page: catPage[x.category] || 'freeboard' })),
+          ...(questions.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: 'Q&A', page: 'qna' })),
         ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         setUpdates(all);
       } catch (e) { console.error('홈 업데이트 조회 실패:', e); }

@@ -319,19 +319,25 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
   useEffect(() => {
     const loadUpdates = async () => {
       const since = new Date(Date.now() - newDays * 24 * 60 * 60 * 1000).toISOString();
-      const [notices, trends, tips, lectures, library] = await Promise.all([
+      const [notices, trends, tips, lectures, library, posts, questions] = await Promise.all([
         supabase.from('notices').select('id, title, created_at').gte('created_at', since).order('created_at', { ascending: false }),
         supabase.from('trends').select('id, title, created_at').eq('is_active', true).gte('created_at', since).order('created_at', { ascending: false }),
         supabase.from('tips').select('id, title, created_at').eq('is_active', true).gte('created_at', since).order('created_at', { ascending: false }),
         supabase.from('lectures').select('id, title, created_at').eq('is_published', true).gte('created_at', since).order('created_at', { ascending: false }),
         supabase.from('library_files').select('id, name, created_at').gte('created_at', since).order('created_at', { ascending: false }),
+        // 👥 회원이 쓴 커뮤니티 글 + Q&A 도 새 글로 표시
+        supabase.from('community_posts').select('id, content, category, created_at').gte('created_at', since).order('created_at', { ascending: false }),
+        supabase.from('questions').select('id, title, created_at').gte('created_at', since).order('created_at', { ascending: false }),
       ]);
+      const catType = { '자유': '자유', '인사': '가입인사', '후기': '수강후기' };
       const all = [
         ...(notices.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '공지', page: 'admin-notice' })),
         ...(trends.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '트렌드', page: 'admin-trends' })),
         ...(tips.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '꿀팁', page: 'admin-tips' })),
         ...(lectures.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '강의', page: 'admin-lectures' })),
         ...(library.data || []).map(x => ({ id: x.id, title: x.name, created_at: x.created_at, type: '자료', page: 'admin-library' })),
+        ...(posts.data || []).map(x => ({ id: x.id, title: (x.content || '').trim().slice(0, 40) || '(사진)', created_at: x.created_at, type: catType[x.category] || '게시글', page: 'freeboard' })),
+        ...(questions.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: 'Q&A', page: 'admin-qna' })),
       ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setRecentUpdates(all);
     };
@@ -4683,7 +4689,8 @@ export function AdminLibrary({ user }) {
                   <span className="font-heading text-sm mt-2" style={{ color: dragOver ? COLORS.primary : COLORS.ink }}>
                     {dragOver ? '여기에 놓으세요!' : '파일을 드래그하거나 클릭'}
                   </span>
-                  <span className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>모든 파일 형식 가능</span>
+                  <span className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>PDF·이미지 권장 (모바일에서 바로 보임)</span>
+                  <span className="font-mono text-[9px] mt-0.5 text-center px-6" style={{ color: COLORS.muted }}>HWP 등은 폰에서 미리보기가 안 돼요</span>
                   <input type="file" onChange={handleFileSelect} className="hidden" />
                 </label>
               )}

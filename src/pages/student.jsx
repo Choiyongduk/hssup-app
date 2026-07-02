@@ -11,7 +11,7 @@ import { useDraft, useLatestLecture, useRecentUpdates, useDetailItem } from '../
 import {
   ImageCarousel, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, MultiImageField, CategoryMover, Pagination,
 } from '../components/common';
-import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar, Gift } from 'lucide-react';
+import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar, Gift, ExternalLink } from 'lucide-react';
 
 export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   const [notices, setNotices] = useState([]);
@@ -30,60 +30,100 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   ];
 
   const heroLecture = useLatestLecture();
-  const homeUpdates = useRecentUpdates();   // ← 이 줄 추가!
+  const homeUpdates = useRecentUpdates();
+  // 👥 회원이 쓴 새 글만(자유게시판·가입인사·수강후기·Q&A) 필터
+  const memberPages = ['freeboard', 'greetings', 'reviews', 'qna'];
+  const memberPosts = homeUpdates.filter(u => memberPages.includes(u.page));
 
   return (
     <div className="pb-6">
-      {/* 환영 메시지 */}
-      <section className="px-5 pt-6 pb-6 relative overflow-hidden">
+      {/* 환영 메시지 + 온라인 강의(축소 카드) */}
+      <section className="px-5 pt-6 pb-5 relative overflow-hidden">
         <div className="absolute -top-12 -right-16 w-52 h-52 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,92,31,0.4), rgba(255,92,31,0.12) 35%, transparent 70%)' }}></div>
-        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase relative" style={{ color: COLORS.primary }}>━━ Today</p>
-        <h2 className="font-display text-[42px] leading-[1] mt-3 tracking-tighter relative" style={{ color: COLORS.ink }}>
-          Hello,<br />
-          <span style={{ color: COLORS.primary }} className="glow-text">{user.name?.length > 1 ? user.name.slice(1) : user.name}님</span>
-        </h2>
-      </section>
-
-      {/* NEW 업데이트 (수강생) */}
-      {homeUpdates.length > 0 && (
-        <section className="px-5 mb-5">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ NEW 업데이트</p>
-            <span className="font-mono text-[9px]" style={{ color: COLORS.stone }}>최근 3일</span>
+        <div className="relative flex items-stretch gap-3">
+          {/* 인사말 */}
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Today</p>
+            <h2 className="font-display text-[34px] leading-[1] mt-2 tracking-tighter" style={{ color: COLORS.ink }}>
+              Hello,<br />
+              <span style={{ color: COLORS.primary }} className="glow-text">{user.name?.length > 1 ? user.name.slice(1) : user.name}님</span>
+            </h2>
           </div>
-          <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            {homeUpdates.slice(0, 5).map((u, i) => (
-              <button key={`${u.type}-${u.id}`} onClick={() => setCurrentPage(u.page)}
-                className="w-full text-left flex items-center gap-2.5 p-3 transition-transform active:scale-[0.98]"
-                style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
-                <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-1 rounded shrink-0" style={{ background: COLORS.peach, color: COLORS.deep }}>{u.type}</span>
-                <p className="font-body text-xs flex-1 truncate" style={{ color: COLORS.ink }}>{u.title}</p>
-                <span className="font-mono text-[9px] shrink-0" style={{ color: COLORS.stone }}>{new Date(u.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}</span>
-                <ChevronRight size={12} style={{ color: COLORS.stone }} />
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 히어로 카드 - 최신 강의 */}
-      <section className="px-5 mb-5">
-        <button onClick={() => setCurrentPage('online')} className="w-full rounded-3xl p-6 text-left relative overflow-hidden glow-primary" style={{ background: COLORS.primary }}>
-          <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
-          <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(0,0,0,0.15)' }}></div>
-          <div className="relative" style={{ color: COLORS.white }}>
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">━━ ONLINE CLASS{heroLecture.isNew && ' · NEW'}</p>
-            <h3 className="font-display text-2xl mt-2 leading-tight tracking-tight">{heroLecture.isNew ? <>새로운 강의가<br />업데이트 되었습니다</> : <>온라인 강의로<br />실력을 키워보세요</>}</h3>
-            {heroLecture.latest && (
-              <p className="font-body text-xs mt-2 opacity-90 truncate">{heroLecture.isNew ? '' : '최신 · '}{heroLecture.latest.title}</p>
-            )}
-            <div className="flex items-center justify-end mt-5">
-              <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
-                <Play size={15} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
+          {/* 온라인 강의 (축소) */}
+          <button onClick={() => setCurrentPage('online')}
+            className="shrink-0 w-[60%] rounded-2xl p-3.5 text-left relative overflow-hidden flex flex-col justify-between"
+            style={{ background: 'linear-gradient(135deg, #FF5C1F 0%, #FF9A55 100%)', boxShadow: '0 8px 24px rgba(255, 92, 31, 0.3)' }}>
+            <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
+            <div className="relative" style={{ color: COLORS.white }}>
+              <p className="font-mono text-[8px] font-bold tracking-widest uppercase opacity-80">ONLINE{heroLecture.isNew && ' · NEW'}</p>
+              <h3 className="font-display text-base mt-1 leading-tight tracking-tight">{heroLecture.isNew ? <>새 강의<br />업데이트</> : <>온라인<br />강의</>}</h3>
+              {heroLecture.latest && (
+                <p className="font-body text-[10px] mt-1 opacity-90 truncate">{heroLecture.latest.title}</p>
+              )}
+            </div>
+            <div className="relative flex justify-end mt-2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
+                <Play size={12} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
               </div>
             </div>
+          </button>
+        </div>
+      </section>
+
+      {/* 공지사항 (히어로 위로 이동 · 최근 3개) */}
+      <section className="px-5 mb-4">
+        <div className="flex items-baseline justify-between mb-2 px-1">
+          <div className="flex items-baseline gap-2">
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Notice</p>
+            <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>공지사항</h3>
           </div>
-        </button>
+          <button onClick={() => setCurrentPage('notice')} className="font-body text-xs font-semibold flex items-center gap-1" style={{ color: COLORS.stone }}>
+            전체보기 <ArrowRight size={12} />
+          </button>
+        </div>
+        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          {notices.length === 0 ? (
+            <p className="font-body text-xs text-center py-5" style={{ color: COLORS.stone }}>공지가 없습니다</p>
+          ) : notices.slice(0, 3).map((n, i) => (
+            <button key={n.id} onClick={() => { setSelectedNotice(n); setCurrentPage('notice-detail', n.id); }}
+              className="w-full text-left flex items-center gap-2.5 py-2.5 px-3 transition-transform active:scale-[0.98]"
+              style={{ borderBottom: i !== Math.min(notices.length, 3) - 1 ? `1px solid ${COLORS.light}` : 'none' }}>
+              <span className="font-mono text-[8px] font-bold tracking-widest px-1.5 py-1 rounded shrink-0" style={{
+                background: n.urgent ? COLORS.primary : COLORS.peach,
+                color: n.urgent ? COLORS.white : COLORS.deep
+              }}>{n.tag}</span>
+              <p className="font-body text-xs font-medium flex-1 truncate" style={{ color: COLORS.ink }}>{n.title}</p>
+              <ChevronRight size={13} style={{ color: COLORS.stone }} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* 회원 새글 (최근 3일 · 회원이 쓴 글 · 최근 3개) */}
+      <section className="px-5 mb-5">
+        <div className="flex items-baseline justify-between mb-2 px-1">
+          <div className="flex items-baseline gap-2">
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Community</p>
+            <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>회원 새글</h3>
+          </div>
+          <button onClick={() => setCurrentPage('freeboard')} className="font-body text-xs font-semibold flex items-center gap-1" style={{ color: COLORS.stone }}>
+            게시판 <ArrowRight size={12} />
+          </button>
+        </div>
+        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          {memberPosts.length === 0 ? (
+            <p className="font-body text-xs text-center py-5" style={{ color: COLORS.stone }}>최근 3일간 새 글이 없어요</p>
+          ) : memberPosts.slice(0, 3).map((u, i) => (
+            <button key={`${u.type}-${u.id}`} onClick={() => setCurrentPage(u.page)}
+              className="w-full text-left flex items-center gap-2.5 py-2.5 px-3 transition-transform active:scale-[0.98]"
+              style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
+              <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-1 rounded shrink-0" style={{ background: COLORS.peach, color: COLORS.deep }}>{u.type}</span>
+              <p className="font-body text-xs flex-1 truncate" style={{ color: COLORS.ink }}>{u.title}</p>
+              <span className="font-mono text-[9px] shrink-0" style={{ color: COLORS.stone }}>{new Date(u.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}</span>
+              <ChevronRight size={12} style={{ color: COLORS.stone }} />
+            </button>
+          ))}
+        </div>
       </section>
 
       {/* 2x2 메인 그리드 */}
@@ -107,35 +147,6 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
               </button>
             );
           })}
-        </div>
-      </section>
-
-      {/* 공지 미리보기 */}
-      <section className="px-5">
-        <div className="flex items-baseline justify-between mb-4">
-          <div>
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Notice</p>
-            <h3 className="font-heading text-xl mt-1.5" style={{ color: COLORS.ink }}>공지사항</h3>
-          </div>
-          <button onClick={() => setCurrentPage('notice')} className="font-body text-xs font-semibold flex items-center gap-1" style={{ color: COLORS.stone }}>
-            View all <ArrowRight size={12} />
-          </button>
-        </div>
-        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          {notices.length === 0 ? (
-            <p className="font-body text-xs text-center py-8" style={{ color: COLORS.stone }}>공지가 없습니다</p>
-          ) : notices.map((n, i) => (
-            <button key={n.id} onClick={() => { setSelectedNotice(n); setCurrentPage('notice-detail', n.id); }}
-              className="w-full text-left flex items-center gap-3 p-4 transition-transform active:scale-[0.98]"
-              style={{ borderBottom: i !== notices.length - 1 ? `1px solid ${COLORS.light}` : 'none' }}>
-              <span className="font-mono text-[9px] font-bold tracking-widest px-2 py-1 rounded" style={{
-                background: n.urgent ? COLORS.primary : COLORS.peach,
-                color: n.urgent ? COLORS.white : COLORS.deep
-              }}>{n.tag}</span>
-              <p className="font-body text-xs font-medium flex-1 truncate" style={{ color: COLORS.ink }}>{n.title}</p>
-              <ChevronRight size={14} style={{ color: COLORS.stone }} />
-            </button>
-          ))}
         </div>
       </section>
     </div>
@@ -1652,10 +1663,18 @@ export function LibraryDetailPage({ file: propFile, setCurrentPage, routeId }) {
     );
   }
 
-  const handleDownload = () => {
-    if (!file.file_url) { toast('첨부파일이 없습니다'); return; }
-    window.open(file.file_url, '_blank');
-  };
+  // 파일 형식 판별 (file_type 우선, 없으면 URL 확장자)
+  const ext = (file.file_type || file.file_url?.split('.').pop() || '').toLowerCase();
+  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+  const isPdf = ext === 'pdf';
+  // 다운로드 강제 URL (Supabase ?download → Content-Disposition: attachment) — 모바일 다운로드 트리거
+  const downloadUrl = file.file_url
+    ? file.file_url + (file.file_url.includes('?') ? '&' : '?') + 'download'
+    : '';
+  // PDF는 구글 뷰어로 앱 안에서 바로 렌더(모바일 포함 크로스플랫폼)
+  const pdfViewerUrl = file.file_url
+    ? `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(file.file_url)}`
+    : '';
 
   return (
     <div className="pb-6">
@@ -1685,20 +1704,42 @@ export function LibraryDetailPage({ file: propFile, setCurrentPage, routeId }) {
       {file.file_url ? (
         <div className="px-5 mt-4">
           <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.primary }}>━━ 첨부파일</p>
-          <button onClick={handleDownload}
-            className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
-            style={{ background: COLORS.card, border: `1px solid ${COLORS.primary}` }}>
-            <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
-              <FolderOpen size={20} style={{ color: COLORS.primary }} />
+
+          {/* 인라인 미리보기: 이미지 · PDF는 앱 안에서 바로 표시 */}
+          {isImage && (
+            <img src={file.file_url} alt={file.name}
+              className="w-full rounded-2xl mb-3" style={{ border: `1px solid ${COLORS.light}` }} />
+          )}
+          {isPdf && (
+            <div className="w-full rounded-2xl overflow-hidden mb-3" style={{ border: `1px solid ${COLORS.light}`, height: '70vh' }}>
+              <iframe src={pdfViewerUrl} title={file.name} className="w-full h-full" style={{ border: 'none' }} />
             </div>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>{file.name}</p>
-              <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{file.file_type} · {file.file_size}</p>
-            </div>
-            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
-              <Download size={14} style={{ color: COLORS.white }} />
-            </div>
-          </button>
+          )}
+          {!isImage && !isPdf && (
+            <p className="font-body text-[11px] mb-2 leading-relaxed" style={{ color: COLORS.stone }}>
+              이 형식({file.file_type})은 앱에서 바로 볼 수 없어요. 아래 버튼으로 다운로드해 열어주세요.
+              {ext === 'hwp' && ' (한글 파일은 폰에 한컴오피스/한글뷰어 앱이 필요합니다)'}
+            </p>
+          )}
+
+          {/* 열기 · 다운로드 */}
+          <div className="flex gap-2">
+            {(isImage || isPdf) && (
+              <a href={file.file_url} target="_blank" rel="noopener noreferrer"
+                className="flex-1 rounded-2xl py-3 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.primary}`, color: COLORS.primary }}>
+                <ExternalLink size={14} />
+                <span className="font-heading text-xs">새 탭에서 열기</span>
+              </a>
+            )}
+            <a href={downloadUrl}
+              className={`${(isImage || isPdf) ? 'flex-1' : 'w-full'} rounded-2xl py-3 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]`}
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+              <Download size={14} />
+              <span className="font-heading text-xs">다운로드</span>
+            </a>
+          </div>
+          <p className="font-mono text-[10px] mt-2 text-center" style={{ color: COLORS.stone }}>{file.file_type} · {file.file_size}</p>
         </div>
       ) : (
         <div className="px-5 mt-4">
