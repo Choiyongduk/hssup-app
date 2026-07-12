@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { COLORS, AVATAR_COLORS } from '../lib/colors';
+import { COLORS, AVATAR_COLORS, maskAuthor, isOperatorRole, operatorLabel } from '../lib/colors';
 import { uploadCaseImage, deleteCaseImage, isYouTubeUrl, getRowImages, uploadImageToBucket, deleteImageFromBucket, persistFormImages, uploadPostVideo, deletePostVideo } from '../lib/images';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
@@ -1111,7 +1111,11 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
             <div className="flex items-center gap-2">
               {(() => {
                 const showRealName = user?.role === 'admin' || user?.role === 'staff';
-                const displayAuthor = showRealName ? author : { name: '익명', avatar_color: 'charcoal' };
+                const displayAuthor = showRealName
+                  ? author
+                  : (isOperatorRole(author?.role)
+                    ? { ...author, name: operatorLabel(author.role) }
+                    : { name: '익명', avatar_color: 'charcoal' });
                 return (
                   <>
                     <Avatar user={displayAuthor} size="sm" />
@@ -2441,10 +2445,10 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
         <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           {/* 작성자 + 수정/삭제 버튼 */}
           <div className="flex items-center gap-3 mb-4">
-            <Avatar user={author || { name: '익명' }} size="md" />
+            <Avatar user={maskAuthor(author, user) || { name: '익명' }} size="md" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{author?.name || '익명'}</p>
+                <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{maskAuthor(author, user)?.name || '익명'}</p>
                 {author?.role === 'admin' && (
                   <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
                 )}
@@ -3425,11 +3429,23 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
       if (l.user_id === user.id) likedByMe.add(l.target_id);
     });
 
+    // 댓글 수: 표시된 글들만 한 번에 (답글 포함 전체 개수)
+    const { data: commentRows } = await supabase
+      .from('comments')
+      .select('target_id')
+      .eq('target_type', 'community_post')
+      .in('target_id', postIds);
+    const commentCounts = {};
+    (commentRows || []).forEach(c => {
+      commentCounts[c.target_id] = (commentCounts[c.target_id] || 0) + 1;
+    });
+
     const enriched = postsData.map(p => ({
       ...p,
       profile: profileMap[p.user_id] || { name: '익명' },
       like_count: likeCounts[p.id] || 0,
       liked_by_me: likedByMe.has(p.id),
+      comment_count: commentCounts[p.id] || 0,
     }));
     setPosts(enriched);
   };
@@ -3655,10 +3671,10 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
             className="rounded-2xl p-4 cursor-pointer transition-transform active:scale-[0.99]"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center gap-2 mb-3">
-              <Avatar user={p.profile} size="sm" />
+              <Avatar user={maskAuthor(p.profile, user)} size="sm" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{p.profile?.name || '익명'}</p>
+                  <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{maskAuthor(p.profile, user)?.name || '익명'}</p>
                   {p.profile?.role === 'admin' && (
                     <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
                   )}
@@ -3695,7 +3711,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
               </div>
               <button onClick={(e) => { e.stopPropagation(); openDetail(p); }}
                 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold" style={{ color: COLORS.stone }}>
-                <MessageCircle size={12} />댓글
+                <MessageCircle size={12} />댓글{p.comment_count > 0 ? ` ${p.comment_count}` : ''}
               </button>
             </div>
           </div>

@@ -17,6 +17,19 @@ export const getInitial = (name) => {
   return trimmed.charAt(0).toUpperCase();
 };
 
+// 운영진/원장님 여부 & 표시 라벨 (일반 회원에게 실명 대신 노출)
+export const isOperatorRole = (role) => role === 'admin' || role === 'staff';
+export const operatorLabel = (role) => (role === 'admin' ? '원장님' : '운영진');
+
+// 작성자 프로필을 "보는 사람" 기준으로 표시용 프로필로 변환.
+//  - 뷰어가 운영진(admin/staff): 실명 그대로 (누가 썼는지 확인 가능)
+//  - 그 외 일반 회원: 원장님 → '원장님', 운영진 → '운영진' 으로 이름 치환 (아바타 이니셜도 원/운)
+export const maskAuthor = (author, viewer) => {
+  if (!author || !isOperatorRole(author.role)) return author;
+  if (isOperatorRole(viewer?.role)) return author;
+  return { ...author, name: operatorLabel(author.role) };
+};
+
 export const COLORS = {
   // 시그니처 컬러
   primary: '#FF5C1F',                        // 메인 오렌지

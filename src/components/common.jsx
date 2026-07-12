@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { COLORS, getInitial, AVATAR_COLORS } from '../lib/colors';
+import { COLORS, getInitial, AVATAR_COLORS, maskAuthor } from '../lib/colors';
 import { subscribeToast, toast } from '../lib/toast';
 import { subscribeConfirm, confirmDialog } from '../lib/dialog';
 import { useLevel, TIERS, TIER_ORDER, SCORE_TABLE, POINTS, MASTER_SCORE } from '../lib/level';
@@ -928,10 +928,10 @@ export function CommentSection({ targetType, targetId, user }) {
 
   const CommentBody = ({ c, isReply }) => (
     <div className="flex gap-2">
-      <Avatar user={c.profile} size="sm" />
+      <Avatar user={maskAuthor(c.profile, user)} size="sm" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{c.profile.name}</p>
+          <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{maskAuthor(c.profile, user).name}</p>
           {c.profile.role === 'admin' && (
             <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
           )}
@@ -1005,7 +1005,7 @@ export function CommentSection({ targetType, targetId, user }) {
                   <input type="text" value={replyText} autoFocus
                     onChange={e => setReplyText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && submitReply(c)}
-                    placeholder={`${c.profile.name}님에게 답글…`}
+                    placeholder={`${maskAuthor(c.profile, user).name}님에게 답글…`}
                     className="flex-1 font-body text-xs font-medium border-b py-2 bg-transparent outline-none"
                     style={{ borderColor: COLORS.light, color: COLORS.ink }} />
                   <button onClick={() => submitReply(c)} disabled={posting || !replyText.trim()}
