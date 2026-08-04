@@ -2568,7 +2568,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
               <X size={20} />
             </button>
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 16 }}>
             <div className="rounded-lg p-3 mb-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
               <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>날짜</p>
               <p className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>{selectedDate}</p>
@@ -2597,7 +2597,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
 
             <div className="mb-4">
               <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>정원 (명) · 선택한 시간대 공통 적용</label>
-              <input type="number" min="1" max="10" value={capacity} onChange={(e) => setCapacity(e.target.value)}
+              <input type="number" min="1" max="10" inputMode="numeric" value={capacity} onChange={(e) => setCapacity(e.target.value)}
                 className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
                 style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
             </div>
@@ -2671,7 +2671,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
               </div>
               <button onClick={() => setBookersModal(null)}><X size={18} style={{ color: COLORS.stone }} /></button>
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 16 }}>
               {bookersModal.bookers.length === 0 ? (
                 <p className="font-body text-sm text-center py-6" style={{ color: COLORS.stone }}>아직 예약자가 없어요</p>
               ) : (
