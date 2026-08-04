@@ -2568,7 +2568,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
               <X size={20} />
             </button>
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 16 }}>
             <div className="rounded-lg p-3 mb-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
               <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>날짜</p>
               <p className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>{selectedDate}</p>
@@ -2587,6 +2587,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
                       background: checked ? COLORS.primary : COLORS.card,
                       color: checked ? COLORS.white : COLORS.ink,
                       border: `1px solid ${checked ? COLORS.primary : COLORS.light}`,
+                      minWidth: 0,
                     }}>
                     {checked && <Check size={13} strokeWidth={2.5} />}
                     {p.start} ~ {p.end}{already ? ' (등록됨)' : ''}
@@ -2616,17 +2617,17 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
               <div className="flex-1 h-px" style={{ background: COLORS.light }} />
             </div>
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>시작 시간</label>
                 <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
                   className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
-                  style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+                  style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minWidth: 0, maxWidth: '100%' }} />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>종료 시간</label>
                 <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
                   className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
-                  style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+                  style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minWidth: 0, maxWidth: '100%' }} />
               </div>
             </div>
             <button onClick={addSlot} disabled={adding}
@@ -2671,7 +2672,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
               </div>
               <button onClick={() => setBookersModal(null)}><X size={18} style={{ color: COLORS.stone }} /></button>
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 16 }}>
               {bookersModal.bookers.length === 0 ? (
                 <p className="font-body text-sm text-center py-6" style={{ color: COLORS.stone }}>아직 예약자가 없어요</p>
               ) : (
