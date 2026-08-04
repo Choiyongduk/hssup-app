@@ -678,7 +678,7 @@ export default function HSSUPApp() {
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
-        html, body, #root { height: 100%; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; }
+        html, body, #root { height: 100%; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; touch-action: manipulation; }
         .font-display { font-family: 'Pretendard', sans-serif; font-weight: 800; letter-spacing: -0.03em; }
         .font-heading { font-family: 'Pretendard', sans-serif; font-weight: 700; letter-spacing: -0.025em; }
         .font-body { font-family: 'Pretendard', sans-serif; letter-spacing: -0.01em; }
