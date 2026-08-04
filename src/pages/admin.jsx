@@ -2272,6 +2272,15 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
   );
 }
 
+// 2시간 단위 프리셋 시간대 (10~20시, 5타임)
+const PRACTICE_PRESETS = [
+  { start: '10:00', end: '12:00' },
+  { start: '12:00', end: '14:00' },
+  { start: '14:00', end: '16:00' },
+  { start: '16:00', end: '18:00' },
+  { start: '18:00', end: '20:00' },
+];
+
 export function PracticeAdminPage({ user, setCurrentPage }) {
   const [viewMonth, setViewMonth] = useState(() => {
     const now = new Date();
@@ -2287,6 +2296,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
   const [capacity, setCapacity] = useState(2);
   const [memo, setMemo] = useState('');
   const [adding, setAdding] = useState(false);
+  const [selectedPresets, setSelectedPresets] = useState([]);  // 체크된 프리셋 인덱스
 
   const [bookersModal, setBookersModal] = useState(null);  // { slot, bookers }
   const [bookerCounts, setBookerCounts] = useState({});  // slot_id → count
@@ -2351,6 +2361,47 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
       return;
     }
     setShowAddModal(false);
+    setMemo('');
+    await loadMonth();
+  };
+
+  const togglePreset = (i) => {
+    setSelectedPresets(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+  };
+
+  const addPresetSlots = async () => {
+    if (!selectedDate) { toast('날짜를 선택해주세요'); return; }
+    if (selectedPresets.length === 0) { toast('추가할 시간대를 선택해주세요'); return; }
+    const cap = Number(capacity);
+    if (!cap || cap < 1) { toast('정원은 1명 이상이어야 합니다'); return; }
+
+    // 이미 등록된 시간대는 건너뛰기 (중복 슬롯 방지)
+    const existingStarts = new Set(daySlots.map(s => (s.start_time || '').slice(0, 5)));
+    const rows = selectedPresets
+      .map(i => PRACTICE_PRESETS[i])
+      .filter(p => !existingStarts.has(p.start))
+      .map(p => ({
+        slot_date: selectedDate,
+        start_time: p.start,
+        end_time: p.end,
+        capacity: cap,
+        memo: memo.trim() || null,
+        created_by: user.id,
+      }));
+    const skipped = selectedPresets.length - rows.length;
+    if (rows.length === 0) { toast('선택한 시간대가 이미 모두 등록되어 있어요'); return; }
+
+    setAdding(true);
+    const { data, error } = await supabase.from('practice_slots').insert(rows).select();
+    setAdding(false);
+    if (error) { toast('슬롯 추가 실패: ' + error.message); return; }
+    if (!data || data.length === 0) {
+      toast('슬롯 추가가 적용되지 않았어요. RLS(practice_slots manage 정책) 확인 필요.');
+      return;
+    }
+    toast(skipped > 0 ? `${data.length}개 추가 (이미 있던 ${skipped}개는 제외)` : `${data.length}개 시간대 추가 완료`);
+    setShowAddModal(false);
+    setSelectedPresets([]);
     setMemo('');
     await loadMonth();
   };
@@ -2450,7 +2501,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
                 <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Selected</p>
                 <p className="font-heading text-base mt-1" style={{ color: COLORS.ink }}>{selectedDate}</p>
               </div>
-              <button onClick={() => setShowAddModal(true)}
+              <button onClick={() => { setSelectedPresets([]); setShowAddModal(true); }}
                 className="font-heading text-xs px-4 py-2 rounded-full inline-flex items-center gap-1.5"
                 style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
                 <Plus size={12} strokeWidth={2.5} />연습 시간 추가
@@ -2512,7 +2563,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
             borderBottom: `1px solid ${COLORS.light}`, background: COLORS.card
           }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: COLORS.ink, margin: 0, fontFamily: 'Pretendard, sans-serif' }}>연습 시간 추가</h3>
-            <button onClick={() => setShowAddModal(false)}
+            <button onClick={() => { setShowAddModal(false); setSelectedPresets([]); }}
               style={{ width: 36, height: 36, border: 'none', background: 'transparent', color: COLORS.stone, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X size={20} />
             </button>
@@ -2522,7 +2573,49 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
               <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>날짜</p>
               <p className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>{selectedDate}</p>
             </div>
-            <div className="grid grid-cols-2 gap-2 mb-3">
+
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-1.5" style={{ color: COLORS.stone }}>빠른 추가 (2시간 단위)</p>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {PRACTICE_PRESETS.map((p, i) => {
+                const already = daySlots.some(s => (s.start_time || '').slice(0, 5) === p.start);
+                const checked = selectedPresets.includes(i);
+                return (
+                  <button key={p.start} type="button" disabled={already}
+                    onClick={() => togglePreset(i)}
+                    className="rounded-lg py-2.5 font-heading text-sm flex items-center justify-center gap-1.5 disabled:opacity-40"
+                    style={{
+                      background: checked ? COLORS.primary : COLORS.card,
+                      color: checked ? COLORS.white : COLORS.ink,
+                      border: `1px solid ${checked ? COLORS.primary : COLORS.light}`,
+                    }}>
+                    {checked && <Check size={13} strokeWidth={2.5} />}
+                    {p.start} ~ {p.end}{already ? ' (등록됨)' : ''}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mb-4">
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>정원 (명) · 선택한 시간대 공통 적용</label>
+              <input type="number" min="1" max="10" value={capacity} onChange={(e) => setCapacity(e.target.value)}
+                className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
+                style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+            </div>
+            <div className="mb-4">
+              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>메모 (선택)</label>
+              <textarea value={memo} onChange={(e) => setMemo(e.target.value)}
+                placeholder="예: 1번 베드, 강의실 1"
+                rows={2}
+                className="w-full font-body text-sm p-3 mt-1.5 outline-none resize-none rounded"
+                style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+            </div>
+
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex-1 h-px" style={{ background: COLORS.light }} />
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.muted }}>또는 직접 입력</p>
+              <div className="flex-1 h-px" style={{ background: COLORS.light }} />
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-2">
               <div>
                 <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>시작 시간</label>
                 <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
@@ -2536,20 +2629,12 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
                   style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
               </div>
             </div>
-            <div className="mb-3">
-              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>정원 (명)</label>
-              <input type="number" min="1" max="10" value={capacity} onChange={(e) => setCapacity(e.target.value)}
-                className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
-                style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
-            </div>
-            <div>
-              <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>메모 (선택)</label>
-              <textarea value={memo} onChange={(e) => setMemo(e.target.value)}
-                placeholder="예: 1번 베드, 강의실 1"
-                rows={3}
-                className="w-full font-body text-sm p-3 mt-1.5 outline-none resize-none rounded"
-                style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
-            </div>
+            <button onClick={addSlot} disabled={adding}
+              className="w-full rounded-full py-2.5 font-heading text-xs flex items-center justify-center gap-1.5"
+              style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+              {adding && selectedPresets.length === 0 ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} strokeWidth={2.5} />}
+              이 시간대만 추가
+            </button>
           </div>
           <div style={{
             flexShrink: 0, padding: 16,
@@ -2557,16 +2642,16 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
             borderTop: `1px solid ${COLORS.light}`, background: COLORS.card,
             display: 'flex', gap: 8
           }}>
-            <button onClick={() => setShowAddModal(false)} disabled={adding}
+            <button onClick={() => { setShowAddModal(false); setSelectedPresets([]); }} disabled={adding}
               className="flex-1 rounded-full py-3 font-heading text-sm"
               style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
               취소
             </button>
-            <button onClick={addSlot} disabled={adding}
-              className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
+            <button onClick={addPresetSlots} disabled={adding || selectedPresets.length === 0}
+              className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-40"
               style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
-              {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} strokeWidth={2.5} />}
-              추가
+              {adding && selectedPresets.length > 0 ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} strokeWidth={2.5} />}
+              선택한 시간대 추가{selectedPresets.length > 0 ? ` (${selectedPresets.length})` : ''}
             </button>
           </div>
         </div>,
