@@ -326,19 +326,29 @@ export default function HSSUPApp() {
     let currentDist = 0;
 
     const onTouchStart = (e) => {
-      if (container.scrollTop === 0 && !refreshing) {
-        startY = e.touches[0].pageY;
-        isPulling = true;
-      }
+      if (refreshing || container.scrollTop !== 0) return;
+      // 버튼/입력 등 조작 요소를 누르다 손이 살짝 떨리는 것까지 당김으로 인식하지 않도록 제외
+      if (e.target.closest('button, a, input, textarea, select, label, [role="button"]')) return;
+      // 컨테이너 맨 위 근처에서 시작한 스와이프만 pull-to-refresh로 인식
+      // (짧은 페이지는 스크롤이 거의 항상 0이라, 위치 제한이 없으면 화면 아무 곳이나 건드려도 딸려 내려가 보임)
+      const y = e.touches[0].pageY;
+      const rect = container.getBoundingClientRect();
+      if (y - rect.top > 80) return;
+      startY = y;
+      isPulling = true;
     };
 
     const onTouchMove = (e) => {
       if (!isPulling) return;
       const currentY = e.touches[0].pageY;
       const diff = currentY - startY;
-      if (diff > 0) {
-        currentDist = Math.min(diff * 0.5, 100);
+      // 작은 흔들림은 무시하는 데드존을 둬서 살짝만 스쳐도 화면이 움직이는 느낌을 줄임
+      if (diff > 8) {
+        currentDist = Math.min((diff - 8) * 0.5, 100);
         setPullDistance(currentDist);
+      } else if (currentDist !== 0) {
+        currentDist = 0;
+        setPullDistance(0);
       }
     };
 
