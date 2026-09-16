@@ -12,8 +12,8 @@ createRoot(document.getElementById('root')).render(
   </StrictMode>,
 )
 
-// Service Worker 등록 (PWA)
-if ('serviceWorker' in navigator) {
+// Service Worker 등록 (PWA) — 개발 서버(HMR)와 충돌하므로 프로덕션 빌드에서만 등록
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
