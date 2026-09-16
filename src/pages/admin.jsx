@@ -2442,6 +2442,17 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
 
   const daySlots = selectedDate ? (slotsByDate[selectedDate] || []) : [];
 
+  // 날짜별 예약 현황 색상 (초록: 여유, 주황: 일부 예약, 빨강: 마감)
+  const dateStatusColor = (dateStr) => {
+    const ds = slotsByDate[dateStr];
+    if (!ds || ds.length === 0) return null;
+    const totalCap = ds.reduce((sum, s) => sum + (s.capacity || 0), 0);
+    const totalBooked = ds.reduce((sum, s) => sum + (bookerCounts[s.id] || 0), 0);
+    if (totalBooked === 0) return '#22C55E';
+    if (totalBooked >= totalCap) return '#EF4444';
+    return '#F59E0B';
+  };
+
   return (
     <>
       <PageIntro ko="연습 베드 관리" en="Practice Admin" desc="연습 가능 시간을 열고 예약자를 관리하세요" />
@@ -2474,23 +2485,75 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const d = i + 1;
               const dateStr = fmtDate(y, m, d);
-              const hasSlots = !!slotsByDate[dateStr];
+              const statusColor = dateStatusColor(dateStr);
+              const hasSlots = !!statusColor;
               const isSelected = selectedDate === dateStr;
               return (
                 <button key={d} onClick={() => setSelectedDate(dateStr)}
                   className="aspect-square rounded-xl flex flex-col items-center justify-center transition-transform active:scale-95"
                   style={{
                     background: isSelected ? COLORS.primary : hasSlots ? COLORS.cardElev : 'transparent',
-                    border: isSelected ? `1px solid ${COLORS.primary}` : `1px solid ${COLORS.light}`,
+                    border: isSelected ? `1px solid ${COLORS.primary}` : hasSlots ? `1px solid ${statusColor}55` : `1px solid ${COLORS.light}`,
                   }}>
                   <span className="font-body text-sm" style={{ color: isSelected ? COLORS.white : COLORS.ink, fontWeight: hasSlots ? 700 : 400 }}>{d}</span>
                   {hasSlots && (
-                    <span className="w-1 h-1 rounded-full mt-0.5" style={{ background: isSelected ? COLORS.white : COLORS.primary }}></span>
+                    <span className="w-1.5 h-1.5 rounded-full mt-0.5" style={{ background: isSelected ? COLORS.white : statusColor }}></span>
                   )}
                 </button>
               );
             })}
           </div>
+          <div className="flex items-center justify-center gap-3 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+            {[['#22C55E', '여유'], ['#F59E0B', '일부 예약'], ['#EF4444', '마감']].map(([c, label]) => (
+              <span key={c} className="font-mono text-[9px] inline-flex items-center gap-1" style={{ color: COLORS.stone }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: c }}></span>{label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* 이번 달 예약 현황 (한눈에 보기) */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>━━ 이번 달 예약 현황</p>
+          {Object.keys(slotsByDate).length === 0 ? (
+            <p className="font-body text-xs text-center py-4" style={{ color: COLORS.stone }}>등록된 슬롯이 없어요</p>
+          ) : (
+            <div className="space-y-3">
+              {Object.keys(slotsByDate).sort().map(dateStr => {
+                const [yy, mm, dd] = dateStr.split('-').map(Number);
+                const weekday = dayLabels[new Date(yy, mm - 1, dd).getDay()];
+                return (
+                  <div key={dateStr}>
+                    <button onClick={() => setSelectedDate(dateStr)}
+                      className="font-heading text-xs mb-1.5 inline-flex items-center gap-1"
+                      style={{ color: selectedDate === dateStr ? COLORS.primary : COLORS.ink }}>
+                      {mm}/{dd} ({weekday})
+                    </button>
+                    <div className="space-y-1.5">
+                      {slotsByDate[dateStr].map(s => {
+                        const count = bookerCounts[s.id] || 0;
+                        const full = count >= s.capacity;
+                        const statusColor = count === 0 ? '#22C55E' : full ? '#EF4444' : '#F59E0B';
+                        return (
+                          <button key={s.id} onClick={() => viewBookers(s)}
+                            className="w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 active:scale-[0.98] transition-transform"
+                            style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+                            <span className="font-body text-xs inline-flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusColor }}></span>
+                              {(s.start_time || '').substring(0, 5)}~{(s.end_time || '').substring(0, 5)}
+                            </span>
+                            <span className="font-mono text-[10px] flex-shrink-0" style={{ color: statusColor }}>
+                              {count}/{s.capacity}{full && ' · 마감'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* 선택 날짜 영역 */}
