@@ -24,7 +24,7 @@ export const TIERS = {
     key: 'member', label: 'MEMBER', color: '#9CA3AF',
     tagline: '가입 승인 완료 회원',
     conditions: null,
-    benefits: ['공지사항', '재료샵', '1:1 피드백', '자유게시판'],
+    benefits: ['공지사항', '트렌드 속보', '재료샵', '1:1 피드백', '자유게시판'],
   },
   crew: {
     key: 'crew', label: 'CREW', color: '#FF5C1F',
@@ -36,7 +36,7 @@ export const TIERS = {
     key: 'master', label: 'MASTER', color: '#FFB020',
     tagline: '커뮤니티 활동 우수 회원',
     conditions: ['최근 30일 활동 점수 100점 이상'],
-    benefits: ['CREW 혜택 전체', '트렌드 속보', '온라인 강의 무료 제공', '추가 수강 할인(추후 적용)', 'MASTER 전용 콘텐츠(추후 제작)'],
+    benefits: ['CREW 혜택 전체', '온라인 강의 무료 제공', '추가 수강 할인(추후 적용)', 'MASTER 전용 콘텐츠(추후 제작)'],
   },
 };
 export const TIER_ORDER = ['member', 'crew', 'master'];
@@ -59,7 +59,6 @@ export const FEATURE_TIER = {
   'tips': 'crew', 'tip-detail': 'crew',
   'library': 'crew', 'library-detail': 'crew',
   // MASTER 부터 (lecture-detail은 온보딩 영상과 겹쳐 잠그지 않음)
-  'trends': 'master', 'trend-detail': 'master',
   'online': 'master',
 };
 
