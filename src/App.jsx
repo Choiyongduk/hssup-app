@@ -1552,22 +1552,28 @@ function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, sh
       borderBottom: `1px solid ${COLORS.light}`,
       paddingTop: 'env(safe-area-inset-top, 0px)',
     }}>
-      <div className="flex items-center justify-between px-4 py-3">
-        {/* 왼쪽: 햄버거 또는 뒤로가기 */}
-        <button onClick={showBackButton ? onBackClick : onMenuClick}
-          className="w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-90"
-          style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          {showBackButton
-            ? <ChevronLeft size={18} style={{ color: COLORS.ink }} strokeWidth={2.5} />
-            : <Menu size={18} style={{ color: COLORS.ink }} strokeWidth={2} />
-          }
-        </button>
+      <div className="grid grid-cols-3 items-center px-4 py-3">
+        {/* 왼쪽: 햄버거(항상 고정) + 서브페이지일 때만 별도 뒤로가기 버튼 */}
+        <div className="flex items-center gap-2">
+          <button onClick={onMenuClick}
+            className="w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-90"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <Menu size={18} style={{ color: COLORS.ink }} strokeWidth={2} />
+          </button>
+          {showBackButton && (
+            <button onClick={onBackClick}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <ChevronLeft size={18} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
 
         {/* 가운데: 로고 */}
-        <button onClick={onLogoClick} className="flex items-center transition-transform active:scale-95">
+        <button onClick={onLogoClick} className="flex items-center justify-self-center transition-transform active:scale-95">
           <img src="/logo-white.png" alt="HSSUP" style={{ height: '24px', filter: 'drop-shadow(0 0 8px rgba(255, 92, 31, 0.4))' }} />
           {isAdmin && (
-            <span className="ml-2 font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" 
+            <span className="ml-2 font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded"
               style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>
               ADMIN
             </span>
@@ -1575,7 +1581,7 @@ function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, sh
         </button>
 
         {/* 오른쪽: 프로필 아바타 */}
-        <button onClick={onProfileClick} className="transition-transform active:scale-90">
+        <button onClick={onProfileClick} className="justify-self-end transition-transform active:scale-90">
           <Avatar user={user} size="sm" />
         </button>
       </div>

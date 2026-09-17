@@ -63,7 +63,7 @@ export function ConfirmHost() {
         width: '100%', maxWidth: 340, background: COLORS.cardElev, border: `1px solid ${COLORS.border}`,
         borderRadius: 20, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
       }}>
-        <p style={{ color: COLORS.ink, fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-line', fontFamily: 'Pretendard, sans-serif', letterSpacing: '-0.01em' }}>{req.message}</p>
+        <p style={{ color: COLORS.ink, fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-line', overflowWrap: 'break-word', fontFamily: 'Pretendard, sans-serif', letterSpacing: '-0.01em' }}>{req.message}</p>
         <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
           <button onClick={() => close(false)} style={{
             flex: 1, padding: 12, borderRadius: 999, border: `1px solid ${COLORS.light}`,
@@ -106,7 +106,7 @@ export function ToastHost() {
             border: `1px solid ${isErr ? COLORS.primary : COLORS.border}`,
             borderRadius: 14, padding: '12px 16px',
             boxShadow: '0 10px 34px rgba(0,0,0,0.55)',
-            fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-line',
+            fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-line', overflowWrap: 'break-word',
             fontFamily: 'Pretendard, sans-serif', letterSpacing: '-0.01em',
           }}>
             {t.message}
@@ -799,6 +799,12 @@ export function Pagination({ page, total, perPage, onChange }) {
   );
 }
 
+// 댓글 대상(targetType) → 딥링크 상세 페이지 URL 프리픽스
+const TARGET_TYPE_TO_PATH = {
+  notice: 'notice', qna: 'qna', trend: 'trend', tip: 'tip',
+  lecture: 'lecture', community_post: 'post', product: 'product',
+};
+
 export function CommentSection({ targetType, targetId, user }) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
@@ -823,6 +829,7 @@ export function CommentSection({ targetType, targetId, user }) {
 
     if (error) {
       console.error('댓글 로드 에러:', error);
+      toast('댓글을 불러오지 못했어요');
       setComments([]);
       setLoading(false);
       return;
@@ -864,7 +871,7 @@ export function CommentSection({ targetType, targetId, user }) {
         body: JSON.stringify({
           title: '내 댓글에 답글이 달렸어요',
           body: `${user.name || '누군가'}: ${replyText.trim().substring(0, 80)}`,
-          url: '/',
+          url: `/${TARGET_TYPE_TO_PATH[targetType] || ''}/${targetId}`,
           targetUserId: parent.user_id,
         }),
       });

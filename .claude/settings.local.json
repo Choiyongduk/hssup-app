@@ -17,7 +17,21 @@
       "Bash(grep -rnoE \".{0,8}confirm\\\\\\(\" src/pages/student.jsx src/pages/admin.jsx src/App.jsx)",
       "Bash(git commit *)",
       "Bash(git checkout *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "PowerShell(npm run build)",
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell(git add -A)",
+      "PowerShell(npm run dev)",
+      "PowerShell(node scripts/strip-emoji.mjs)",
+      "PowerShell(Remove-Item scripts/strip-emoji.mjs -Force; if \\(-not \\(Get-ChildItem scripts -ErrorAction SilentlyContinue\\)\\) { Remove-Item scripts -Force }; npm run build 2>&1 | Select-Object -Last 4)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalPort, OwningProcess | ForEach-Object { $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; [PSCustomObject]@{ Port=$_.LocalPort; PID=$_.OwningProcess; Name=$p.ProcessName; Path=$p.Path } } | Format-List)",
+      "PowerShell(Stop-Process -Id 7384 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 600; $still = Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue; if \\($still\\) { \"5173 STILL IN USE by PID \" + $still.OwningProcess } else { \"5173 is now FREE\" })",
+      "PowerShell(git add src/App.jsx src/pages/admin.jsx src/pages/student.jsx)",
+      "Bash(npx eslint *)",
+      "Bash(npx vite *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\cyd89\\Desktop\\용덕폴더\\프로그램 개발\\히썹앱\\hssup-app\\.git"
     ]
   }
 }

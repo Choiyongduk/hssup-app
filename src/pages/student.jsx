@@ -32,7 +32,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   const heroLecture = useLatestLecture();
   const homeUpdates = useRecentUpdates();
   // 👥 회원이 쓴 새 글만(자유게시판·가입인사·수강후기·Q&A) 필터
-  const memberPages = ['freeboard', 'greetings', 'reviews', 'qna'];
+  const memberPages = ['post-detail', 'qna-detail'];
   const memberPosts = homeUpdates.filter(u => memberPages.includes(u.page));
 
   return (
@@ -114,7 +114,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
           {memberPosts.length === 0 ? (
             <p className="font-body text-xs text-center py-5" style={{ color: COLORS.stone }}>최근 3일간 새 글이 없어요</p>
           ) : memberPosts.slice(0, 3).map((u, i) => (
-            <button key={`${u.type}-${u.id}`} onClick={() => setCurrentPage(u.page)}
+            <button key={`${u.type}-${u.id}`} onClick={() => setCurrentPage(u.page, u.id)}
               className="w-full text-left flex items-center gap-2.5 py-2.5 px-3 transition-transform active:scale-[0.98]"
               style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
               <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-1 rounded shrink-0" style={{ background: COLORS.peach, color: COLORS.deep }}>{u.type}</span>
@@ -214,7 +214,7 @@ export function NoticeDetailPage({ notice: propNotice, user, routeId }) {
 
       <div className="px-5">
         <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+          <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>
             {notice.content || '내용이 없습니다.'}
           </p>
 
@@ -261,7 +261,7 @@ export function NoticePage({ user, setCurrentPage, setSelectedNotice }) {
               <span className="font-mono text-[10px] font-medium" style={{ color: COLORS.stone }}>{new Date(n.created_at).toLocaleDateString('ko-KR')}</span>
             </div>
             <p className="font-heading text-sm leading-snug" style={{ color: COLORS.ink }}>{n.title}</p>
-            {n.content && <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2" style={{ color: COLORS.stone }}>{n.content}</p>}
+            {n.content && <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2 break-words" style={{ color: COLORS.stone }}>{n.content}</p>}
             <div className="flex items-center gap-1 mt-2 font-mono text-[10px]" style={{ color: COLORS.primary }}>
               자세히 보기 <ChevronRight size={11} />
             </div>
@@ -489,7 +489,7 @@ export function CourseDetailPage({ course: propCourse, user, setCurrentPage, set
       {c.description && (
         <div className="px-5 mt-4">
           <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.stone }}>{c.description}</p>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.stone }}>{c.description}</p>
           </div>
         </div>
       )}
@@ -670,7 +670,7 @@ export function BestCasePage() {
                 </div>
 
                 {c.memo && (
-                  <p className="font-body text-xs leading-relaxed pt-3" style={{ color: COLORS.stone, borderTop: `1px solid ${COLORS.light}` }}>{c.memo}</p>
+                  <p className="font-body text-xs leading-relaxed pt-3 break-words" style={{ color: COLORS.stone, borderTop: `1px solid ${COLORS.light}` }}>{c.memo}</p>
                 )}
               </div>
             </div>
@@ -924,7 +924,7 @@ export function MyCasePage({ user }) {
                     <Trash2 size={12} style={{ color: COLORS.deep }} />
                   </button>
                 </div>
-                {c.memo && <p className="font-body text-xs mt-2 leading-relaxed" style={{ color: COLORS.stone }}>{c.memo}</p>}
+                {c.memo && <p className="font-body text-xs mt-2 leading-relaxed break-words" style={{ color: COLORS.stone }}>{c.memo}</p>}
               </div>
             </div>
           ))
@@ -1155,7 +1155,7 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
       {/* 질문 본문 */}
       <div className="px-5">
         <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+          <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>
             {qna.content || '내용이 없습니다.'}
           </p>
         </div>
@@ -1175,7 +1175,7 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
                 </span>
               )}
             </div>
-            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>{qna.answer}</p>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>{qna.answer}</p>
           </div>
         </div>
       )}
@@ -1286,7 +1286,7 @@ export function TrendsPage({ user, setCurrentPage, setSelectedTrend }) {
               )}
               <h4 className="font-heading text-base leading-snug" style={{ color: COLORS.ink }}>{t.title}</h4>
               {t.content && (
-                <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2" style={{ color: COLORS.stone }}>
+                <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2 break-words" style={{ color: COLORS.stone }}>
                   {t.content}
                 </p>
               )}
@@ -1366,7 +1366,7 @@ export function TrendDetailPage({ trend: propTrend, user, routeId }) {
       {trend.content && (
         <div className="px-5 mt-4">
           <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>
               {trend.content}
             </p>
           </div>
@@ -1456,7 +1456,7 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
         body: JSON.stringify({
           title: `[${form.category}] 새 질문이 등록되었어요`,
           body: `${user.name}: ${form.title}`,
-          url: '/',
+          url: '/admin-qna',
           targetRole: 'admin',
           excludeUserId: user.id,
         }),
@@ -1545,7 +1545,7 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
               <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cream, color: COLORS.stone }}>{q.category}</span>
             </div>
             <p className="font-heading text-sm leading-snug" style={{ color: COLORS.ink }}>{q.title}</p>
-            {q.content && <p className="font-body text-xs mt-1.5 leading-relaxed line-clamp-2" style={{ color: COLORS.stone }}>{q.content}</p>}
+            {q.content && <p className="font-body text-xs mt-1.5 leading-relaxed line-clamp-2 break-words" style={{ color: COLORS.stone }}>{q.content}</p>}
             <div className="flex items-center justify-between mt-2">
               <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(q.created_at).toLocaleDateString('ko-KR')}</p>
               <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.primary }}>
@@ -1637,7 +1637,7 @@ export function LibraryPage({ setCurrentPage, setSelectedLibrary }) {
                   </p>
                   <p className="font-heading text-xs mt-0.5 truncate" style={{ color: COLORS.ink }}>{f.name}</p>
                   {f.description && (
-                    <p className="font-body text-[11px] mt-1 line-clamp-1" style={{ color: COLORS.stone }}>{f.description}</p>
+                    <p className="font-body text-[11px] mt-1 line-clamp-1 break-words" style={{ color: COLORS.stone }}>{f.description}</p>
                   )}
                   {f.file_url && (
                     <p className="font-mono text-[10px] font-medium mt-1 flex items-center gap-1" style={{ color: COLORS.primary }}>
@@ -1699,7 +1699,7 @@ export function LibraryDetailPage({ file: propFile, setCurrentPage, routeId }) {
 
       <div className="px-5">
         <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+          <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>
             {file.description || '내용이 없습니다.'}
           </p>
         </div>
@@ -1942,7 +1942,7 @@ export function MarketPage({ setCurrentPage, setSelectedProduct }) {
                 {/* 정보 */}
                 <div className="p-3">
                   <p className="font-mono text-[8px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>{p.brand || '-'}</p>
-                  <h4 className="font-body text-[11px] font-semibold mt-1 leading-tight line-clamp-2 min-h-[2.5em]" style={{ color: COLORS.ink }}>{p.name}</h4>
+                  <h4 className="font-body text-[11px] font-semibold mt-1 leading-tight line-clamp-2 min-h-[2.5em] break-words" style={{ color: COLORS.ink }}>{p.name}</h4>
                   {p.original_price && p.original_price > p.price && (
                     <p className="font-mono text-[9px] line-through mt-1" style={{ color: COLORS.stone }}>{p.original_price.toLocaleString()}원</p>
                   )}
@@ -2266,7 +2266,7 @@ export function LectureDetailPage({ lecture: propLecture, user, routeId }) {
         <div className="px-5 mt-4">
           <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>━━ About</p>
-            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>{lecture.description}</p>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>{lecture.description}</p>
           </div>
         </div>
       )}
@@ -2500,7 +2500,7 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
           )}
 
           {post.content && (
-            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>
               {post.content}
             </p>
           )}
@@ -2656,7 +2656,7 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
         <div className="px-5 mt-5">
           <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>━━ Description</p>
-            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>{product.description}</p>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>{product.description}</p>
           </div>
         </div>
       )}
@@ -3475,13 +3475,13 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
       setLoading(false);
       return;
     }
-    const { error } = await supabase.from('community_posts').insert({
+    const { data: inserted, error } = await supabase.from('community_posts').insert({
       content: newPost,
       user_id: user.id,
       category: fixedCategory || '자유',
       image_urls: imageUrls,
       video_url: videoUrlFinal,
-    });
+    }).select('id').single();
     if (error) {
       console.error('글 작성 에러:', error);
       toast('글 작성 실패: ' + error.message);
@@ -3505,10 +3505,12 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
         return;
       }
       // 📢 알림 발송: 원장님(admin) 글 → 전원(수강생+운영진) 강제 / 그 외 → 관리자에게만
+      const postUrl = inserted?.id ? `/post/${inserted.id}` : '/';
       if (isAdmin) {
         await notifyEveryone({
           title: `[${pageTitle || '게시판'}] 원장님이 글을 남겼어요`,
           body: `${user.name}: ${newPost.substring(0, 80)}`,
+          url: postUrl,
           excludeUserId: user.id,
         });
       } else {
@@ -3524,7 +3526,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
             body: JSON.stringify({
               title: `[${pageTitle || '게시판'}] 새 글이 등록됐어요`,
               body: `${user.name}: ${newPost.substring(0, 80)}`,
-              url: '/',
+              url: postUrl,
               targetRole: 'admin',
               excludeUserId: user.id,
             }),
@@ -3687,7 +3689,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
                 </button>
               )}
             </div>
-            {p.content && <p className="font-body text-xs font-medium leading-relaxed whitespace-pre-line line-clamp-4" style={{ color: COLORS.ink }}>{p.content}</p>}
+            {p.content && <p className="font-body text-xs font-medium leading-relaxed whitespace-pre-line line-clamp-4 break-words" style={{ color: COLORS.ink }}>{p.content}</p>}
             {(getRowImages(p).length > 0 || p.video_url) && (
               <div className="flex items-center gap-2 mt-2">
                 {getRowImages(p).length > 0 && (
@@ -3850,7 +3852,7 @@ export function MyActivityPage({ user, setCurrentPage, setSelectedPost }) {
                     {new Date(p.created_at).toLocaleDateString('ko-KR')}
                   </span>
                 </div>
-                <p className="font-body text-sm line-clamp-2 leading-relaxed" style={{ color: COLORS.ink }}>{p.content}</p>
+                <p className="font-body text-sm line-clamp-2 leading-relaxed break-words" style={{ color: COLORS.ink }}>{p.content}</p>
               </button>
             )))}
 
@@ -3895,7 +3897,7 @@ export function MyActivityPage({ user, setCurrentPage, setSelectedPost }) {
                     {new Date(p.liked_at).toLocaleDateString('ko-KR')}
                   </span>
                 </div>
-                <p className="font-body text-sm line-clamp-2 leading-relaxed" style={{ color: COLORS.ink }}>{p.content}</p>
+                <p className="font-body text-sm line-clamp-2 leading-relaxed break-words" style={{ color: COLORS.ink }}>{p.content}</p>
               </button>
             )))}
           </div>
@@ -4717,7 +4719,7 @@ export function MyPracticeBookingsPage({ user, setCurrentPage }) {
                         <Clock size={12} style={{ color: COLORS.muted }} />
                         {(b.slot.start_time || '').substring(0, 5)} ~ {(b.slot.end_time || '').substring(0, 5)}
                       </p>
-                      {b.slot.memo && <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.muted }}>{b.slot.memo}</p>}
+                      {b.slot.memo && <p className="font-mono text-[10px] mt-1 break-words" style={{ color: COLORS.muted }}>{b.slot.memo}</p>}
                     </div>
                     <button onClick={() => cancelBooking(b)} disabled={actionLoading === b.id}
                       className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1 shrink-0"
@@ -4747,7 +4749,7 @@ export function MyPracticeBookingsPage({ user, setCurrentPage }) {
                     <Clock size={11} style={{ color: COLORS.muted }} />
                     {(b.slot.start_time || '').substring(0, 5)} ~ {(b.slot.end_time || '').substring(0, 5)}
                   </p>
-                  {b.slot.memo && <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.muted }}>{b.slot.memo}</p>}
+                  {b.slot.memo && <p className="font-mono text-[10px] mt-1 break-words" style={{ color: COLORS.muted }}>{b.slot.memo}</p>}
                 </div>
               ))}
             </div>
@@ -5543,7 +5545,7 @@ export function ImprovementsPage({ user }) {
                     {new Date(item.created_at).toLocaleDateString('ko-KR')}
                   </p>
                 </div>
-                <p className="font-body text-sm leading-relaxed mb-3" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
+                <p className="font-body text-sm leading-relaxed mb-3 break-words" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
                   {item.content}
                 </p>
 
@@ -5552,7 +5554,7 @@ export function ImprovementsPage({ user }) {
                     <p className="font-mono text-[9px] font-bold tracking-widest uppercase mb-1" style={{ color: COLORS.primary }}>
                       ━━ 원장님 답변
                     </p>
-                    <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
+                    <p className="font-body text-sm leading-relaxed break-words" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
                       {item.admin_reply}
                     </p>
                     {item.admin_replied_at && (
@@ -5666,7 +5668,7 @@ export function TipsPage({ user, setCurrentPage, setSelectedTip }) {
               )}
               <h4 className="font-heading text-base leading-snug" style={{ color: COLORS.ink }}>{t.title}</h4>
               {t.content && (
-                <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2" style={{ color: COLORS.stone }}>
+                <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2 break-words" style={{ color: COLORS.stone }}>
                   {t.content}
                 </p>
               )}
@@ -5746,7 +5748,7 @@ export function TipDetailPage({ tip: propTip, user, routeId }) {
       {tip.content && (
         <div className="px-5 mt-4">
           <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: COLORS.ink }}>
               {tip.content}
             </p>
           </div>
@@ -5973,7 +5975,7 @@ export function PracticeBookingPage({ user, setCurrentPage }) {
                           <Clock size={11} style={{ color: COLORS.muted }} />
                           {(b.slot.start_time || '').substring(0, 5)} ~ {(b.slot.end_time || '').substring(0, 5)}
                         </p>
-                        {b.slot.memo && <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.muted }}>{b.slot.memo}</p>}
+                        {b.slot.memo && <p className="font-mono text-[10px] mt-1 break-words" style={{ color: COLORS.muted }}>{b.slot.memo}</p>}
                       </div>
                       <button onClick={() => cancelBooking(slotForCancel)} disabled={actionLoading === b.slot_id}
                         className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1 shrink-0"
@@ -6071,7 +6073,7 @@ export function PracticeBookingPage({ user, setCurrentPage }) {
                           <p className="font-mono text-[10px] mt-1" style={{ color: full && !mine ? COLORS.primary : COLORS.stone }}>
                             <Users size={10} className="inline mr-1" />{count}/{s.capacity}{full && !mine ? ' · 마감' : ''}
                           </p>
-                          {s.memo && <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>{s.memo}</p>}
+                          {s.memo && <p className="font-body text-xs mt-1 break-words" style={{ color: COLORS.stone }}>{s.memo}</p>}
                         </div>
                         {mine ? (
                           <button onClick={() => cancelBooking(s)} disabled={actionLoading === s.id || isPast}

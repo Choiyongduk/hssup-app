@@ -27,10 +27,11 @@ export function AdminImprovements({ user }) {
 
   const loadItems = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('improvements')
       .select('*')
       .order('created_at', { ascending: false });
+    if (error) { console.error('개선 제안 로드 에러:', error); toast('개선 제안 목록을 불러오지 못했어요: ' + error.message); }
 
     if (data && data.length > 0) {
       const userIds = [...new Set(data.map(d => d.user_id))];
@@ -194,14 +195,14 @@ export function AdminImprovements({ user }) {
                 </div>
               </div>
 
-              <p className="font-body text-sm leading-relaxed mb-3" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
+              <p className="font-body text-sm leading-relaxed mb-3 break-words" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
                 {item.content}
               </p>
 
               {item.status === 'replied' && item.admin_reply ? (
                 <div className="rounded-lg p-3" style={{ background: COLORS.cardElev, borderLeft: `3px solid ${COLORS.primary}` }}>
                   <p className="font-mono text-[9px] font-bold tracking-widest uppercase mb-1" style={{ color: COLORS.primary }}>━━ 답변</p>
-                  <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
+                  <p className="font-body text-sm leading-relaxed break-words" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>
                     {item.admin_reply}
                   </p>
                 </div>
@@ -336,7 +337,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         ...(tips.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '꿀팁', page: 'admin-tips' })),
         ...(lectures.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '강의', page: 'admin-lectures' })),
         ...(library.data || []).map(x => ({ id: x.id, title: x.name, created_at: x.created_at, type: '자료', page: 'admin-library' })),
-        ...(posts.data || []).map(x => ({ id: x.id, title: (x.content || '').trim().slice(0, 40) || '(사진)', created_at: x.created_at, type: catType[x.category] || '게시글', page: 'freeboard' })),
+        ...(posts.data || []).map(x => ({ id: x.id, title: (x.content || '').trim().slice(0, 40) || '(사진)', created_at: x.created_at, type: catType[x.category] || '게시글', page: 'post-detail' })),
         ...(questions.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: 'Q&A', page: 'admin-qna' })),
       ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setRecentUpdates(all);
@@ -480,7 +481,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
           {recentUpdates.length === 0 ? (
             <p className="font-body text-xs text-center py-6" style={{ color: COLORS.stone }}>최근 {newDays}일간 새 글이 없어요</p>
           ) : recentUpdates.slice(0, 10).map((u, i) => (
-            <button key={`${u.type}-${u.id}`} onClick={() => setCurrentPage(u.page)}
+            <button key={`${u.type}-${u.id}`} onClick={() => setCurrentPage(u.page, u.id)}
               className="w-full text-left flex items-center gap-2.5 p-3 transition-transform active:scale-[0.98]"
               style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
               <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-1 rounded shrink-0" style={{ background: COLORS.peach, color: COLORS.deep }}>{u.type}</span>
@@ -586,7 +587,8 @@ export function AdminTrends({ user }) {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const { data } = await supabase.from('trends').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('trends').select('*').order('created_at', { ascending: false });
+    if (error) { console.error('트렌드 로드 에러:', error); toast('트렌드 목록을 불러오지 못했어요: ' + error.message); }
     setTrends(data || []);
   };
 
@@ -642,14 +644,16 @@ export function AdminTrends({ user }) {
         if (error) throw error;
       } else {
         trendData.created_by = user.id;
-        const { error } = await supabase.from('trends').insert(trendData);
+        const { data: inserted, error } = await supabase.from('trends').insert(trendData).select('id').single();
         if (error) throw error;
+        const trendUrl = inserted?.id ? `/trend/${inserted.id}` : '/';
 
         // 📢 원장님 글 → 전원(수강생+운영진) 강제 알림 / 운영진 글 → 체크 시 수강생에게만
         if (user.role === 'admin') {
           await notifyEveryone({
             title: `[${form.category}] 새 트렌드 속보!`,
             body: form.title,
+            url: trendUrl,
             excludeUserId: user.id,
           });
         } else if (form.sendPush) {
@@ -665,7 +669,7 @@ export function AdminTrends({ user }) {
               body: JSON.stringify({
                 title: `[${form.category}] 새 트렌드 속보!`,
                 body: form.title,
-                url: '/',
+                url: trendUrl,
                 targetRole: 'student',
               }),
             });
@@ -843,7 +847,7 @@ export function AdminTrends({ user }) {
               )}
               <h4 className="font-heading text-sm" style={{ color: COLORS.ink }}>{t.title}</h4>
               <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{new Date(t.created_at).toLocaleDateString('ko-KR')}</p>
-              {t.content && <p className="font-body text-xs mt-1.5 line-clamp-2" style={{ color: COLORS.stone }}>{t.content}</p>}
+              {t.content && <p className="font-body text-xs mt-1.5 line-clamp-2 break-words" style={{ color: COLORS.stone }}>{t.content}</p>}
               <div onClick={e => e.stopPropagation()} className="flex gap-1 mt-3">
                 <button onClick={() => toggleActive(t)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full"
                   style={{ background: t.is_active ? COLORS.cream : COLORS.primary, color: t.is_active ? COLORS.stone : COLORS.white }}>
@@ -883,7 +887,8 @@ export function AdminTips({ user }) {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const { data } = await supabase.from('tips').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('tips').select('*').order('created_at', { ascending: false });
+    if (error) { console.error('꿀팁 로드 에러:', error); toast('꿀팁 목록을 불러오지 못했어요: ' + error.message); }
     setTips(data || []);
   };
 
@@ -967,14 +972,16 @@ export function AdminTips({ user }) {
         if (error) throw error;
       } else {
         tipData.created_by = user.id;
-        const { error } = await supabase.from('tips').insert(tipData);
+        const { data: inserted, error } = await supabase.from('tips').insert(tipData).select('id').single();
         if (error) throw error;
+        const tipUrl = inserted?.id ? `/tip/${inserted.id}` : '/';
 
         // 📢 원장님 글 → 전원(수강생+운영진) 강제 알림 / 운영진 글 → 체크 시 수강생에게만
         if (user.role === 'admin') {
           await notifyEveryone({
             title: `[${form.category}] 새 꿀팁이 올라왔어요!`,
             body: form.title,
+            url: tipUrl,
             excludeUserId: user.id,
           });
         } else if (form.sendPush) {
@@ -990,7 +997,7 @@ export function AdminTips({ user }) {
               body: JSON.stringify({
                 title: `[${form.category}] 새 꿀팁이 올라왔어요!`,
                 body: form.title,
-                url: '/',
+                url: tipUrl,
                 targetRole: 'student',
               }),
             });
@@ -1192,7 +1199,7 @@ export function AdminTips({ user }) {
               )}
               <h4 className="font-heading text-sm" style={{ color: COLORS.ink }}>{t.title}</h4>
               <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{new Date(t.created_at).toLocaleDateString('ko-KR')}</p>
-              {t.content && <p className="font-body text-xs mt-1.5 line-clamp-2" style={{ color: COLORS.stone }}>{t.content}</p>}
+              {t.content && <p className="font-body text-xs mt-1.5 line-clamp-2 break-words" style={{ color: COLORS.stone }}>{t.content}</p>}
               <div onClick={e => e.stopPropagation()} className="flex gap-1 mt-3">
                 <button onClick={() => toggleActive(t)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full"
                   style={{ background: t.is_active ? COLORS.cream : COLORS.primary, color: t.is_active ? COLORS.stone : COLORS.white }}>
@@ -1233,7 +1240,8 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   }, []);
 
   const load = async () => {
-    const { data } = await supabase.from('notices').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('notices').select('*').order('created_at', { ascending: false });
+    if (error) { console.error('공지 로드 에러:', error); toast('공지 목록을 불러오지 못했어요: ' + error.message); }
     setNotices(data || []);
   };
 
@@ -1368,8 +1376,9 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
         toast('공지 수정 완료!');
       } else {
         noticeData.author_id = user.id;
-        const { error: insertError } = await supabase.from('notices').insert(noticeData);
+        const { data: insertedNotice, error: insertError } = await supabase.from('notices').insert(noticeData).select('id').single();
         if (insertError) throw insertError;
+        const noticeUrl = insertedNotice?.id ? `/notice/${insertedNotice.id}` : '/';
 
         await notifyAdminsOfStaffActivity(user, `공지 등록: ${form.title}`, form.content?.substring(0, 60) || '');
 
@@ -1378,6 +1387,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
           await notifyEveryone({
             title: `[${form.tag}] ${form.title}`,
             body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
+            url: noticeUrl,
             excludeUserId: user.id,
           });
           toast('공지 등록 완료!\n전원에게 알림을 보냈어요.');
@@ -1395,7 +1405,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
               body: JSON.stringify({
                 title: `[${form.tag}] ${form.title}`,
                 body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
-                url: '/',
+                url: noticeUrl,
                 targetRole: 'student',
                 excludeUserId: user.id,
               }),
@@ -1596,20 +1606,42 @@ export function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [allTime, setAllTime] = useState({ totalRevenue: 0, paidCount: 0, cancelledCount: 0 });
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
 
-  useEffect(() => { load(); }, []);
+  // 누적 통계(전체 기간)는 가벼운 컬럼만 한 번 조회 — join 없이 amount/status만
+  useEffect(() => {
+    supabase.from('orders').select('amount, status').then(({ data }) => {
+      const rows = data || [];
+      setAllTime({
+        totalRevenue: rows.filter(o => o.status === 'paid').reduce((sum, o) => sum + Number(o.amount || 0), 0),
+        paidCount: rows.filter(o => o.status === 'paid').length,
+        cancelledCount: rows.filter(o => o.status === 'cancelled').length,
+      });
+    });
+  }, []);
+
+  // 선택된 월의 시작/끝
+  const monthStart = new Date(selectedMonth.year, selectedMonth.month, 1);
+  const monthEnd = new Date(selectedMonth.year, selectedMonth.month + 1, 1);
+
+  // 목록은 선택된 월만 서버에서 필터링해서 조회 (전체 주문 내역을 매번 다 불러오지 않음)
+  useEffect(() => { load(); }, [selectedMonth]);
 
   const load = async () => {
     setLoading(true);
+    // 화면 표시 기준(paid_at 있으면 paid_at, 없으면 created_at)과 동일하게 월 범위를 매칭
+    const startISO = monthStart.toISOString();
+    const endISO = monthEnd.toISOString();
     const { data, error } = await supabase
       .from('orders')
       .select('*, profiles:user_id(name, email, phone, avatar_color, avatar_url, course)')
+      .or(`and(paid_at.gte.${startISO},paid_at.lt.${endISO}),and(paid_at.is.null,created_at.gte.${startISO},created_at.lt.${endISO})`)
       .order('created_at', { ascending: false });
-    if (error) console.error('orders load error:', error);
+    if (error) { console.error('orders load error:', error); toast('주문 내역을 불러오지 못했어요: ' + error.message); }
     setOrders(data || []);
     setLoading(false);
   };
@@ -1624,17 +1656,8 @@ export function AdminOrders() {
     });
   };
 
-  // 선택된 월의 시작/끝
-  const monthStart = new Date(selectedMonth.year, selectedMonth.month, 1);
-  const monthEnd = new Date(selectedMonth.year, selectedMonth.month + 1, 1);
-
-  const paidOrders = orders.filter(o => o.status === 'paid');
-  
-  // 선택 월의 주문
-  const monthAllOrders = orders.filter(o => {
-    const orderDate = new Date(o.paid_at || o.created_at);
-    return orderDate >= monthStart && orderDate < monthEnd;
-  });
+  // 선택 월의 주문 (이미 서버에서 월 단위로 필터링됨)
+  const monthAllOrders = orders;
   const monthPaidOrders = monthAllOrders.filter(o => o.status === 'paid');
   const monthCancelledOrders = monthAllOrders.filter(o => o.status === 'cancelled');
   const monthRevenue = monthPaidOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
@@ -1644,12 +1667,12 @@ export function AdminOrders() {
   const isCurrentMonth = selectedMonth.year === now.getFullYear() && selectedMonth.month === now.getMonth();
 
   // 누적 통계 (전체 기간)
-  const totalRevenue = paidOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
-  const cancelledCount = orders.filter(o => o.status === 'cancelled').length;
+  const totalRevenue = allTime.totalRevenue;
+  const cancelledCount = allTime.cancelledCount;
 
   // 현재 필터 적용 (선택 월 내에서)
-  const filtered = filter === 'all' ? monthAllOrders 
-                  : filter === 'paid' ? monthPaidOrders 
+  const filtered = filter === 'all' ? monthAllOrders
+                  : filter === 'paid' ? monthPaidOrders
                   : monthCancelledOrders;
 
   const formatPrice = (n) => Number(n || 0).toLocaleString('ko-KR') + '원';
@@ -1858,7 +1881,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
     }
 
     const { data, error, count } = await query;
-    if (error) console.error('주문 로드 에러:', error);
+    if (error) { console.error('주문 로드 에러:', error); toast('주문 목록을 불러오지 못했어요: ' + error.message); }
     setOrders(data || []);
     setTotal(count || 0);
     setLoading(false);
@@ -2114,7 +2137,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                   {o.shipping_memo && (
                     <div>
                       <p className="font-mono text-[10px] mb-0.5" style={{ color: COLORS.stone }}>배송 메모</p>
-                      <p className="font-body text-xs" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>{o.shipping_memo}</p>
+                      <p className="font-body text-xs break-words" style={{ color: COLORS.ink, whiteSpace: 'pre-wrap' }}>{o.shipping_memo}</p>
                     </div>
                   )}
 
@@ -2160,7 +2183,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                   <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.deep }}>━━ 취소 요청</p>
                   <div>
                     <p className="font-mono text-[10px]" style={{ color: COLORS.deep, opacity: 0.7 }}>학생이 적은 사유</p>
-                    <p className="font-body text-xs mt-1" style={{ color: COLORS.deep, whiteSpace: 'pre-wrap' }}>{o.cancel_reason_user || '-'}</p>
+                    <p className="font-body text-xs mt-1 break-words" style={{ color: COLORS.deep, whiteSpace: 'pre-wrap' }}>{o.cancel_reason_user || '-'}</p>
                   </div>
                   {o.cancel_requested_at && (
                     <p className="font-mono text-[10px]" style={{ color: COLORS.deep, opacity: 0.7 }}>요청 시각: {formatDate(o.cancel_requested_at)}</p>
@@ -2589,7 +2612,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
                           <p className="font-mono text-[10px] mt-1" style={{ color: full ? COLORS.primary : COLORS.stone }}>
                             예약 {count}/{s.capacity}{full && ' · 마감'}
                           </p>
-                          {s.memo && <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>{s.memo}</p>}
+                          {s.memo && <p className="font-body text-xs mt-1 break-words" style={{ color: COLORS.stone }}>{s.memo}</p>}
                         </div>
                       </div>
                       <div className="flex gap-2 mt-2 pt-2" style={{ borderTop: `1px solid ${COLORS.light}` }}>
@@ -2762,18 +2785,38 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
 }
 
 export function AdminApprovals({ user }) {
-  const [allUsers, setAllUsers] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
+  const [selected, setSelected] = useState(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [rejectingId, setRejectingId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { loadCounts(); }, []);
+  useEffect(() => { setSelected(new Set()); load(); }, [filter]);
+
+  // 상태별 카운트(대기/승인/거절 배지)는 전체 기준으로 별도 조회 — 목록은 현재 탭만 불러옴
+  const loadCounts = async () => {
+    const [p, a, r] = await Promise.all([
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('status', 'rejected'),
+    ]);
+    setCounts({ pending: p.count || 0, approved: a.count || 0, rejected: r.count || 0 });
+  };
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
-    setAllUsers(data || []);
+    const { data, error } = await supabase.from('profiles').select('*').eq('status', filter)
+      .order('created_at', { ascending: false }).limit(200);
+    if (error) { console.error('가입 승인 목록 로드 에러:', error); toast('목록을 불러오지 못했어요: ' + error.message); }
+    setUsers(data || []);
     setLoading(false);
   };
+
+  const refresh = async () => { await Promise.all([load(), loadCounts()]); };
 
   const approve = async (userId, asGraduate = false) => {
     // 신입생/졸업생 온보딩은 동일(가입인사 필수). 졸업생 여부는 구분 라벨일 뿐.
@@ -2792,21 +2835,50 @@ export function AdminApprovals({ user }) {
     if (error) {
       toast('승인 실패: ' + error.message);
     } else {
-      await load();
+      await refresh();
+    }
+  };
+
+  const toggleSelect = (userId) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId); else next.add(userId);
+      return next;
+    });
+  };
+
+  const bulkApprove = async () => {
+    if (selected.size === 0) return;
+    if (!await confirmDialog(`선택한 ${selected.size}명을 일괄 승인하시겠습니까?\n(일반 수강생으로 승인됩니다)`)) return;
+    setBulkLoading(true);
+    const { error } = await supabase.from('profiles').update({
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: user.id,
+      rejected_reason: null,
+      is_graduate: false,
+    }).in('id', [...selected]);
+    setBulkLoading(false);
+    if (error) {
+      toast('일괄 승인 실패: ' + error.message);
+    } else {
+      toast(`${selected.size}명 일괄 승인 완료!`);
+      setSelected(new Set());
+      await refresh();
     }
   };
 
   const reject = async (userId) => {
-    const reason = prompt('거절 사유를 입력하세요 (선택, 빈칸 가능):');
-    if (reason === null) return;
     const { error } = await supabase.from('profiles').update({
       status: 'rejected',
-      rejected_reason: reason || null,
+      rejected_reason: rejectReason.trim() || null,
     }).eq('id', userId);
     if (error) {
       toast('거절 실패: ' + error.message);
     } else {
-      await load();
+      setRejectingId(null);
+      setRejectReason('');
+      await refresh();
     }
   };
 
@@ -2814,15 +2886,10 @@ export function AdminApprovals({ user }) {
     if (!await confirmDialog('이 회원의 승인을 취소하시겠습니까?\n승인 대기 상태로 돌아갑니다.')) return;
     const { error } = await supabase.from('profiles').update({ status: 'pending' }).eq('id', userId);
     if (error) { toast('승인 취소 실패: ' + error.message); return; }
-    await load();
+    await refresh();
   };
 
-  const filtered = allUsers.filter(u => u.status === filter);
-  const counts = {
-    pending: allUsers.filter(u => u.status === 'pending').length,
-    approved: allUsers.filter(u => u.status === 'approved').length,
-    rejected: allUsers.filter(u => u.status === 'rejected').length,
-  };
+  const filtered = users;
 
   return (
     <>
@@ -2851,6 +2918,34 @@ export function AdminApprovals({ user }) {
           </button>
         </div>
 
+        {/* 일괄 승인 바 (대기 탭 · 항목 있을 때만) */}
+        {filter === 'pending' && !loading && filtered.length > 0 && (
+          <div className="rounded-2xl p-3 flex items-center gap-3" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+            <button onClick={() => setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(u => u.id)))}
+              className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0" style={{
+                background: selected.size === filtered.length ? COLORS.primary : COLORS.card,
+                border: `1.5px solid ${selected.size === filtered.length ? COLORS.primary : COLORS.light}`,
+              }}>
+                {selected.size === filtered.length && <Check size={12} strokeWidth={3} style={{ color: COLORS.white }} />}
+              </div>
+              <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>전체 선택</span>
+            </button>
+            <div className="flex-1" />
+            {selected.size > 0 && (
+              <>
+                <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{selected.size}명 선택</span>
+                <button onClick={bulkApprove} disabled={bulkLoading}
+                  className="font-heading text-xs px-3 py-2 rounded-full flex items-center gap-1"
+                  style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+                  {bulkLoading ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={3} />}
+                  일괄 승인
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* 목록 */}
         {loading ? (
           <div className="flex justify-center py-10">
@@ -2866,6 +2961,16 @@ export function AdminApprovals({ user }) {
         ) : filtered.map(u => (
           <div key={u.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-start gap-3">
+              {filter === 'pending' && (
+                <button onClick={() => toggleSelect(u.id)} className="shrink-0 mt-1">
+                  <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{
+                    background: selected.has(u.id) ? COLORS.primary : COLORS.card,
+                    border: `1.5px solid ${selected.has(u.id) ? COLORS.primary : COLORS.light}`,
+                  }}>
+                    {selected.has(u.id) && <Check size={12} strokeWidth={3} style={{ color: COLORS.white }} />}
+                  </div>
+                </button>
+              )}
               <Avatar user={u} size="md" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -2909,7 +3014,28 @@ export function AdminApprovals({ user }) {
 
             {/* 액션 버튼 */}
             <div className="flex flex-col gap-2 mt-3">
-              {u.status === 'pending' && (
+              {u.status === 'pending' && rejectingId === u.id && (
+                <div className="rounded-xl p-3" style={{ background: COLORS.cream }}>
+                  <p className="font-mono text-[9px] font-bold tracking-widest uppercase mb-1.5" style={{ color: COLORS.stone }}>거절 사유 (선택, 비워도 됨)</p>
+                  <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                    placeholder="예: 정보 확인 불가, 중복 가입 등" rows={2}
+                    className="w-full font-body text-xs p-2 outline-none resize-none rounded"
+                    style={{ background: COLORS.card, color: COLORS.ink }} />
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => { setRejectingId(null); setRejectReason(''); }}
+                      className="flex-1 font-heading text-xs py-2 rounded-full"
+                      style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                      취소
+                    </button>
+                    <button onClick={() => reject(u.id)}
+                      className="flex-1 font-heading text-xs py-2 rounded-full"
+                      style={{ background: COLORS.deep, color: COLORS.white }}>
+                      거절 확정
+                    </button>
+                  </div>
+                </div>
+              )}
+              {u.status === 'pending' && rejectingId !== u.id && (
                 <>
                   <div className="flex gap-2">
                     <button onClick={() => approve(u.id, false)}
@@ -2917,7 +3043,7 @@ export function AdminApprovals({ user }) {
                       style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
                       <Check size={12} strokeWidth={3} />일반 승인
                     </button>
-                    <button onClick={() => reject(u.id)}
+                    <button onClick={() => { setRejectingId(u.id); setRejectReason(''); }}
                       className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1"
                       style={{ background: COLORS.cream, color: COLORS.deep, border: `1px solid ${COLORS.light}` }}>
                       <X size={12} strokeWidth={3} />거절
@@ -3279,7 +3405,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
                     <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>{p.category || '자유'}</span>
                     <p className="font-mono text-[9px]" style={{ color: COLORS.stone }}>{new Date(p.created_at).toLocaleDateString('ko-KR')}</p>
                   </div>
-                  <p className="font-body text-xs line-clamp-2" style={{ color: COLORS.ink }}>{p.content}</p>
+                  <p className="font-body text-xs line-clamp-2 break-words" style={{ color: COLORS.ink }}>{p.content}</p>
                 </div>
               ))}
             </div>
@@ -3338,7 +3464,8 @@ export function AdminStudents({ setCurrentPage, setSelectedStudent }) {
       const q = debouncedQ.replace(/[%,()]/g, ' ');
       query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%,course.ilike.%${q}%`);
     }
-    const { data, count } = await query;
+    const { data, count, error } = await query;
+    if (error) { console.error('수강생 로드 에러:', error); toast('수강생 목록을 불러오지 못했어요: ' + error.message); }
     setAllUsers(data || []);
     setTotal(count || 0);
     setLoading(false);
@@ -3439,10 +3566,11 @@ export function AdminCases() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('cases')
       .select('*, profiles(name, avatar_color, avatar_url, course)')
       .order('created_at', { ascending: false });
+    if (error) { console.error('케이스 로드 에러:', error); toast('케이스 목록을 불러오지 못했어요: ' + error.message); }
     setCases(data || []);
     setLoading(false);
   };
@@ -3512,7 +3640,7 @@ export function AdminCases() {
                   <p className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{c.profiles?.name || '익명'}</p>
                   <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>· {new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
                 </div>
-                {c.memo && <p className="font-body text-xs mt-2 leading-relaxed" style={{ color: COLORS.stone }}>{c.memo}</p>}
+                {c.memo && <p className="font-body text-xs mt-2 leading-relaxed break-words" style={{ color: COLORS.stone }}>{c.memo}</p>}
 
                 <button onClick={() => toggleBest(c)}
                   className="w-full mt-3 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
@@ -3550,10 +3678,11 @@ export function AdminLectures({ user }) {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('lectures')
       .select('*')
       .order('created_at', { ascending: false });
+    if (error) { console.error('강의 로드 에러:', error); toast('강의 목록을 불러오지 못했어요: ' + error.message); }
     setLectures(data || []);
   };
 
@@ -3837,7 +3966,7 @@ export function AdminLectures({ user }) {
                 {l.instructor} · {l.level}
               </p>
               {l.description && (
-                <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2" style={{ color: COLORS.stone }}>
+                <p className="font-body text-xs mt-2 leading-relaxed line-clamp-2 break-words" style={{ color: COLORS.stone }}>
                   {l.description}
                 </p>
               )}
@@ -3887,10 +4016,11 @@ export function AdminProducts({ user }) {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('products')
       .select('*')
       .order('created_at', { ascending: false });
+    if (error) { console.error('상품 로드 에러:', error); toast('상품 목록을 불러오지 못했어요: ' + error.message); }
     setProducts(data || []);
   };
 
@@ -4195,7 +4325,7 @@ export function AdminProducts({ user }) {
               <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>
                 {p.brand || '-'} · {p.category || '기타'}
               </p>
-              <h4 className="font-heading text-xs mt-1 line-clamp-2 leading-tight" style={{ color: COLORS.ink }}>{p.name}</h4>
+              <h4 className="font-heading text-xs mt-1 line-clamp-2 leading-tight break-words" style={{ color: COLORS.ink }}>{p.name}</h4>
               <p className="font-display text-sm mt-1 tracking-tight" style={{ color: COLORS.ink }}>
                 {p.price?.toLocaleString()}<span className="font-body text-[10px]" style={{ color: COLORS.stone }}>원</span>
                 <span className="font-mono text-[10px] ml-2" style={{ color: COLORS.stone }}>재고 {p.stock || 0}</span>
@@ -4245,7 +4375,8 @@ export function AdminCourses({ user }) {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const { data } = await supabase.from('courses').select('*').order('order_index', { ascending: true });
+    const { data, error } = await supabase.from('courses').select('*').order('order_index', { ascending: true });
+    if (error) { console.error('클래스 로드 에러:', error); toast('클래스 목록을 불러오지 못했어요: ' + error.message); }
     setCourses(data || []);
   };
 
@@ -4554,7 +4685,7 @@ export function AdminCourses({ user }) {
               <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
                 {c.duration} · {c.show_price ? `₩${(c.price / 10000).toFixed(0)}만` : '문의'}
               </p>
-              {c.description && <p className="font-body text-xs mt-1.5 line-clamp-1" style={{ color: COLORS.stone }}>{c.description}</p>}
+              {c.description && <p className="font-body text-xs mt-1.5 line-clamp-1 break-words" style={{ color: COLORS.stone }}>{c.description}</p>}
 
               <div onClick={e => e.stopPropagation()} className="flex gap-1 mt-3">
                 <button onClick={() => toggleActive(c)}
@@ -4598,10 +4729,11 @@ export function AdminLibrary({ user }) {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('library_files')
       .select('*')
       .order('created_at', { ascending: false });
+    if (error) { console.error('자료 로드 에러:', error); toast('자료 목록을 불러오지 못했어요: ' + error.message); }
     setFiles(data || []);
   };
 
@@ -4923,7 +5055,7 @@ export function AdminLibrary({ user }) {
               <p className="font-heading text-xs mt-0.5 truncate" style={{ color: COLORS.ink }}>{f.name}</p>
               <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>{f.file_type} · {f.file_size}</p>
               {f.description && (
-                <p className="font-body text-[11px] mt-1 line-clamp-1" style={{ color: COLORS.stone }}>{f.description}</p>
+                <p className="font-body text-[11px] mt-1 line-clamp-1 break-words" style={{ color: COLORS.stone }}>{f.description}</p>
               )}
             </div>
             <div onClick={e => e.stopPropagation()} className="flex flex-col gap-1.5 shrink-0">
@@ -4942,7 +5074,12 @@ export function AdminLibrary({ user }) {
 }
 
 export function AdminQna({ user }) {
+  const PER_PAGE = 20;
   const [questions, setQuestions] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [answeredCount, setAnsweredCount] = useState(0);
   const [selected, setSelected] = useState(null);
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
@@ -4951,23 +5088,39 @@ export function AdminQna({ user }) {
   const toggleFilter = (status) => {
     setQnaFilter(prev => prev === status ? 'all' : status);
   };
- 
-  useEffect(() => { load(); }, []);
- 
+
+  // 대기/완료 배지 카운트는 전체 기준으로 한 번 (목록 페이지네이션과 별개)
+  useEffect(() => {
+    supabase.from('questions').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      .then(({ count }) => setPendingCount(count || 0));
+    supabase.from('questions').select('id', { count: 'exact', head: true }).eq('status', 'answered')
+      .then(({ count }) => setAnsweredCount(count || 0));
+  }, []);
+
+  useEffect(() => { setPage(1); }, [qnaFilter]);
+  // 🚀 서버 필터 + 페이지네이션 (전체 풀로딩 제거)
+  useEffect(() => { load(); }, [qnaFilter, page]);
+
   const load = async () => {
+    setLoading(true);
     // 질문 먼저 가져오기 (조인 없이 안전하게)
-    const { data: qData, error: qErr } = await supabase
-      .from('questions')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
+    let query = supabase.from('questions').select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
+    if (qnaFilter !== 'all') query = query.eq('status', qnaFilter);
+    const { data: qData, count, error: qErr } = await query;
+
     if (qErr) {
       console.error('Q&A 로드 에러:', qErr);
+      toast('Q&A 목록을 불러오지 못했어요: ' + qErr.message);
       setQuestions([]);
+      setLoading(false);
       return;
     }
     if (!qData || qData.length === 0) {
       setQuestions([]);
+      setTotal(count || 0);
+      setLoading(false);
       return;
     }
 
@@ -4977,12 +5130,14 @@ export function AdminQna({ user }) {
       .from('profiles')
       .select('id, name, avatar_color, avatar_url')
       .in('id', userIds);
-    
+
     const profileMap = {};
     (profilesData || []).forEach(p => { profileMap[p.id] = p; });
-    
+
     const enriched = qData.map(q => ({ ...q, profiles: profileMap[q.user_id] || { name: '알 수 없음' } }));
     setQuestions(enriched);
+    setTotal(count || 0);
+    setLoading(false);
   };
  
   const submitAnswer = async () => {
@@ -5012,7 +5167,7 @@ export function AdminQna({ user }) {
           body: JSON.stringify({
             title: `원장님이 답변을 남겼어요!`,
             body: `Q. ${selected.title}`,
-            url: '/',
+            url: `/qna/${selected.id}`,
             targetUserId: selected.user_id,
           }),
         });
@@ -5057,7 +5212,7 @@ export function AdminQna({ user }) {
           <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.cream, color: COLORS.stone }}>{selected.category}</span>
           <h3 className="font-heading text-base mt-2" style={{ color: COLORS.ink }}>{selected.title}</h3>
           <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>{selected.profiles?.name}</p>
-          {selected.content && <p className="font-body text-xs mt-3 leading-relaxed" style={{ color: COLORS.stone }}>{selected.content}</p>}
+          {selected.content && <p className="font-body text-xs mt-3 leading-relaxed break-words" style={{ color: COLORS.stone }}>{selected.content}</p>}
         </div>
         <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.peach }}>
           <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.deep }}>관리자 답변</p>
@@ -5078,10 +5233,6 @@ export function AdminQna({ user }) {
     );
   }
  
-  const pending = questions.filter(q => q.status === 'pending');
-  const answered = questions.filter(q => q.status === 'answered');
-  const filtered = qnaFilter === 'all' ? questions : qnaFilter === 'pending' ? pending : answered;
- 
   return (
     <>
       <PageIntro ko="Q&A 답변" en="Q&A Admin" />
@@ -5094,7 +5245,7 @@ export function AdminQna({ user }) {
               <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.white }}>답변 대기</p>
               {qnaFilter === 'pending' && <span className="text-[10px]" style={{ color: COLORS.white }}>●</span>}
             </div>
-            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>{pending.length}</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.white }}>{pendingCount}</p>
           </button>
           <button onClick={() => toggleFilter('answered')}
             className={`rounded-2xl p-3 text-left transition-transform active:scale-95 ${qnaFilter === 'answered' ? 'glow-soft' : ''}`}
@@ -5103,7 +5254,7 @@ export function AdminQna({ user }) {
               <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: qnaFilter === 'answered' ? COLORS.primary : COLORS.stone }}>답변 완료</p>
               {qnaFilter === 'answered' && <span className="text-[10px]" style={{ color: COLORS.primary }}>●</span>}
             </div>
-            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{answered.length}</p>
+            <p className="font-display text-2xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>{answeredCount}</p>
           </button>
         </div>
 
@@ -5118,13 +5269,17 @@ export function AdminQna({ user }) {
             </button>
           </div>
         )}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+          </div>
+        ) : questions.length === 0 ? (
           <p className="text-center py-10 font-body text-sm" style={{ color: COLORS.stone }}>
             {qnaFilter === 'pending' ? '답변 대기 중인 질문이 없습니다' :
              qnaFilter === 'answered' ? '답변 완료된 질문이 없습니다' :
              '등록된 질문이 없습니다'}
           </p>
-        ) : filtered.map(q => (
+        ) : <>{questions.map(q => (
           <button key={q.id} onClick={() => { setSelected(q); setAnswer(q.answer || ''); }} className="w-full text-left rounded-2xl p-4 transition-transform active:scale-[0.98]" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center gap-1.5 mb-2">
               <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{
@@ -5138,11 +5293,13 @@ export function AdminQna({ user }) {
             {q.answer && (
               <div className="mt-2 pt-2 rounded-lg flex items-start gap-1.5" style={{ borderTop: `1px solid ${COLORS.light}` }}>
                 <span className="font-mono text-[9px] font-bold tracking-widest uppercase shrink-0 mt-0.5" style={{ color: COLORS.primary }}>답변</span>
-                <p className="font-body text-[11px] line-clamp-2 leading-relaxed" style={{ color: COLORS.stone }}>{q.answer}</p>
+                <p className="font-body text-[11px] line-clamp-2 leading-relaxed break-words" style={{ color: COLORS.stone }}>{q.answer}</p>
               </div>
             )}
           </button>
         ))}
+        <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
+        </>}
       </div>
     </>
   );

@@ -151,17 +151,16 @@ export function useRecentUpdates() {
           supabase.from('community_posts').select('id, content, category, created_at').gte('created_at', since).order('created_at', { ascending: false }),
           supabase.from('questions').select('id, title, created_at').gte('created_at', since).order('created_at', { ascending: false }),
         ]);
-        // 커뮤니티 카테고리 → 이동 페이지 / 표시 라벨
-        const catPage = { '자유': 'freeboard', '인사': 'greetings', '후기': 'reviews' };
+        // 커뮤니티 카테고리 → 표시 라벨. 클릭 시 목록이 아니라 해당 글로 바로 이동(딥링크).
         const catType = { '자유': '자유', '인사': '가입인사', '후기': '수강후기' };
         const all = [
-          ...(notices.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '공지', page: 'notice' })),
-          ...(trends.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '트렌드', page: 'trends' })),
-          ...(tips.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '꿀팁', page: 'tips' })),
-          ...(lectures.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '강의', page: 'online' })),
-          ...(library.data || []).map(x => ({ id: x.id, title: x.name, created_at: x.created_at, type: '자료', page: 'library' })),
-          ...(posts.data || []).map(x => ({ id: x.id, title: (x.content || '').trim().slice(0, 40) || '(사진)', created_at: x.created_at, type: catType[x.category] || '게시글', page: catPage[x.category] || 'freeboard' })),
-          ...(questions.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: 'Q&A', page: 'qna' })),
+          ...(notices.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '공지', page: 'notice-detail' })),
+          ...(trends.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '트렌드', page: 'trend-detail' })),
+          ...(tips.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '꿀팁', page: 'tip-detail' })),
+          ...(lectures.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '강의', page: 'lecture-detail' })),
+          ...(library.data || []).map(x => ({ id: x.id, title: x.name, created_at: x.created_at, type: '자료', page: 'library-detail' })),
+          ...(posts.data || []).map(x => ({ id: x.id, title: (x.content || '').trim().slice(0, 40) || '(사진)', created_at: x.created_at, type: catType[x.category] || '게시글', page: 'post-detail' })),
+          ...(questions.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: 'Q&A', page: 'qna-detail' })),
         ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         setUpdates(all);
       } catch (e) { console.error('홈 업데이트 조회 실패:', e); }
