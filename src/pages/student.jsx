@@ -566,10 +566,19 @@ export function BestCasePage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('전체');
-  const [page, setPage] = useState(1);
-
-  // 필터 바뀌면 1페이지로 초기화
-  useEffect(() => { setPage(1); }, [filter]);
+  // 🍊 상세 글 봤다가 뒤로가기로 돌아오면 리마운트되는데, 그때 보던 페이지 번호로 복원(sessionStorage).
+  const [page, setPage] = useState(() => {
+    try { return parseInt(sessionStorage.getItem('hssup_best_page'), 10) || 1; } catch (e) { return 1; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem('hssup_best_page', String(page)); } catch (e) { /* 무시 */ }
+  }, [page]);
+  // 필터를 실제로 바꿨을 때만 1페이지로 초기화(마운트 시 첫 실행은 건너뜀 — 안 그러면 복원한 페이지가 다시 1로 리셋됨)
+  const filterMounted = useRef(false);
+  useEffect(() => {
+    if (!filterMounted.current) { filterMounted.current = true; return; }
+    setPage(1);
+  }, [filter]);
   // 🚀 현재 페이지 구간만 조회 (서버 필터 + 페이지네이션)
   useEffect(() => { load(); }, [filter, page]);
 
@@ -1445,9 +1454,19 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('전체');
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-
-  useEffect(() => { setPage(1); }, [filter]);
+  // 🍊 상세 글 봤다가 뒤로가기로 돌아오면 리마운트되는데, 그때 보던 페이지 번호로 복원(sessionStorage).
+  const [page, setPage] = useState(() => {
+    try { return parseInt(sessionStorage.getItem('hssup_qna_page'), 10) || 1; } catch (e) { return 1; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem('hssup_qna_page', String(page)); } catch (e) { /* 무시 */ }
+  }, [page]);
+  // 필터를 실제로 바꿨을 때만 1페이지로 초기화(마운트 시 첫 실행은 건너뜀)
+  const filterMounted = useRef(false);
+  useEffect(() => {
+    if (!filterMounted.current) { filterMounted.current = true; return; }
+    setPage(1);
+  }, [filter]);
   useEffect(() => { load(); }, [filter, page]);
 
   const load = async () => {
@@ -3387,7 +3406,15 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
   const [total, setTotal] = useState(0);
   const [newPost, setNewPost, clearNewPost] = useDraft(`community_${fixedCategory || 'free'}`, '');
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
+  // 🍊 상세 글 봤다가 뒤로가기 하면 이 페이지가 통째로 리마운트되는데, 그때 보던 페이지 번호가
+  // 1페이지로 초기화되던 문제 방지 — sessionStorage에 카테고리별로 마지막 페이지를 기억해뒀다가 복원.
+  const PAGE_STORAGE_KEY = `hssup_board_page_${fixedCategory || 'free'}`;
+  const [page, setPage] = useState(() => {
+    try { return parseInt(sessionStorage.getItem(PAGE_STORAGE_KEY), 10) || 1; } catch (e) { return 1; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(PAGE_STORAGE_KEY, String(page)); } catch (e) { /* 무시 */ }
+  }, [page, PAGE_STORAGE_KEY]);
   const isAdmin = user?.role === 'admin';
 
   // 📎 첨부: 사진(여러 장) + 영상(파일 또는 유튜브)
@@ -3430,9 +3457,9 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
     setShowAttach(false);
   };
 
-  // 카테고리 바뀌면 1페이지로 초기화
-  useEffect(() => { setPage(1); }, [fixedCategory]);
   // 🚀 현재 페이지 구간만 DB에서 조회 — 전체 풀로딩 방지
+  // (카테고리는 이 컴포넌트가 떠 있는 동안 안 바뀌므로 별도 "카테고리 바뀌면 1페이지로" 리셋은 불필요 —
+  //  오히려 상세 글 봤다가 돌아올 때마다 리마운트되면서 페이지가 1로 튕기는 원인이었음)
   useEffect(() => { load(); }, [fixedCategory, page]);
 
   const load = async () => {
@@ -3831,7 +3858,8 @@ export function MyActivityPage({ user, setCurrentPage, setSelectedPost }) {
       
       likedPostsData = (postsInfo || []).map(p => {
         const like = likesData.find(l => l.target_id === p.id);
-        return { ...p, liked_at: like?.created_at };
+        // liked_at 매칭 실패해도(데이터 이상 등) "Invalid Date"가 뜨지 않도록 글 작성일로 폴백
+        return { ...p, liked_at: like?.created_at || p.created_at };
       }).sort((a, b) => new Date(b.liked_at) - new Date(a.liked_at));
     }
     
