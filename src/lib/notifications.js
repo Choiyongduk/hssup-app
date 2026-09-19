@@ -122,6 +122,29 @@ export const notifyEveryone = async ({ title, body, url = '/', excludeUserId }) 
   }
 };
 
+// 🎯 특정 회원(1명 또는 여러 명)에게 개별 알림 (가입 승인, 등급 승급 등)
+export const notifyUsers = async ({ title, body, url = '/', userIds }) => {
+  const ids = (Array.isArray(userIds) ? userIds : [userIds]).filter(Boolean);
+  if (ids.length === 0) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = {
+      'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    };
+    await Promise.all(ids.map(targetUserId =>
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ title, body, url, targetUserId }),
+      }).catch(e => console.error('개별 알림 실패:', e))
+    ));
+  } catch (e) {
+    console.error('개별 알림 헬퍼 에러:', e);
+  }
+};
+
 // 현재 알림 상태 확인
 export const checkNotificationStatus = async () => {
   if (!('Notification' in window)) return 'unsupported';

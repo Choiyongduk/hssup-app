@@ -7,26 +7,35 @@ import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
 import { subscribeToNotifications, unsubscribeFromNotifications, checkNotificationStatus, notifyEveryone } from '../lib/notifications';
 import { LEGAL_TERMS, LEGAL_PRIVACY, LEGAL_REFUND } from '../lib/legal';
-import { useDraft, useLatestLecture, useRecentUpdates, useDetailItem } from '../hooks';
+import { useDraft, useLatestLecture, useRecentUpdates, useDetailItem, useViewCount } from '../hooks';
 import {
   ImageCarousel, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, MultiImageField, CategoryMover, Pagination,
 } from '../components/common';
-import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar, Gift, ExternalLink } from 'lucide-react';
+import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar, Gift, ExternalLink, Eye } from 'lucide-react';
 
 export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   const [notices, setNotices] = useState([]);
+  const c = COLORS;
 
   useEffect(() => {
     supabase.from('notices').select('*').order('created_at', { ascending: false }).limit(3)
       .then(({ data }) => setNotices(data || []));
   }, []);
 
-  // 2x2 그리드 메인 메뉴
+  // 퀵메뉴 (상단으로 이동 · 클래스·온라인강의는 위 히어로 카드와 겹쳐서 제외, 3줄 12개)
   const mainGrid = [
-    { id: 'online',    label: 'ONLINE CLASS', ko: '온라인 강의', icon: PlayCircle },
-    { id: 'qna',       label: 'Q&A',          ko: '질문 답변',   icon: MessageCircle },
-    { id: 'freeboard', label: 'BOARD',        ko: '자유게시판',  icon: Users },
-    { id: 'market',    label: 'STORE',        ko: '재료샵',      icon: ShoppingBag },
+    { id: 'tips',             ko: '수업 꿀팁',     icon: Sparkles },
+    { id: 'mycase',           ko: '1:1 피드백',    icon: Camera },
+    { id: 'best',             ko: '베스트 케이스', icon: Award },
+    { id: 'practice-booking', ko: '연습 예약',     icon: Calendar },
+    { id: 'notice',           ko: '학원공지',      icon: Bell },
+    { id: 'trends',           ko: '트렌드 속보',   icon: ArrowUpRight },
+    { id: 'qna',              ko: 'Q&A',           icon: MessageCircle },
+    { id: 'greetings',        ko: '가입 인사',     icon: Gift },
+    { id: 'reviews',          ko: '수강후기',      icon: Heart },
+    { id: 'freeboard',        ko: '자유게시판',    icon: Users },
+    { id: 'library',          ko: '자료실',        icon: FolderOpen },
+    { id: 'market',           ko: '재료샵',        icon: ShoppingBag },
   ];
 
   const heroLecture = useLatestLecture();
@@ -37,22 +46,32 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
 
   return (
     <div className="pb-6">
+      {/* 검색바 (상단으로 이동) */}
+      <section className="px-5 pt-4">
+        <button onClick={() => toast('검색은 준비 중이에요')}
+          className="w-full flex items-center gap-2.5 rounded-2xl px-4 py-3 transition-transform active:scale-[0.98]"
+          style={{ background: c.cardElev, border: `1px solid ${c.light}` }}>
+          <Search size={16} style={{ color: c.muted }} />
+          <span className="font-body text-sm" style={{ color: c.muted }}>강의, 재료, 게시물 검색</span>
+        </button>
+      </section>
+
       {/* 환영 메시지 + 온라인 강의(축소 카드) */}
-      <section className="px-5 pt-6 pb-5 relative overflow-hidden">
-        <div className="absolute -top-12 -right-16 w-52 h-52 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,92,31,0.4), rgba(255,92,31,0.12) 35%, transparent 70%)' }}></div>
+      <section className="px-5 pt-5 pb-5 relative overflow-hidden">
+        <div className="absolute -top-12 -right-16 w-52 h-52 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,92,31,0.22), rgba(255,92,31,0.06) 35%, transparent 70%)' }}></div>
         <div className="relative flex items-stretch gap-3">
           {/* 인사말 */}
           <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Today</p>
-            <h2 className="font-display text-[34px] leading-[1] mt-2 tracking-tighter" style={{ color: COLORS.ink }}>
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: c.primary }}>━━ Today</p>
+            <h2 className="font-display text-[34px] leading-[1] mt-2 tracking-tighter" style={{ color: c.ink }}>
               Hello,<br />
-              <span style={{ color: COLORS.primary }} className="glow-text">{user.name?.length > 1 ? user.name.slice(1) : user.name}님</span>
+              <span style={{ color: c.primary }}>{user.name?.length > 1 ? user.name.slice(1) : user.name}님</span>
             </h2>
           </div>
           {/* 온라인 강의 (축소) */}
           <button onClick={() => setCurrentPage('online')}
             className="shrink-0 w-[60%] rounded-2xl p-3.5 text-left relative overflow-hidden flex flex-col justify-between"
-            style={{ background: 'linear-gradient(135deg, #FF5C1F 0%, #FF9A55 100%)', boxShadow: '0 8px 24px rgba(255, 92, 31, 0.3)' }}>
+            style={{ background: 'linear-gradient(135deg, #FF5C1F 0%, #FF9A55 100%)', boxShadow: '0 8px 24px rgba(255, 92, 31, 0.25)' }}>
             <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
             <div className="relative" style={{ color: COLORS.white }}>
               <p className="font-mono text-[8px] font-bold tracking-widest uppercase opacity-80">ONLINE{heroLecture.isNew && ' · NEW'}</p>
@@ -70,30 +89,49 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
         </div>
       </section>
 
-      {/* 공지사항 (히어로 위로 이동 · 최근 3개) */}
+      {/* 퀵메뉴 (상단으로 이동 · 카테고리 전체를 작은 아이콘 그리드로) */}
+      <section className="px-5 mb-6">
+        <div className="grid grid-cols-4 gap-2.5">
+          {mainGrid.map(item => {
+            const Icon = item.icon;
+            return (
+              <button key={item.id} onClick={() => setCurrentPage(item.id)}
+                className="rounded-2xl py-3 px-1 flex flex-col items-center gap-2 transition-transform active:scale-95"
+                style={{ background: c.card, border: `1px solid ${c.light}` }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)' }}>
+                  <Icon size={18} strokeWidth={1.8} style={{ color: c.primary }} />
+                </div>
+                <p className="font-body text-[10px] font-semibold text-center leading-tight" style={{ color: c.ink }}>{item.ko}</p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 공지사항 */}
       <section className="px-5 mb-4">
         <div className="flex items-baseline justify-between mb-2 px-1">
           <div className="flex items-baseline gap-2">
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Notice</p>
-            <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>공지사항</h3>
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: c.primary }}>━━ Notice</p>
+            <h3 className="font-heading text-base" style={{ color: c.ink }}>공지사항</h3>
           </div>
-          <button onClick={() => setCurrentPage('notice')} className="font-body text-xs font-semibold flex items-center gap-1" style={{ color: COLORS.stone }}>
+          <button onClick={() => setCurrentPage('notice')} className="font-body text-xs font-semibold flex items-center gap-1" style={{ color: c.stone }}>
             전체보기 <ArrowRight size={12} />
           </button>
         </div>
-        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: c.card, border: `1px solid ${c.light}` }}>
           {notices.length === 0 ? (
-            <p className="font-body text-xs text-center py-5" style={{ color: COLORS.stone }}>공지가 없습니다</p>
+            <p className="font-body text-xs text-center py-5" style={{ color: c.stone }}>공지가 없습니다</p>
           ) : notices.slice(0, 3).map((n, i) => (
             <button key={n.id} onClick={() => { setSelectedNotice(n); setCurrentPage('notice-detail', n.id); }}
               className="w-full text-left flex items-center gap-2.5 py-2.5 px-3 transition-transform active:scale-[0.98]"
-              style={{ borderBottom: i !== Math.min(notices.length, 3) - 1 ? `1px solid ${COLORS.light}` : 'none' }}>
+              style={{ borderBottom: i !== Math.min(notices.length, 3) - 1 ? `1px solid ${c.light}` : 'none' }}>
               <span className="font-mono text-[8px] font-bold tracking-widest px-1.5 py-1 rounded shrink-0" style={{
-                background: n.urgent ? COLORS.primary : COLORS.peach,
-                color: n.urgent ? COLORS.white : COLORS.deep
+                background: n.urgent ? c.primary : c.peach,
+                color: n.urgent ? c.white : c.deep
               }}>{n.tag}</span>
-              <p className="font-body text-xs font-medium flex-1 truncate" style={{ color: COLORS.ink }}>{n.title}</p>
-              <ChevronRight size={13} style={{ color: COLORS.stone }} />
+              <p className="font-body text-xs font-medium flex-1 truncate" style={{ color: c.ink }}>{n.title}</p>
+              <ChevronRight size={13} style={{ color: c.stone }} />
             </button>
           ))}
         </div>
@@ -103,50 +141,26 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
       <section className="px-5 mb-5">
         <div className="flex items-baseline justify-between mb-2 px-1">
           <div className="flex items-baseline gap-2">
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ Community</p>
-            <h3 className="font-heading text-base" style={{ color: COLORS.ink }}>회원 새글</h3>
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: c.primary }}>━━ Community</p>
+            <h3 className="font-heading text-base" style={{ color: c.ink }}>회원 새글</h3>
           </div>
-          <button onClick={() => setCurrentPage('freeboard')} className="font-body text-xs font-semibold flex items-center gap-1" style={{ color: COLORS.stone }}>
+          <button onClick={() => setCurrentPage('freeboard')} className="font-body text-xs font-semibold flex items-center gap-1" style={{ color: c.stone }}>
             게시판 <ArrowRight size={12} />
           </button>
         </div>
-        <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: c.card, border: `1px solid ${c.light}` }}>
           {memberPosts.length === 0 ? (
-            <p className="font-body text-xs text-center py-5" style={{ color: COLORS.stone }}>최근 3일간 새 글이 없어요</p>
+            <p className="font-body text-xs text-center py-5" style={{ color: c.stone }}>최근 3일간 새 글이 없어요</p>
           ) : memberPosts.slice(0, 3).map((u, i) => (
             <button key={`${u.type}-${u.id}`} onClick={() => setCurrentPage(u.page, u.id)}
               className="w-full text-left flex items-center gap-2.5 py-2.5 px-3 transition-transform active:scale-[0.98]"
-              style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
-              <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-1 rounded shrink-0" style={{ background: COLORS.peach, color: COLORS.deep }}>{u.type}</span>
-              <p className="font-body text-xs flex-1 truncate" style={{ color: COLORS.ink }}>{u.title}</p>
-              <span className="font-mono text-[9px] shrink-0" style={{ color: COLORS.stone }}>{new Date(u.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}</span>
-              <ChevronRight size={12} style={{ color: COLORS.stone }} />
+              style={{ borderTop: i !== 0 ? `1px solid ${c.light}` : 'none' }}>
+              <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-1 rounded shrink-0" style={{ background: c.peach, color: c.deep }}>{u.type}</span>
+              <p className="font-body text-xs flex-1 truncate" style={{ color: c.ink }}>{u.title}</p>
+              <span className="font-mono text-[9px] shrink-0" style={{ color: c.stone }}>{new Date(u.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}</span>
+              <ChevronRight size={12} style={{ color: c.stone }} />
             </button>
           ))}
-        </div>
-      </section>
-
-      {/* 2x2 메인 그리드 */}
-      <section className="px-5 mb-6">
-        <div className="grid grid-cols-2 gap-3">
-          {mainGrid.map(item => {
-            const Icon = item.icon;
-            return (
-              <button key={item.id} onClick={() => setCurrentPage(item.id)}
-                className="aspect-square rounded-3xl p-5 flex flex-col justify-between transition-transform active:scale-95 text-left relative overflow-hidden"
-                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                {/* 미묘한 오렌지 글로우 */}
-                <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,92,31,0.2), transparent 70%)` }}></div>
-                <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
-                  <Icon size={22} strokeWidth={1.8} style={{ color: COLORS.primary }} />
-                </div>
-                <div className="relative">
-                  <p className="font-display text-base tracking-tight" style={{ color: COLORS.ink }}>{item.label}</p>
-                  <p className="font-mono text-[10px] mt-0.5 tracking-widest" style={{ color: COLORS.stone }}>{item.ko}</p>
-                </div>
-              </button>
-            );
-          })}
         </div>
       </section>
     </div>
@@ -155,6 +169,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
 
 export function NoticeDetailPage({ notice: propNotice, user, routeId }) {
   const { item: notice, fetching } = useDetailItem(propNotice, routeId, 'notices');
+  useViewCount('notices', notice?.id);
   if (!notice) {
     return (
       <div className="px-5 py-10 text-center">
@@ -183,6 +198,7 @@ export function NoticeDetailPage({ notice: propNotice, user, routeId }) {
             color: notice.urgent ? COLORS.white : COLORS.deep
           }}>{notice.tag}</span>
           <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(notice.created_at).toLocaleDateString('ko-KR')}</span>
+          <span className="font-mono text-[10px] flex items-center gap-0.5" style={{ color: COLORS.stone }}><Eye size={10} />{notice.view_count || 0}</span>
         </div>
         <h1 className="font-display text-2xl mt-3 tracking-tight leading-tight" style={{ color: COLORS.ink }}>{notice.title}</h1>
       </div>
@@ -219,10 +235,10 @@ export function NoticeDetailPage({ notice: propNotice, user, routeId }) {
           </p>
 
           <div className="flex items-center justify-between mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-            <LikeButton targetType="notice" targetId={notice.id} userId={user.id} size={16} />
+            <LikeButton targetType="notice" targetId={notice.id} userId={user.id} size={16} authorId={notice.author_id} />
           </div>
 
-          <CommentSection targetType="notice" targetId={notice.id} user={user} />
+          <CommentSection targetType="notice" targetId={notice.id} user={user} authorId={notice.author_id} />
         </div>
       </div>
     </div>
@@ -531,7 +547,7 @@ export function CourseDetailPage({ course: propCourse, user, setCurrentPage, set
 
       {/* 하단 고정 CTA */}
       <div className="fixed left-0 right-0 px-5 py-3" style={{
-        background: 'rgba(10, 10, 10, 0.85)', backdropFilter: 'blur(20px)',
+        background: 'rgba(250, 248, 245, 0.9)', backdropFilter: 'blur(20px)',
         borderTop: `1px solid ${COLORS.light}`, maxWidth: '480px', margin: '0 auto',
         bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)',
       }}>
@@ -871,7 +887,7 @@ export function MyCasePage({ user }) {
             {/* 등록 버튼 */}
             <button onClick={submit} disabled={uploading}
               className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               {uploading ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
@@ -936,6 +952,7 @@ export function MyCasePage({ user }) {
 
 export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
   const { item: qna, fetching } = useDetailItem(propQna, routeId, 'questions');
+  useViewCount('questions', qna?.id);
   const [author, setAuthor] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: '', content: '', category: '시술' });
@@ -1121,7 +1138,10 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
                     <Avatar user={displayAuthor} size="sm" />
                     <div>
                       <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{displayAuthor.name}</p>
-                      <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(qna.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric' })}</p>
+                      <p className="font-mono text-[10px] flex items-center gap-1.5" style={{ color: COLORS.stone }}>
+                        {new Date(qna.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                        <span className="flex items-center gap-0.5"><Eye size={10} />{qna.view_count || 0}</span>
+                      </p>
                     </div>
                   </>
                 );
@@ -1183,8 +1203,8 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
       {/* 좋아요 + 댓글 */}
       <div className="px-5 mt-3">
         <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <LikeButton targetType="qna" targetId={qna.id} userId={user.id} size={16} />
-          <CommentSection targetType="qna" targetId={qna.id} user={user} />
+          <LikeButton targetType="qna" targetId={qna.id} userId={user.id} size={16} authorId={qna.user_id} />
+          <CommentSection targetType="qna" targetId={qna.id} user={user} authorId={qna.user_id} />
         </div>
       </div>
     </div>
@@ -1308,6 +1328,7 @@ export function TrendsPage({ user, setCurrentPage, setSelectedTrend }) {
 
 export function TrendDetailPage({ trend: propTrend, user, routeId }) {
   const { item: trend, fetching } = useDetailItem(propTrend, routeId, 'trends');
+  useViewCount('trends', trend?.id);
   const isAdmin = user?.role === 'admin' || user?.role === 'staff';
   const [catOverride, setCatOverride] = useState(null);
   useEffect(() => { setCatOverride(null); }, [trend?.id]);
@@ -1348,6 +1369,7 @@ export function TrendDetailPage({ trend: propTrend, user, routeId }) {
           <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
             {new Date(trend.created_at).toLocaleDateString('ko-KR')}
           </span>
+          <span className="font-mono text-[10px] flex items-center gap-0.5" style={{ color: COLORS.stone }}><Eye size={10} />{trend.view_count || 0}</span>
         </div>
         {isAdmin && (
           <div className="mb-3">
@@ -1407,8 +1429,8 @@ export function TrendDetailPage({ trend: propTrend, user, routeId }) {
 
       <div className="px-5 mt-3">
         <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <LikeButton targetType="trend" targetId={trend.id} userId={user.id} size={16} />
-          <CommentSection targetType="trend" targetId={trend.id} user={user} />
+          <LikeButton targetType="trend" targetId={trend.id} userId={user.id} size={16} authorId={trend.created_by} />
+          <CommentSection targetType="trend" targetId={trend.id} user={user} authorId={trend.created_by} />
         </div>
       </div>
     </div>
@@ -1524,7 +1546,7 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
               placeholder="질문 제목" className="w-full font-body text-xs font-medium border-b py-2 bg-transparent outline-none" style={{ borderColor: COLORS.light, color: COLORS.ink }} />
             <textarea value={form.content} onChange={e => setForm({...form, content: e.target.value})}
               placeholder="질문 내용" rows={4} className="w-full font-body text-xs font-medium p-2 outline-none resize-none rounded" style={{ background: COLORS.cream, color: COLORS.ink }} />
-            <button onClick={submit} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.white }}>
+            <button onClick={submit} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               {loading && <Loader2 size={12} className="animate-spin" />}등록
             </button>
           </div>
@@ -1933,7 +1955,7 @@ export function MarketPage({ setCurrentPage, setSelectedProduct }) {
                   {/* 품절 오버레이 */}
                   {p.stock === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                      <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                      <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.ink }}>
                         품절
                       </span>
                     </div>
@@ -1971,6 +1993,12 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [loading, setLoading] = useState(true);
+  // 🍊 "오픈 예정" 안내 배너 — 관리자(강의 관리)에서 문구를 바꿀 수 있음. DB에 없으면 기본값 표시.
+  const [banner, setBanner] = useState({ title: '온라인 강의 11월 오픈 예정', body: '현재 강의 영상을 정성껏 준비하고 있어요. 11월에 오픈되면 알려드릴게요!' });
+  useEffect(() => {
+    supabase.from('site_content').select('title, body').eq('key', 'online_lecture_banner').maybeSingle()
+      .then(({ data }) => { if (data) setBanner(data); });
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -2045,18 +2073,18 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
 
   return (
     <>
-      <PageIntro ko="온라인 강의" en="Lectures" desc="언제 어디서나 학습하세요 · 9월 오픈 예정" />
+      <PageIntro ko="온라인 강의" en="Lectures" desc="언제 어디서나 학습하세요" />
 
-      {/* 9월 오픈 안내 배너 */}
+      {/* 오픈 예정 안내 배너 (관리자 → 강의 관리 에서 문구 수정 가능) */}
       <div className="px-5 mb-4">
         <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
           <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
             <PlayCircle size={16} style={{ color: COLORS.white }} />
           </div>
           <div>
-            <p className="font-heading text-sm" style={{ color: COLORS.deep }}>온라인 강의 9월 오픈 예정 </p>
+            <p className="font-heading text-sm" style={{ color: COLORS.deep }}>{banner.title}</p>
             <p className="font-body text-xs mt-1 leading-relaxed" style={{ color: COLORS.ink }}>
-              현재 강의 영상을 정성껏 준비하고 있어요. 9월에 오픈되면 알려드릴게요!
+              {banner.body}
             </p>
           </div>
         </div>
@@ -2284,16 +2312,19 @@ export function LectureDetailPage({ lecture: propLecture, user, routeId }) {
 
 export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }) {
   const { item: post, fetching } = useDetailItem(propPost, routeId, 'community_posts');
+  useViewCount('community_posts', post?.id);
   const [author, setAuthor] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ content: '' });
   const [actionLoading, setActionLoading] = useState(false);
+  const [moverExpanded, setMoverExpanded] = useState(false);
 
   useEffect(() => {
     if (!post?.user_id) return;
     supabase.from('public_profiles').select('name, avatar_color, avatar_url, role').eq('id', post.user_id).maybeSingle()
       .then(({ data }) => setAuthor(data));
     setEditForm({ content: post.content || '' });
+    setMoverExpanded(false);
   }, [post]);
 
   if (!post) {
@@ -2453,7 +2484,10 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
                   <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
                 )}
               </div>
-              <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(post.created_at).toLocaleString('ko-KR')}</p>
+              <p className="font-mono text-[10px] flex items-center gap-1.5" style={{ color: COLORS.stone }}>
+                {new Date(post.created_at).toLocaleString('ko-KR')}
+                <span className="flex items-center gap-0.5"><Eye size={10} />{post.view_count || 0}</span>
+              </p>
             </div>
 
             {/* 수정/삭제 버튼 (본인 또는 관리자) */}
@@ -2478,24 +2512,35 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
             )}
           </div>
 
-          {/* 카테고리 이동 (관리자/스태프 전용) */}
+          {/* 카테고리 이동 (관리자/스태프 전용) — 눌러야 펼쳐짐(그냥 둘러보다 실수로 이동 확인창 뜨는 것 방지) */}
           {isAdmin && (
-            <div className="flex items-center gap-1.5 flex-wrap mb-4 pb-4" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
-              <span className="font-mono text-[10px] font-bold tracking-widest uppercase mr-1" style={{ color: COLORS.stone }}>이동</span>
-              {BOARD_CATEGORIES.map(c => {
-                const active = c.value === post.category;
-                return (
-                  <button key={c.value} onClick={() => handleMoveCategory(c.value)} disabled={actionLoading || active}
-                    className="font-heading text-[10px] px-3 py-1.5 rounded-full"
-                    style={{
-                      background: active ? COLORS.primary : COLORS.cardElev,
-                      color: active ? COLORS.white : COLORS.ink,
-                      border: `1px solid ${active ? COLORS.primary : COLORS.light}`,
-                    }}>
-                    {c.label}{active ? ' ✓' : ''}
+            <div className="mb-4 pb-4" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
+              {!moverExpanded ? (
+                <button onClick={() => setMoverExpanded(true)} className="font-mono text-[10px] font-bold tracking-widest uppercase underline" style={{ color: COLORS.stone }}>
+                  카테고리 이동하기
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-mono text-[10px] font-bold tracking-widest uppercase mr-1" style={{ color: COLORS.stone }}>이동</span>
+                  {BOARD_CATEGORIES.map(c => {
+                    const active = c.value === post.category;
+                    return (
+                      <button key={c.value} onClick={() => handleMoveCategory(c.value)} disabled={actionLoading || active}
+                        className="font-heading text-[10px] px-3 py-1.5 rounded-full"
+                        style={{
+                          background: active ? COLORS.primary : COLORS.cardElev,
+                          color: active ? COLORS.white : COLORS.ink,
+                          border: `1px solid ${active ? COLORS.primary : COLORS.light}`,
+                        }}>
+                        {c.label}{active ? ' ✓' : ''}
+                      </button>
+                    );
+                  })}
+                  <button onClick={() => setMoverExpanded(false)} className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+                    접기
                   </button>
-                );
-              })}
+                </div>
+              )}
             </div>
           )}
 
@@ -2524,10 +2569,10 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
           )}
 
           <div className="flex items-center justify-between mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-            <LikeButton targetType="community_post" targetId={post.id} userId={user.id} size={16} />
+            <LikeButton targetType="community_post" targetId={post.id} userId={user.id} size={16} authorId={post.user_id} />
           </div>
 
-          <CommentSection targetType="community_post" targetId={post.id} user={user} />
+          <CommentSection targetType="community_post" targetId={post.id} user={user} authorId={post.user_id} />
         </div>
       </div>
     </div>
@@ -2604,7 +2649,7 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
         )}
         {product.stock === 0 && (
           <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
-            <span className="font-mono text-sm font-bold tracking-widest uppercase px-5 py-2.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.white }}>
+            <span className="font-mono text-sm font-bold tracking-widest uppercase px-5 py-2.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               품절
             </span>
           </div>
@@ -2670,7 +2715,7 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
 
       {/* 하단 구매/장바구니 버튼 (고정) */}
       <div className="fixed left-0 right-0 px-5 py-3" style={{
-        background: 'rgba(10, 10, 10, 0.85)',
+        background: 'rgba(250, 248, 245, 0.9)',
         backdropFilter: 'blur(20px)',
         borderTop: `1px solid ${COLORS.light}`,
         maxWidth: '480px',
@@ -3102,7 +3147,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
         {/* 결제 버튼 */}
         <button onClick={handlePayment} disabled={loading || !allAgreed}
           className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-60"
-          style={{ background: allAgreed ? COLORS.primary : COLORS.cardElev, color: COLORS.white, boxShadow: allAgreed ? '0 0 24px rgba(255, 92, 31, 0.5)' : 'none' }}>
+          style={{ background: allAgreed ? COLORS.primary : COLORS.cardElev, color: allAgreed ? COLORS.white : COLORS.ink, boxShadow: allAgreed ? '0 0 24px rgba(255, 92, 31, 0.5)' : 'none' }}>
           {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} strokeWidth={2.5} />}
           {loading ? '결제창 호출 중...' : !allAgreed ? '약관 동의 후 결제 가능' : `${itemPrice.toLocaleString()}원 결제하기`}
         </button>
@@ -3297,7 +3342,7 @@ export function PaymentSuccessPage({ user, setCurrentPage }) {
           {orderInfo?.receipt_url && (
             <a href={orderInfo.receipt_url} target="_blank" rel="noopener noreferrer"
               className="w-full mt-4 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
-              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               <Download size={12} />영수증 보기
             </a>
           )}
@@ -3407,34 +3452,35 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
     }
 
     const userIds = [...new Set(postsData.map(p => p.user_id).filter(Boolean))];
-    const { data: profilesData } = await supabase
-      .from('public_profiles')
-      .select('id, name, avatar_color, avatar_url, role')
-      .in('id', userIds);
+    const postIds = postsData.map(p => p.id);
+
+    // 🚀 서로 독립적인 조회는 순서대로 기다리지 않고 한 번에 (스크롤 복원이 느려지는 것도 방지)
+    const [
+      { data: profilesData },
+      { data: likesData, error: likesError },
+      { data: myLikesData, error: myLikesError },
+      { data: commentRows },
+    ] = await Promise.all([
+      supabase.from('public_profiles').select('id, name, avatar_color, avatar_url, role').in('id', userIds),
+      // 좋아요: 표시된 글들만 한 번에 (글마다 따로 조회하던 N+1 제거)
+      supabase.from('likes').select('target_id').eq('target_type', 'community_post').in('target_id', postIds),
+      // "내가 눌렀는지"는 상세 페이지와 동일하게 user_id로 직접 필터링해 따로 조회
+      supabase.from('likes').select('target_id').eq('target_type', 'community_post').eq('user_id', user.id).in('target_id', postIds),
+      // 댓글 수: 표시된 글들만 한 번에 (답글 포함 전체 개수)
+      supabase.from('comments').select('target_id').eq('target_type', 'community_post').in('target_id', postIds),
+    ]);
+    if (likesError) console.error('좋아요 카운트 로드 에러:', likesError);
+    if (myLikesError) console.error('내 좋아요 로드 에러:', myLikesError);
 
     const profileMap = {};
     (profilesData || []).forEach(p => { profileMap[p.id] = p; });
 
-    // 좋아요: 표시된 글들만 한 번에 (글마다 따로 조회하던 N+1 제거)
-    const postIds = postsData.map(p => p.id);
-    const { data: likesData } = await supabase
-      .from('likes')
-      .select('target_id, user_id')
-      .eq('target_type', 'community_post')
-      .in('target_id', postIds);
     const likeCounts = {};
-    const likedByMe = new Set();
     (likesData || []).forEach(l => {
       likeCounts[l.target_id] = (likeCounts[l.target_id] || 0) + 1;
-      if (l.user_id === user.id) likedByMe.add(l.target_id);
     });
+    const likedByMe = new Set((myLikesData || []).map(l => l.target_id));
 
-    // 댓글 수: 표시된 글들만 한 번에 (답글 포함 전체 개수)
-    const { data: commentRows } = await supabase
-      .from('comments')
-      .select('target_id')
-      .eq('target_type', 'community_post')
-      .in('target_id', postIds);
     const commentCounts = {};
     (commentRows || []).forEach(c => {
       commentCounts[c.target_id] = (commentCounts[c.target_id] || 0) + 1;
@@ -3709,12 +3755,16 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
             )}
             <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
               <div onClick={(e) => e.stopPropagation()}>
-                <LikeButton targetType="community_post" targetId={p.id} userId={user.id} size={12} initialCount={p.like_count} initialLiked={p.liked_by_me} />
+                <LikeButton targetType="community_post" targetId={p.id} userId={user.id} size={12} initialCount={p.like_count} initialLiked={p.liked_by_me} authorId={p.user_id}
+                  onToggle={(liked, count) => setPosts(prev => prev.map(x => x.id === p.id ? { ...x, liked_by_me: liked, like_count: count } : x))} />
               </div>
               <button onClick={(e) => { e.stopPropagation(); openDetail(p); }}
                 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold" style={{ color: COLORS.stone }}>
                 <MessageCircle size={12} />댓글{p.comment_count > 0 ? ` ${p.comment_count}` : ''}
               </button>
+              <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold" style={{ color: COLORS.stone }}>
+                <Eye size={12} />{p.view_count || 0}
+              </span>
             </div>
           </div>
         ))}
@@ -4044,7 +4094,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
             </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.white }}>{user.name}</h2>
+                <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{user.name}</h2>
                 {isAdmin && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>}
               </div>
               <p className="font-mono text-[10px] mt-1 truncate" style={{ color: COLORS.ink, opacity: 0.6 }}>{user.email}</p>
@@ -4917,7 +4967,7 @@ export function CartPage({ user, setCurrentPage }) {
       {/* 결제 버튼 (하단 고정) */}
       {!loading && items.length > 0 && (
         <div className="fixed left-0 right-0 px-5 py-3" style={{
-          background: 'rgba(10, 10, 10, 0.85)', backdropFilter: 'blur(20px)',
+          background: 'rgba(250, 248, 245, 0.9)', backdropFilter: 'blur(20px)',
           borderTop: `1px solid ${COLORS.light}`,
           maxWidth: '480px', margin: '0 auto',
           bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)'
@@ -5596,7 +5646,7 @@ export function TipsPage({ user, setCurrentPage, setSelectedTip }) {
 
   return (
     <>
-      <PageIntro ko="수업·꿀팁" en="Tips" />
+      <PageIntro ko="수업 꿀팁" en="Tips" />
 
       <div className="px-5 mb-4">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -5690,6 +5740,7 @@ export function TipsPage({ user, setCurrentPage, setSelectedTip }) {
 
 export function TipDetailPage({ tip: propTip, user, routeId }) {
   const { item: tip, fetching } = useDetailItem(propTip, routeId, 'tips');
+  useViewCount('tips', tip?.id);
   const isAdmin = user?.role === 'admin' || user?.role === 'staff';
   const [catOverride, setCatOverride] = useState(null);
   useEffect(() => { setCatOverride(null); }, [tip?.id]);
@@ -5730,6 +5781,7 @@ export function TipDetailPage({ tip: propTip, user, routeId }) {
           <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
             {new Date(tip.created_at).toLocaleDateString('ko-KR')}
           </span>
+          <span className="font-mono text-[10px] flex items-center gap-0.5" style={{ color: COLORS.stone }}><Eye size={10} />{tip.view_count || 0}</span>
         </div>
         {isAdmin && (
           <div className="mb-3">
@@ -5796,8 +5848,8 @@ export function TipDetailPage({ tip: propTip, user, routeId }) {
 
       <div className="px-5 mt-3">
         <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <LikeButton targetType="tip" targetId={tip.id} userId={user.id} size={16} />
-          <CommentSection targetType="tip" targetId={tip.id} user={user} />
+          <LikeButton targetType="tip" targetId={tip.id} userId={user.id} size={16} authorId={tip.created_by} />
+          <CommentSection targetType="tip" targetId={tip.id} user={user} authorId={tip.created_by} />
         </div>
       </div>
     </div>

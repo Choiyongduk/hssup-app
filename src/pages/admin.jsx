@@ -5,7 +5,7 @@ import { COLORS } from '../lib/colors';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
 import { compressImage, isYouTubeUrl, uploadPostVideo, deletePostVideo, deleteImageFromBucket, persistFormImages, getRowImages } from '../lib/images';
-import { notifyAdminsOfStaffActivity, notifyEveryone } from '../lib/notifications';
+import { notifyAdminsOfStaffActivity, notifyEveryone, notifyUsers } from '../lib/notifications';
 import { useDraft } from '../hooks';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
@@ -245,9 +245,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
   const newDays = 3;
   const [recentUpdates, setRecentUpdates] = useState([]);
   const [stats, setStats] = useState({
-    students: 0, 
-    lectures: 0, 
-    pendingQna: 0, 
+    pendingQna: 0,
     monthRevenue: 0,
     lastMonthRevenue: 0,
     newStudents: 0,
@@ -263,15 +261,11 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
       const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
       const [
-        { count: students },
-        { count: lectures },
         { count: pendingQna },
         { data: thisMonthOrders },
         { data: lastMonthOrders },
         { count: newStudents },
       ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student').neq('status', 'deleted'),
-        supabase.from('lectures').select('*', { count: 'exact', head: true }).eq('is_published', true),
         supabase.from('questions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('orders').select('amount').eq('status', 'paid').gte('paid_at', thisMonthStart),
         supabase.from('orders').select('amount').eq('status', 'paid').gte('paid_at', lastMonthStart).lt('paid_at', lastMonthEnd),
@@ -304,8 +298,6 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
       });
 
       setStats({
-        students: students || 0, 
-        lectures: lectures || 0, 
         pendingQna: pendingQna || 0,
         monthRevenue,
         lastMonthRevenue,
@@ -360,7 +352,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
     { id: 'admin-approvals',    label: 'APPROVE',  ko: '가입 승인',     icon: UserPlus },
     { id: 'admin-notice',       label: 'NOTICE',   ko: '학원공지',      icon: Bell },
     { id: 'admin-trends',       label: 'TRENDS',   ko: '트렌드',     icon: Sparkles },
-    { id: 'admin-tips',         label: 'TIPS',     ko: '수업·꿀팁',     icon: Sparkles },
+    { id: 'admin-tips',         label: 'TIPS',     ko: '수업 꿀팁',     icon: Sparkles },
     { id: 'admin-students',     label: 'STUDENTS', ko: '수강생',        icon: UserCheck },
     { id: 'admin-qna',          label: 'Q&A',      ko: 'Q&A 답변',      icon: MessageCircle },
     { id: 'admin-improvements', label: 'FEEDBACK', ko: '어플개선제안',   icon: Edit3 },
@@ -527,29 +519,10 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </div>
       </section>
 
-      {/* 전체 통계 - 2개 카드 */}
-      <section className="px-5 mb-6">
-        <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-2 px-1" style={{ color: COLORS.primary }}>━━ All Time</p>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => setCurrentPage('admin-students')}
-            className="rounded-2xl p-4 text-left transition-transform active:scale-95"
-            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>전체 수강생</p>
-            <p className="font-display text-3xl mt-1 leading-none tracking-tight" style={{ color: COLORS.ink }}>{stats.students}<span className="font-body text-base font-medium" style={{ color: COLORS.stone }}>명</span></p>
-          </button>
-          <button onClick={() => setCurrentPage('online')}
-            className="rounded-2xl p-4 text-left transition-transform active:scale-95"
-            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>진행 강의</p>
-            <p className="font-display text-3xl mt-1 leading-none tracking-tight" style={{ color: COLORS.ink }}>{stats.lectures}<span className="font-body text-base font-medium" style={{ color: COLORS.stone }}>개</span></p>
-          </button>
-        </div>
-      </section>
-
-      {/* Quick Action 3열 그리드 */}
+      {/* Quick Action 4열 그리드 */}
       <section className="px-5">
         <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase mb-3 px-1" style={{ color: COLORS.primary }}>━━ Quick Action</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {quickActions.map(item => {
             const Icon = item.icon;
             return (
@@ -800,7 +773,7 @@ export function AdminTrends({ user }) {
 
             <button onClick={submit} disabled={loading || uploading}
               className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
               {uploading ? '이미지 업로드 중...' : editingId ? '수정 저장' : '발행하기'}
             </button>
@@ -854,7 +827,7 @@ export function AdminTrends({ user }) {
                   {t.is_active ? '숨김' : '공개'}
                 </button>
                 <button onClick={() => startEdit(t)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full flex items-center justify-center gap-1"
-                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  style={{ background: COLORS.cardElev, color: COLORS.ink }}>
                   <Edit3 size={10} />수정
                 </button>
                 <button onClick={() => remove(t)} className="px-2 py-1.5 rounded-full" style={{ background: COLORS.cream }}>
@@ -1004,7 +977,7 @@ export function AdminTips({ user }) {
           } catch (e) { console.error('알림 발송 실패:', e); }
         }
 
-        await notifyAdminsOfStaffActivity(user, `수업·꿀팁 등록`, form.title);
+        await notifyAdminsOfStaffActivity(user, `수업 꿀팁 등록`, form.title);
       }
       resetForm();
       await load();
@@ -1036,7 +1009,7 @@ export function AdminTips({ user }) {
 
   return (
     <>
-      <PageIntro ko="수업·꿀팁 관리" en="Tips Admin" />
+      <PageIntro ko="수업 꿀팁 관리" en="Tips Admin" />
       <div className="px-5 space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-2xl p-3" style={{ background: COLORS.primary }}>
@@ -1153,7 +1126,7 @@ export function AdminTips({ user }) {
 
             <button onClick={submit} disabled={loading || uploading}
               className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
               {uploading ? '이미지 업로드 중...' : editingId ? '수정 저장' : '공유하기'}
             </button>
@@ -1206,7 +1179,7 @@ export function AdminTips({ user }) {
                   {t.is_active ? '숨김' : '공개'}
                 </button>
                 <button onClick={() => startEdit(t)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full flex items-center justify-center gap-1"
-                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  style={{ background: COLORS.cardElev, color: COLORS.ink }}>
                   <Edit3 size={10} />수정
                 </button>
                 <button onClick={() => remove(t)} className="px-2 py-1.5 rounded-full" style={{ background: COLORS.cream }}>
@@ -1557,7 +1530,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
               </div>
             )}
 
-            <button onClick={submit} disabled={loading || uploading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.white }}>
+            <button onClick={submit} disabled={loading || uploading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               {(loading || uploading) && <Loader2 size={12} className="animate-spin" />}
               {uploading ? '이미지 업로드 중...' : editingId ? '수정 저장' : '발행'}
             </button>
@@ -1580,7 +1553,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                 }}>{n.tag}</span>
                 <div onClick={e => e.stopPropagation()} className="flex gap-1">
                   <button onClick={() => startEdit(n)} className="p-1.5 rounded-full" style={{ background: COLORS.cardElev }}>
-                    <Edit3 size={11} style={{ color: COLORS.white }} />
+                    <Edit3 size={11} style={{ color: COLORS.ink }} />
                   </button>
                   <button onClick={(e) => remove(n.id, e)} className="p-1.5 rounded-full" style={{ background: COLORS.cream }}>
                     <Trash2 size={12} style={{ color: COLORS.deep }} />
@@ -2835,6 +2808,7 @@ export function AdminApprovals({ user }) {
     if (error) {
       toast('승인 실패: ' + error.message);
     } else {
+      notifyUsers({ title: '가입이 승인됐어요!', body: '이제 히썹 아카데미 앱을 자유롭게 이용하실 수 있어요', url: '/', userIds: userId });
       await refresh();
     }
   };
@@ -2862,6 +2836,7 @@ export function AdminApprovals({ user }) {
     if (error) {
       toast('일괄 승인 실패: ' + error.message);
     } else {
+      notifyUsers({ title: '가입이 승인됐어요!', body: '이제 히썹 아카데미 앱을 자유롭게 이용하실 수 있어요', url: '/', userIds: [...selected] });
       toast(`${selected.size}명 일괄 승인 완료!`);
       setSelected(new Set());
       await refresh();
@@ -3067,7 +3042,7 @@ export function AdminApprovals({ user }) {
               {u.status === 'rejected' && (
                 <button onClick={() => approve(u.id)}
                   className="flex-1 font-heading text-xs py-2 rounded-full flex items-center justify-center gap-1"
-                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  style={{ background: COLORS.cardElev, color: COLORS.ink }}>
                   <Check size={12} strokeWidth={3} />다시 승인
                 </button>
               )}
@@ -3211,7 +3186,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
             <Avatar user={student} size="xxl" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.white }}>{student.name}</h2>
+                <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{student.name}</h2>
                 {student.status === 'pending' && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.peach, color: COLORS.deep }}>승인 대기</span>}
                 {student.status === 'rejected' && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.cardElev, color: COLORS.stone }}>거절됨</span>}
               </div>
@@ -3675,7 +3650,26 @@ export function AdminLectures({ user }) {
     is_orientation: false,
   });
 
-  useEffect(() => { load(); }, []);
+  // 🍊 "오픈 예정" 안내 배너 문구 — 학생 화면(온라인 강의) 상단에 그대로 노출됨
+  const [banner, setBanner] = useState({ title: '', body: '' });
+  const [showBannerForm, setShowBannerForm] = useState(false);
+  const [bannerSaving, setBannerSaving] = useState(false);
+
+  useEffect(() => {
+    load();
+    supabase.from('site_content').select('title, body').eq('key', 'online_lecture_banner').maybeSingle()
+      .then(({ data }) => { if (data) setBanner(data); });
+  }, []);
+
+  const saveBanner = async () => {
+    setBannerSaving(true);
+    const { error } = await supabase.from('site_content')
+      .upsert({ key: 'online_lecture_banner', title: banner.title, body: banner.body, updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
+    setBannerSaving(false);
+    if (error) { toast('배너 저장 실패: ' + error.message); return; }
+    toast('배너 문구가 저장됐어요');
+    setShowBannerForm(false);
+  };
 
   const load = async () => {
     const { data, error } = await supabase
@@ -3782,6 +3776,42 @@ export function AdminLectures({ user }) {
     <>
       <PageIntro ko="강의 관리" en="Lectures Admin" />
       <div className="px-5 space-y-3">
+
+        {/* 오픈 예정 안내 배너 문구 (학생 화면 상단에 노출) */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.deep }}>온라인 강의 안내 배너</p>
+            {!showBannerForm && (
+              <button onClick={() => setShowBannerForm(true)} className="font-heading text-[10px] px-3 py-1.5 rounded-full flex items-center gap-1"
+                style={{ background: COLORS.primary, color: COLORS.white }}>
+                <Edit3 size={10} strokeWidth={2.5} />수정
+              </button>
+            )}
+          </div>
+          {showBannerForm ? (
+            <div className="mt-3 space-y-2">
+              <input value={banner.title} onChange={e => setBanner({ ...banner, title: e.target.value })}
+                placeholder="제목 (예: 온라인 강의 11월 오픈 예정)"
+                className="w-full font-body text-sm font-medium p-2.5 rounded outline-none" style={{ background: COLORS.card, color: COLORS.ink }} />
+              <textarea value={banner.body} onChange={e => setBanner({ ...banner, body: e.target.value })}
+                placeholder="본문" rows={2}
+                className="w-full font-body text-xs p-2.5 rounded outline-none resize-none" style={{ background: COLORS.card, color: COLORS.ink }} />
+              <div className="flex gap-2">
+                <button onClick={() => setShowBannerForm(false)} disabled={bannerSaving}
+                  className="flex-1 font-heading text-xs py-2 rounded-full" style={{ background: COLORS.card, color: COLORS.stone }}>취소</button>
+                <button onClick={saveBanner} disabled={bannerSaving}
+                  className="flex-1 font-heading text-xs py-2 rounded-full flex items-center justify-center gap-1.5" style={{ background: COLORS.primary, color: COLORS.white }}>
+                  {bannerSaving && <Loader2 size={12} className="animate-spin" />}저장
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="font-heading text-sm mt-2" style={{ color: COLORS.deep }}>{banner.title || '(제목 없음)'}</p>
+              <p className="font-body text-xs mt-1 leading-relaxed" style={{ color: COLORS.ink }}>{banner.body || '(본문 없음)'}</p>
+            </>
+          )}
+        </div>
 
         {/* 통계 카드 */}
         <div className="grid grid-cols-2 gap-2">
@@ -3918,7 +3948,7 @@ export function AdminLectures({ user }) {
             {/* 저장 버튼 */}
             <button onClick={submit} disabled={loading}
               className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               {loading && <Loader2 size={14} className="animate-spin" />}
               {editingId ? '수정 저장' : '등록하기'}
             </button>
@@ -3983,7 +4013,7 @@ export function AdminLectures({ user }) {
                 </button>
                 <button onClick={() => startEdit(l)}
                   className="flex-1 font-heading text-[11px] py-2 rounded-full flex items-center justify-center gap-1"
-                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  style={{ background: COLORS.cardElev, color: COLORS.ink }}>
                   <Edit3 size={11} />수정
                 </button>
                 <button onClick={() => remove(l.id)}
@@ -4274,7 +4304,7 @@ export function AdminProducts({ user }) {
             {/* 저장 버튼 */}
             <button onClick={submit} disabled={loading || uploading}
               className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
               {uploading ? '이미지 업로드 중...' : editingId ? '수정 저장' : '등록하기'}
             </button>
@@ -4341,7 +4371,7 @@ export function AdminProducts({ user }) {
                 </button>
                 <button onClick={() => startEdit(p)}
                   className="flex-1 font-heading text-[10px] py-1.5 rounded-full flex items-center justify-center gap-1"
-                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  style={{ background: COLORS.cardElev, color: COLORS.ink }}>
                   <Edit3 size={10} />수정
                 </button>
                 <button onClick={() => remove(p)}
@@ -4654,7 +4684,7 @@ export function AdminCourses({ user }) {
 
             <button onClick={submit} disabled={loading || uploading}
               className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
               {uploading ? '이미지 업로드 중...' : editingId ? '수정 저장' : '등록하기'}
             </button>
@@ -4697,7 +4727,7 @@ export function AdminCourses({ user }) {
                   {c.show_price ? '가격숨김' : '가격공개'}
                 </button>
                 <button onClick={() => startEdit(c)} className="flex-1 font-heading text-[10px] py-1.5 rounded-full flex items-center justify-center gap-1"
-                  style={{ background: COLORS.cardElev, color: COLORS.white }}>
+                  style={{ background: COLORS.cardElev, color: COLORS.ink }}>
                   <Edit3 size={10} />수정
                 </button>
                 <button onClick={() => remove(c)} className="px-2 py-1.5 rounded-full flex items-center justify-center" style={{ background: COLORS.cream }}>
@@ -4952,7 +4982,7 @@ export function AdminLibrary({ user }) {
                   </div>
                   <button onClick={() => setForm({ ...form, file: null, file_type: editingId ? form.file_type : '', file_size: editingId ? form.file_size : '' })}
                     className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
-                    <X size={12} style={{ color: COLORS.white }} />
+                    <X size={12} style={{ color: COLORS.ink }} />
                   </button>
                 </div>
               ) : (
@@ -5015,7 +5045,7 @@ export function AdminLibrary({ user }) {
 
             <button onClick={submit} disabled={submitLoading || uploading}
               className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: COLORS.cardElev, color: COLORS.white }}>
+              style={{ background: COLORS.cardElev, color: COLORS.ink }}>
               {(submitLoading || uploading) && <Loader2 size={14} className="animate-spin" />}
               {uploading ? '업로드 중...' : editingId ? '수정 저장' : '등록하기'}
             </button>
@@ -5060,7 +5090,7 @@ export function AdminLibrary({ user }) {
             </div>
             <div onClick={e => e.stopPropagation()} className="flex flex-col gap-1.5 shrink-0">
               <button onClick={() => startEdit(f)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.cardElev }}>
-                <Edit3 size={11} style={{ color: COLORS.white }} />
+                <Edit3 size={11} style={{ color: COLORS.ink }} />
               </button>
               <button onClick={() => remove(f)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.cream }}>
                 <Trash2 size={12} style={{ color: COLORS.deep }} />
@@ -5218,7 +5248,7 @@ export function AdminQna({ user }) {
           <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.deep }}>관리자 답변</p>
           <textarea value={answer} onChange={e => setAnswer(e.target.value)} placeholder="답변을 작성해주세요" rows={6}
             className="w-full font-body text-xs p-3 outline-none resize-none rounded" style={{ background: COLORS.card, color: COLORS.ink }} />
-          <button onClick={submitAnswer} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.white }}>
+          <button onClick={submitAnswer} disabled={loading} className="w-full font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-2" style={{ background: COLORS.cardElev, color: COLORS.ink }}>
             {loading && <Loader2 size={12} className="animate-spin" />}{selected?.answer ? '답변 수정하기' : '답변 등록하기'}
           </button>
           

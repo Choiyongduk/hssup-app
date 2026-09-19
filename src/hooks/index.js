@@ -1,5 +1,5 @@
 // 커스텀 훅 모음
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 // =============================================================
@@ -20,6 +20,22 @@ export function useDetailItem(propItem, routeId, table) {
     return () => { alive = false; };
   }, [propItem, routeId, table]);
   return { item: propItem || loaded, fetching };
+}
+
+// =============================================================
+// 👁 useViewCount - 상세 페이지 진입 시 조회수 +1
+//   볼 때마다 카운트(사용자별 중복 방지 없음, 단순 방식)
+// =============================================================
+export function useViewCount(table, itemId) {
+  const firedRef = useRef(null); // 개발 모드 StrictMode가 effect를 두 번 실행해서 +2가 되는 것 방지
+  useEffect(() => {
+    if (!itemId) return;
+    const key = `${table}:${itemId}`;
+    if (firedRef.current === key) return;
+    firedRef.current = key;
+    supabase.rpc('increment_view_count', { p_table: table, p_id: itemId })
+      .then(({ error }) => { if (error) console.error('조회수 증가 실패:', error); });
+  }, [table, itemId]);
 }
 
 // =============================================================

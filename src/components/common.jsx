@@ -6,6 +6,13 @@ import { COLORS, getInitial, AVATAR_COLORS, maskAuthor } from '../lib/colors';
 import { subscribeToast, toast } from '../lib/toast';
 import { subscribeConfirm, confirmDialog } from '../lib/dialog';
 import { useLevel, TIERS, TIER_ORDER, SCORE_TABLE, POINTS, MASTER_SCORE } from '../lib/level';
+import { notifyUsers } from '../lib/notifications';
+
+// 콘텐츠 종류(targetType) → 딥링크 상세 페이지 URL 프리픽스 (좋아요/댓글 알림에 공용으로 씀)
+const TARGET_TYPE_TO_PATH = {
+  notice: 'notice', qna: 'qna', trend: 'trend', tip: 'tip',
+  lecture: 'lecture', community_post: 'post', product: 'product',
+};
 import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
 // =============================================================
@@ -15,6 +22,7 @@ import { Heart, Plus, Send, Trash2, Image as ImageIcon, Loader2, X, ChevronLeft,
 // =============================================================
 export function CategoryMover({ table, itemId, current, options, onMoved }) {
   const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const move = async (cat) => {
     if (cat === current || loading) return;
     if (!await confirmDialog(`이 게시글을 "${cat}" 카테고리로 이동할까요?`)) return;
@@ -23,8 +31,17 @@ export function CategoryMover({ table, itemId, current, options, onMoved }) {
     setLoading(false);
     if (error) { toast('이동 실패: ' + error.message); return; }
     toast(`"${cat}" 카테고리로 이동했어요`);
+    setExpanded(false);
     onMoved?.(cat);
   };
+  // 접힌 상태: 그냥 둘러보다 실수로 카테고리를 눌러 이동 확인창이 뜨는 걸 방지 — 눌러야 이동 버튼들이 펼쳐짐
+  if (!expanded) {
+    return (
+      <button onClick={() => setExpanded(true)} className="font-mono text-[10px] font-bold tracking-widest uppercase underline" style={{ color: COLORS.stone }}>
+        카테고리 이동하기
+      </button>
+    );
+  }
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       <span className="font-mono text-[10px] font-bold tracking-widest uppercase mr-1" style={{ color: COLORS.stone }}>이동</span>
@@ -42,6 +59,9 @@ export function CategoryMover({ table, itemId, current, options, onMoved }) {
           </button>
         );
       })}
+      <button onClick={() => setExpanded(false)} className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
+        접기
+      </button>
     </div>
   );
 }
@@ -579,28 +599,28 @@ export function LevelCard({ userId, setCurrentPage }) {
                   style={{ width: `${scorePct}%`, background: COLORS.primary, boxShadow: '0 0 12px rgba(255,92,31,0.4)' }}></div>
               </div>
               <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>
-                다음 등급 <span style={{ color: TIERS.master.color, fontWeight: 'bold' }}>MASTER</span>까지 최근 30일 점수 <span style={{ color: COLORS.ink, fontWeight: 'bold' }}>{lv.score}</span> / {MASTER_SCORE}점
+                다음 등급 <span style={{ color: TIERS.master.color, fontWeight: 'bold' }}>MASTER</span>까지 누적 점수 <span style={{ color: COLORS.ink, fontWeight: 'bold' }}>{lv.score}</span> / {MASTER_SCORE}점
               </p>
             </div>
           )}
           {isMaster && (
-            <p className="font-serif-italic text-sm mt-3" style={{ color: def.color }}>최고 등급입니다 · 최근 30일 {lv.score}점</p>
+            <p className="font-serif-italic text-sm mt-3" style={{ color: def.color }}>최고 등급입니다 · 누적 {lv.score}점</p>
           )}
         </div>
       </div>
 
-      {/* 최근 30일 점수 내역 (CREW/MASTER) */}
+      {/* 누적 점수 내역 (CREW/MASTER) */}
       {!isMember && (
         <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.stone }}>최근 30일 활동</p>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: COLORS.stone }}>누적 활동</p>
           <div className="grid grid-cols-3 gap-2">
             {[
-              ['출석', lv.attendance30, POINTS.attendance],
-              ['좋아요', lv.likes30, POINTS.like],
-              ['댓글', lv.comments30, POINTS.comment],
-              ['게시글', lv.posts30, POINTS.post],
-              ['연습사진', lv.cases30, POINTS.case],
-              ['베스트', lv.best30, POINTS.best],
+              ['출석', lv.attendanceAll, POINTS.attendance],
+              ['좋아요', lv.likesAll, POINTS.like],
+              ['댓글', lv.commentsAll, POINTS.comment],
+              ['게시글', lv.postsAll, POINTS.post],
+              ['연습사진', lv.casesAll, POINTS.case],
+              ['베스트', lv.bestAll, POINTS.best],
             ].map(([label, n, pt]) => (
               <div key={label} className="text-center rounded-lg py-2" style={{ background: COLORS.cardElev }}>
                 <p className="font-display text-base" style={{ color: COLORS.ink }}>{n * pt}</p>
@@ -636,7 +656,7 @@ export function LevelCard({ userId, setCurrentPage }) {
           );
         })}
         <p className="font-body text-[10px]" style={{ color: COLORS.stone }}>
-          ※ MASTER는 최근 30일 활동 점수로 유지됩니다 · 점수: {SCORE_TABLE.map(([l, p]) => `${l} ${p}점`).join(', ')}
+          ※ MASTER는 누적 활동 점수로 판정됩니다 · 점수: {SCORE_TABLE.map(([l, p]) => `${l} ${p}점`).join(', ')}
         </p>
       </div>
     </div>
@@ -654,45 +674,58 @@ export function PageIntro({ ko, en, desc }) {
 
 // initialCount/initialLiked가 주어지면 자체 쿼리 없이 그 값으로 표시(목록 N+1 방지).
 // 부모가 한 번에 모아서 내려주는 용도. 주어지지 않으면 기존처럼 스스로 조회.
-export function LikeButton({ targetType, targetId, userId, size = 14, initialCount, initialLiked }) {
-  const hasInitial = initialCount !== undefined;
+export function LikeButton({ targetType, targetId, userId, size = 14, initialCount, initialLiked, authorId, onToggle }) {
+  const hasInitialCount = initialCount !== undefined;
   const [liked, setLiked] = useState(!!initialLiked);
   const [count, setCount] = useState(initialCount || 0);
   const [loading, setLoading] = useState(false);
+  const busyRef = useRef(false); // 연타/더블탭 시 state 갱신 전에 두 번 요청 나가는 것 방지(동기 가드)
 
+  // 카운트는 목록에서 한 번에 계산해 내려주면 그대로 신뢰(N+1 방지)
   useEffect(() => {
-    if (hasInitial) { setLiked(!!initialLiked); setCount(initialCount || 0); return; }
+    if (hasInitialCount) setCount(initialCount || 0);
+  }, [hasInitialCount, initialCount]);
+
+  // 🍊 "내가 좋아요 눌렀는지"는 항상 이 버튼이 직접 서버에 물어봐서 확인한다.
+  //   목록(부모)에서 한 번에 계산해 initialLiked로 내려주면, 상세 페이지 갔다가 목록으로
+  //   돌아왔을 때(목록 재조회) 값이 자꾸 어긋나는 문제가 있었음 — 상세 페이지처럼 항상
+  //   직접 조회하는 방식으로 통일해서 원천 차단.
+  useEffect(() => {
     if (!targetId || !userId) return;
-    load();
-  }, [targetType, targetId, userId, hasInitial, initialCount, initialLiked]);
+    let alive = true;
+    supabase.from('likes').select('id')
+      .eq('target_type', targetType).eq('target_id', targetId).eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) { console.error('좋아요 상태 확인 실패:', error); return; }
+        setLiked(!!data);
+      });
+    return () => { alive = false; };
+  }, [targetType, targetId, userId]);
 
-  const load = async () => {
-    // 전체 좋아요 수 카운트
-    const { count: totalCount } = await supabase
-      .from('likes')
-      .select('*', { count: 'exact', head: true })
-      .eq('target_type', targetType)
-      .eq('target_id', targetId);
-    setCount(totalCount || 0);
+  // 카운트를 안 받았으면(상세 페이지 등) 전체 좋아요 수도 직접 조회
+  useEffect(() => {
+    if (hasInitialCount || !targetId) return;
+    supabase.from('likes').select('*', { count: 'exact', head: true })
+      .eq('target_type', targetType).eq('target_id', targetId)
+      .then(({ count: totalCount }) => setCount(totalCount || 0));
+  }, [targetType, targetId, hasInitialCount]);
 
-    // 내가 좋아요 눌렀는지 확인
-    const { data } = await supabase
-      .from('likes')
-      .select('id')
-      .eq('target_type', targetType)
-      .eq('target_id', targetId)
-      .eq('user_id', userId)
-      .maybeSingle();
-    setLiked(!!data);
-  };
+  // 🍊 목록(부모)의 like_count가 실제와 어긋나지 않도록, liked/count가 바뀔 때마다 부모에게 최신값을 올려보냄.
+  useEffect(() => {
+    onToggle?.(liked, count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liked, count]);
 
   const toggle = async (e) => {
     e.stopPropagation();
-    if (loading) return;
+    if (busyRef.current) return; // state 갱신(리렌더) 전에 연타해도 두 번째 요청은 여기서 막힘
     if (!userId) {
       toast('로그인 정보가 없습니다');
       return;
     }
+    busyRef.current = true;
     setLoading(true);
 
     if (liked) {
@@ -716,13 +749,27 @@ export function LikeButton({ targetType, targetId, userId, size = 14, initialCou
         .from('likes')
         .insert({ target_type: targetType, target_id: targetId, user_id: userId });
       if (error) {
-        console.error('좋아요 에러:', error);
-        toast('좋아요 실패: ' + error.message);
+        if (error.code === '23505') {
+          // 이미 좋아요 상태(동시 요청 등) — 에러로 보여줄 필요 없이 화면만 liked로 동기화
+          setLiked(true);
+        } else {
+          console.error('좋아요 에러:', error);
+          toast('좋아요 실패: ' + error.message);
+        }
       } else {
         setLiked(true);
         setCount(c => c + 1);
+        if (authorId && authorId !== userId) {
+          notifyUsers({
+            title: '내 글에 좋아요가 달렸어요',
+            body: '누군가 내 글에 좋아요를 눌렀어요',
+            url: `/${TARGET_TYPE_TO_PATH[targetType] || ''}/${targetId}`,
+            userIds: authorId,
+          });
+        }
       }
     }
+    busyRef.current = false;
     setLoading(false);
   };
 
@@ -799,13 +846,7 @@ export function Pagination({ page, total, perPage, onChange }) {
   );
 }
 
-// 댓글 대상(targetType) → 딥링크 상세 페이지 URL 프리픽스
-const TARGET_TYPE_TO_PATH = {
-  notice: 'notice', qna: 'qna', trend: 'trend', tip: 'tip',
-  lecture: 'lecture', community_post: 'post', product: 'product',
-};
-
-export function CommentSection({ targetType, targetId, user }) {
+export function CommentSection({ targetType, targetId, user, authorId }) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [posting, setPosting] = useState(false);
@@ -891,6 +932,14 @@ export function CommentSection({ targetType, targetId, user }) {
     if (error) {
       toast('댓글 작성 실패: ' + error.message);
     } else {
+      if (authorId && authorId !== user.id) {
+        notifyUsers({
+          title: '내 글에 댓글이 달렸어요',
+          body: `${user.name || '누군가'}: ${newComment.trim().substring(0, 80)}`,
+          url: `/${TARGET_TYPE_TO_PATH[targetType] || ''}/${targetId}`,
+          userIds: authorId,
+        });
+      }
       setNewComment('');
       await load();
     }
