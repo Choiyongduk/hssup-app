@@ -491,6 +491,12 @@ export default function HSSUPApp() {
     try { sessionStorage.removeItem('hssup_last_page'); } catch (e) { /* 무시 */ }
   };
 
+  // 🍊 로고/홈 탭처럼 "새로 홈으로" 의도의 이동은 홈에 남아있던 검색 상태도 같이 초기화
+  const goHome = () => {
+    try { sessionStorage.removeItem('hssup_home_search'); } catch (e) { /* 무시 */ }
+    setCurrentPage(isAdmin ? 'dashboard' : 'home');
+  };
+
   // 🍊 현재 로그인된 사용자의 profile만 다시 읽어와 상태 갱신 (loadProfile의 페이지 복원 로직 우회)
   const refreshUser = async () => {
     if (!session?.user?.id) return;
@@ -735,7 +741,7 @@ export default function HSSUPApp() {
             <>
               <AppHeader user={profile} isAdmin={isAdmin}
                 onMenuClick={() => setDrawerOpen(true)}
-                onLogoClick={() => setCurrentPage(isAdmin ? 'dashboard' : 'home')}
+                onLogoClick={goHome}
                 onProfileClick={() => setCurrentPage('mypage')}
                 showBackButton={isSubPage}
                 onBackClick={() => window.history.back()} />
@@ -782,11 +788,11 @@ export default function HSSUPApp() {
                   </Suspense>
                 </div>
               </main>
-              <BottomTabBar tabs={tabs} currentPage={currentPage} setCurrentPage={setCurrentPage} setDrawerOpen={setDrawerOpen} />
+              <BottomTabBar tabs={tabs} currentPage={currentPage} setCurrentPage={(p) => p === 'home' ? goHome() : setCurrentPage(p)} setDrawerOpen={setDrawerOpen} />
               {drawerOpen && (
                 <Drawer fullMenu={fullMenu} user={profile} isAdmin={isAdmin}
                   currentPage={currentPage}
-                  setCurrentPage={(p) => { setCurrentPage(p); setDrawerOpen(false); }}
+                  setCurrentPage={(p) => { p === 'home' ? goHome() : setCurrentPage(p); setDrawerOpen(false); }}
                   onClose={() => setDrawerOpen(false)} handleLogout={handleLogout} />
               )}
             </>
@@ -1732,7 +1738,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'payment-fail') return <PaymentFailPage setCurrentPage={setCurrentPage} />;
   if (currentPage === 'product-detail') return <ProductDetailPage product={selectedProduct} user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} routeId={routeId} />;
   if (currentPage === 'course-detail') return <CourseDetailPage course={selectedCourse} user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} setSelectedProduct={setSelectedProduct} routeId={routeId} />;
-  if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
+  if (currentPage === 'home') return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} setSelectedPost={setSelectedPost} setSelectedQna={setSelectedQna} setSelectedTrend={setSelectedTrend} setSelectedTip={setSelectedTip} setSelectedProduct={setSelectedProduct} setSelectedLecture={setSelectedLecture} />;
   if (currentPage === 'notice') return <NoticePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} />;
   if (currentPage === 'course') return <CoursePage user={user} setCurrentPage={setCurrentPage} setSelectedCourse={setSelectedCourse} setSelectedProduct={setSelectedProduct} />;
   if (currentPage === 'best') return <BestCasePage />;
@@ -1765,7 +1771,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'my-bookings') return <MyPracticeBookingsPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
   if (currentPage === 'admin-improvements') return <AdminImprovements user={user} />;
-  return <HomePage user={user} setCurrentPage={setCurrentPage} />;
+  return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} setSelectedPost={setSelectedPost} setSelectedQna={setSelectedQna} setSelectedTrend={setSelectedTrend} setSelectedTip={setSelectedTip} setSelectedProduct={setSelectedProduct} setSelectedLecture={setSelectedLecture} />;
 }
  
 

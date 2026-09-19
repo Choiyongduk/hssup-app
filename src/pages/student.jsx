@@ -13,14 +13,82 @@ import {
 } from '../components/common';
 import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar, Gift, ExternalLink, Eye } from 'lucide-react';
 
-export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
+// 홈 검색바 입력값 → 결과(게시물/Q&A/공지/트렌드/꿀팁/강의/상품)를 그 자리에서 보여주는 훅
+function useHomeSearch(query) {
+  const [debounced, setDebounced] = useState(query); // 초기값을 query로 둬서 복원 시 깜빡임 없이 바로 결과 표시
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query.trim()), 350);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    if (!debounced) { setResults(null); setLoading(false); return; }
+    let alive = true;
+    setLoading(true);
+    const q = `%${debounced}%`;
+    const dedupe = (a, b) => {
+      const map = new Map();
+      [...(a.data || []), ...(b.data || [])].forEach(x => map.set(x.id, x));
+      return [...map.values()].sort((x, y) => new Date(y.created_at) - new Date(x.created_at)).slice(0, 5);
+    };
+    (async () => {
+      const [posts, notices, trends, tips, qna, lecturesByTitle, lecturesByInstructor, productsByName, productsByBrand] = await Promise.all([
+        supabase.from('community_posts').select('id, content, category, created_at').ilike('content', q).order('created_at', { ascending: false }).limit(8),
+        supabase.from('notices').select('id, title, created_at').ilike('title', q).order('created_at', { ascending: false }).limit(5),
+        supabase.from('trends').select('id, title, created_at').eq('is_active', true).ilike('title', q).order('created_at', { ascending: false }).limit(5),
+        supabase.from('tips').select('id, title, created_at').eq('is_active', true).ilike('title', q).order('created_at', { ascending: false }).limit(5),
+        supabase.from('questions').select('id, title, created_at').ilike('title', q).order('created_at', { ascending: false }).limit(5),
+        supabase.from('lectures').select('id, title, instructor, created_at').eq('is_published', true).ilike('title', q).order('created_at', { ascending: false }).limit(5),
+        supabase.from('lectures').select('id, title, instructor, created_at').eq('is_published', true).ilike('instructor', q).order('created_at', { ascending: false }).limit(5),
+        supabase.from('products').select('id, name, brand, created_at').eq('is_active', true).ilike('name', q).order('created_at', { ascending: false }).limit(5),
+        supabase.from('products').select('id, name, brand, created_at').eq('is_active', true).ilike('brand', q).order('created_at', { ascending: false }).limit(5),
+      ]);
+      if (!alive) return;
+      setResults({
+        posts: posts.data || [],
+        notices: notices.data || [],
+        trends: trends.data || [],
+        tips: tips.data || [],
+        qna: qna.data || [],
+        lectures: dedupe(lecturesByTitle, lecturesByInstructor),
+        products: dedupe(productsByName, productsByBrand),
+      });
+      setLoading(false);
+    })();
+    return () => { alive = false; };
+  }, [debounced]);
+
+  return { debounced, loading, results };
+}
+
+const HOME_SEARCH_STORAGE_KEY = 'hssup_home_search';
+
+export function HomePage({ user, setCurrentPage, setSelectedNotice, setSelectedPost, setSelectedQna, setSelectedTrend, setSelectedTip, setSelectedProduct, setSelectedLecture }) {
   const [notices, setNotices] = useState([]);
+  // 검색 후 상세로 들어갔다가 뒤로가기 하면 홈이 아니라 검색 결과 화면이 그대로 보이도록 세션 동안 유지
+  const [query, setQuery] = useState(() => {
+    try { return sessionStorage.getItem(HOME_SEARCH_STORAGE_KEY) || ''; } catch (e) { return ''; }
+  });
   const c = COLORS;
+
+  useEffect(() => {
+    try {
+      if (query) sessionStorage.setItem(HOME_SEARCH_STORAGE_KEY, query);
+      else sessionStorage.removeItem(HOME_SEARCH_STORAGE_KEY);
+    } catch (e) { /* 무시 */ }
+  }, [query]);
 
   useEffect(() => {
     supabase.from('notices').select('*').order('created_at', { ascending: false }).limit(3)
       .then(({ data }) => setNotices(data || []));
   }, []);
+
+  const { debounced, loading, results } = useHomeSearch(query);
+  const searching = !!debounced;
+  const total = results ? Object.values(results).reduce((s, arr) => s + arr.length, 0) : 0;
 
   // 퀵메뉴 (상단으로 이동 · 클래스·온라인강의는 위 히어로 카드와 겹쳐서 제외, 3줄 12개)
   const mainGrid = [
@@ -44,18 +112,83 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
   const memberPages = ['post-detail', 'qna-detail'];
   const memberPosts = homeUpdates.filter(u => memberPages.includes(u.page));
 
+  const SearchResultSection = ({ title, icon: Icon, items, label, onClick }) => items.length === 0 ? null : (
+    <div className="mb-5">
+      <div className="flex items-center gap-1.5 px-5 mb-2">
+        <Icon size={13} style={{ color: c.primary }} />
+        <p className="font-mono text-[10px] font-bold tracking-[0.2em] uppercase" style={{ color: c.stone }}>{title}</p>
+      </div>
+      <div className="mx-5 rounded-2xl overflow-hidden" style={{ background: c.card, border: `1px solid ${c.light}` }}>
+        {items.map((item, i) => (
+          <button key={item.id} onClick={() => onClick(item)}
+            className="w-full text-left flex items-center gap-2.5 py-3 px-4 transition-transform active:scale-[0.98]"
+            style={{ borderTop: i !== 0 ? `1px solid ${c.light}` : 'none' }}>
+            <p className="font-body text-sm flex-1 truncate" style={{ color: c.ink }}>{label(item)}</p>
+            <ChevronRight size={14} style={{ color: c.stone, flexShrink: 0 }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="pb-6">
-      {/* 검색바 (상단으로 이동) */}
+      {/* 검색바 (상단으로 이동 · 홈 화면에서 바로 검색) */}
       <section className="px-5 pt-4">
-        <button onClick={() => toast('검색은 준비 중이에요')}
-          className="w-full flex items-center gap-2.5 rounded-2xl px-4 py-3 transition-transform active:scale-[0.98]"
-          style={{ background: c.cardElev, border: `1px solid ${c.light}` }}>
-          <Search size={16} style={{ color: c.muted }} />
-          <span className="font-body text-sm" style={{ color: c.muted }}>강의, 재료, 게시물 검색</span>
-        </button>
+        <div className="relative">
+          <Search size={16} style={{ color: c.muted, position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+          <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="강의, 재료, 게시물 검색"
+            className="w-full rounded-2xl pl-10 pr-10 py-3 font-body text-sm outline-none"
+            style={{ background: c.cardElev, color: c.ink, border: `1px solid ${c.light}` }} />
+          {query && (
+            <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: c.card }}>
+              <X size={12} style={{ color: c.stone }} />
+            </button>
+          )}
+        </div>
       </section>
 
+      {searching ? (
+        <div className="pt-4">
+          {loading && (
+            <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin" style={{ color: c.primary }} /></div>
+          )}
+          {!loading && results && total === 0 && (
+            <div className="px-5 py-16 text-center">
+              <p className="font-body text-sm" style={{ color: c.stone }}>"{debounced}" 검색 결과가 없어요</p>
+            </div>
+          )}
+          {!loading && results && total > 0 && (
+            <>
+              {/* 검색 결과는 일부 컬럼만 가져온 상태라, 상세로 넘어갈 땐 selected*를 비워서
+                  상세 페이지가 routeId로 전체 데이터를 다시 조회하게 한다(안 그러면 이미지·가격 등이 비어 보임) */}
+              <SearchResultSection title="게시물" icon={Users} items={results.posts}
+                label={(p) => (p.content || '').replace(/\n/g, ' ').slice(0, 50) || '(사진)'}
+                onClick={(p) => { setSelectedPost(null); setCurrentPage('post-detail', p.id); }} />
+              <SearchResultSection title="Q&A" icon={MessageCircle} items={results.qna}
+                label={(q) => q.title}
+                onClick={(q) => { setSelectedQna(null); setCurrentPage('qna-detail', q.id); }} />
+              <SearchResultSection title="공지사항" icon={Bell} items={results.notices}
+                label={(n) => n.title}
+                onClick={(n) => { setSelectedNotice(null); setCurrentPage('notice-detail', n.id); }} />
+              <SearchResultSection title="트렌드 속보" icon={ArrowUpRight} items={results.trends}
+                label={(t) => t.title}
+                onClick={(t) => { setSelectedTrend(null); setCurrentPage('trend-detail', t.id); }} />
+              <SearchResultSection title="수업 꿀팁" icon={Sparkles} items={results.tips}
+                label={(t) => t.title}
+                onClick={(t) => { setSelectedTip(null); setCurrentPage('tip-detail', t.id); }} />
+              <SearchResultSection title="온라인 강의" icon={PlayCircle} items={results.lectures}
+                label={(l) => l.title}
+                onClick={(l) => { setSelectedLecture(null); setCurrentPage('lecture-detail', l.id); }} />
+              <SearchResultSection title="재료샵" icon={ShoppingBag} items={results.products}
+                label={(p) => p.name}
+                onClick={(p) => { setSelectedProduct(null); setCurrentPage('product-detail', p.id); }} />
+            </>
+          )}
+        </div>
+      ) : (
+      <>
       {/* 환영 메시지 + 온라인 강의(축소 카드) */}
       <section className="px-5 pt-5 pb-5 relative overflow-hidden">
         <div className="absolute -top-12 -right-16 w-52 h-52 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,92,31,0.22), rgba(255,92,31,0.06) 35%, transparent 70%)' }}></div>
@@ -163,6 +296,8 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice }) {
           ))}
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }
