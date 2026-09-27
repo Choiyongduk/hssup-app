@@ -72,6 +72,7 @@ const lazyAdmin = (name) => lazy(() => import('./pages/admin').then(m => ({ defa
 const AdminImprovements = lazyAdmin('AdminImprovements');
 const AdminDashboard = lazyAdmin('AdminDashboard');
 const AdminTrends = lazyAdmin('AdminTrends');
+const AdminAIOffice = lazyAdmin('AdminAIOffice');
 const AdminTips = lazyAdmin('AdminTips');
 const AdminNotice = lazyAdmin('AdminNotice');
 const AdminOrders = lazyAdmin('AdminOrders');
@@ -530,7 +531,7 @@ export default function HSSUPApp() {
       'payment', 'product-detail',
       'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
-      'admin-library', 'admin-courses', 'admin-improvements', 'admin-trends',
+      'admin-library', 'admin-courses', 'admin-improvements', 'admin-trends', 'admin-ai',
       'trends', 'tips', 'admin-tips'
     ];
     if (SAVABLE_PAGES.includes(currentPage)) {
@@ -637,6 +638,7 @@ export default function HSSUPApp() {
       { id: 'admin-students', label: '수강생', icon: UserCheck },
       { id: 'admin-qna', label: 'Q&A 답변', icon: MessageCircle },
       { id: 'admin-notice', label: '학원공지 관리', icon: Bell },
+      ...(canViewRevenue ? [{ id: 'admin-ai', label: 'AI 오피스', icon: BarChart3 }] : []),
       { id: 'admin-trends', label: '트렌드 속보 관리', icon: Sparkles },
       { id: 'admin-tips', label: '수업 꿀팁 관리', icon: Sparkles },
       { id: 'admin-cases', label: '1:1 피드백 관리', icon: Camera },
@@ -1747,6 +1749,7 @@ function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNo
   if (currentPage === 'trends') return <TrendsPage user={user} setCurrentPage={setCurrentPage} setSelectedTrend={setSelectedTrend} />;
   if (currentPage === 'trend-detail') return <TrendDetailPage trend={selectedTrend} user={user} routeId={routeId} />;
   if (currentPage === 'admin-trends') return <AdminTrends user={user} />;
+  if (currentPage === 'admin-ai') return canViewRevenue ? <AdminAIOffice user={user} /> : null;
   if (currentPage === 'tips') return <TipsPage user={user} setCurrentPage={setCurrentPage} setSelectedTip={setSelectedTip} />;
   if (currentPage === 'tip-detail') return <TipDetailPage tip={selectedTip} user={user} routeId={routeId} />;
   if (currentPage === 'admin-tips') return <AdminTips user={user} />;

@@ -10,7 +10,7 @@ import { useDraft } from '../hooks';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
-import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck } from 'lucide-react';
+import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck } from 'lucide-react';
 
 export function AdminImprovements({ user }) {
   const [items, setItems] = useState([]);
@@ -349,6 +349,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
     : null;
 
   const quickActions = [
+    ...(canViewRevenue ? [{ id: 'admin-ai', label: 'AI OFFICE', ko: 'AI 오피스', icon: BarChart3 }] : []),
     { id: 'admin-approvals',    label: 'APPROVE',  ko: '가입 승인',     icon: UserPlus },
     { id: 'admin-notice',       label: 'NOTICE',   ko: '학원공지',      icon: Bell },
     { id: 'admin-trends',       label: 'TRENDS',   ko: '트렌드',     icon: Sparkles },
@@ -5330,6 +5331,684 @@ export function AdminQna({ user }) {
         ))}
         <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
         </>}
+      </div>
+    </>
+  );
+}
+
+// 🤖 AI OFFICE — 자동화(hssup-cardnews)가 만든 분석 리포트를 읽는 화면.
+// 직원 계정 분석처럼 민감한 내용이 들어가므로 원장(admin)만 볼 수 있다. (RLS로도 막혀 있음)
+const REPORT_KINDS = {
+  plan: { ko: '콘텐츠 기획', icon: Sparkles },
+  feed: { ko: '피드 분석', icon: BarChart3 },
+  staff: { ko: '직원 계정', icon: Users },
+};
+
+// 리포트는 마크다운으로 저장된다. 마크다운 라이브러리를 새로 넣지 않고
+// 실제로 쓰는 문법(제목, 굵게, 목록)만 최소한으로 그린다.
+function ReportBody({ text }) {
+  const inline = (s) =>
+    s.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      part.startsWith('**') && part.endsWith('**')
+        ? <strong key={i} style={{ color: COLORS.ink }}>{part.slice(2, -2)}</strong>
+        : <React.Fragment key={i}>{part}</React.Fragment>
+    );
+
+  return (
+    <div className="space-y-2">
+      {text.split('\n').map((line, i) => {
+        const t = line.trim();
+        if (!t) return <div key={i} className="h-2" />;
+        if (t.startsWith('## ')) {
+          return (
+            <h3 key={i} className="font-heading text-base mt-5 mb-1" style={{ color: COLORS.primary }}>
+              {t.slice(3)}
+            </h3>
+          );
+        }
+        if (t.startsWith('# ')) {
+          return (
+            <h2 key={i} className="font-display text-xl mt-3 tracking-tight" style={{ color: COLORS.ink }}>
+              {t.slice(2)}
+            </h2>
+          );
+        }
+        if (/^[-*]\s/.test(t)) {
+          return (
+            <div key={i} className="flex gap-2 pl-1">
+              <span style={{ color: COLORS.primary }}>·</span>
+              <p className="font-body text-sm leading-relaxed flex-1" style={{ color: COLORS.stone }}>{inline(t.slice(2))}</p>
+            </div>
+          );
+        }
+        const numbered = t.match(/^(\d+)\.\s+(.*)$/);
+        if (numbered) {
+          return (
+            <div key={i} className="flex gap-2 pl-1">
+              <span className="font-mono text-xs mt-0.5" style={{ color: COLORS.primary }}>{numbered[1]}.</span>
+              <p className="font-body text-sm leading-relaxed flex-1" style={{ color: COLORS.stone }}>{inline(numbered[2])}</p>
+            </div>
+          );
+        }
+        return (
+          <p key={i} className="font-body text-sm leading-relaxed" style={{ color: COLORS.stone }}>{inline(t)}</p>
+        );
+      })}
+    </div>
+  );
+}
+
+const isVideoUrl = (url) => /\.(mp4|mov|webm)(\?|$)/i.test(url || '');
+
+// 미디어 전체보기. 사진은 크게, 영상은 재생할 수 있게 띄운다.
+function MediaViewer({ url, onClose }) {
+  return createPortal(
+    <div onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      }}>
+      <button onClick={onClose}
+        style={{
+          position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', right: 12,
+          width: 40, height: 40, border: 'none', borderRadius: 20,
+          background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+        <X size={20} />
+      </button>
+      {isVideoUrl(url) ? (
+        <video src={url} controls autoPlay playsInline onClick={e => e.stopPropagation()}
+          style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12 }} />
+      ) : (
+        <img src={url} alt="" onClick={e => e.stopPropagation()}
+          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 12 }} />
+      )}
+    </div>,
+    document.body
+  );
+}
+
+// 승인 대기 카드. 지금은 인스타그램 게시만 올라온다.
+// (DM 자동응대는 인스타 기본 자동응답을 쓰기로 해서 자동화에서 뺐다.)
+function ApprovalCard({ row, onDecide, onSaveBody }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(row.body || '');
+  const [viewing, setViewing] = useState(null);
+  const media = Array.isArray(row.image_urls) ? row.image_urls : [];
+  const hasVideo = media.some(isVideoUrl);
+
+  const decide = async (status) => {
+    setBusy(true);
+    const ok = await onDecide(row, status);
+    if (!ok) setBusy(false);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    const ok = await onSaveBody(row, draft);
+    setBusy(false);
+    if (ok) setEditing(false);
+  };
+
+  const firstLine = (row.body || '').split('\n').find(l => l.trim()) || '내용 없음';
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+      <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+          {hasVideo
+            ? <Play size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+            : <Camera size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-heading text-sm truncate" style={{ color: COLORS.ink }}>{firstLine}</p>
+          <p className="font-mono text-[10px] mt-1 tracking-wider" style={{ color: COLORS.muted }}>
+            {new Date(row.created_at).toLocaleString('ko-KR', {
+              month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+            })} · {row.channel} · {hasVideo ? '영상' : `사진 ${media.length}장`}
+          </p>
+        </div>
+        <ChevronRight size={17} strokeWidth={1.8}
+          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {open && (
+        <>
+          <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+            {media.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto my-3 -mx-1 px-1">
+                {media.map((url, i) => (
+                  <button key={i} onClick={() => setViewing(url)}
+                    className="relative w-24 h-24 rounded-xl overflow-hidden shrink-0"
+                    style={{ border: `1px solid ${COLORS.light}`, background: COLORS.cardElev }}>
+                    {isVideoUrl(url) ? (
+                      <>
+                        <video src={url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                        <span className="absolute inset-0 flex items-center justify-center"
+                          style={{ background: 'rgba(0,0,0,0.3)' }}>
+                          <Play size={20} style={{ color: '#fff' }} />
+                        </span>
+                      </>
+                    ) : (
+                      <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {editing ? (
+              <>
+                <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={10}
+                  className="w-full rounded-xl p-3 font-body text-sm leading-relaxed"
+                  style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
+                <div className="flex gap-2 mt-2">
+                  <button onClick={save} disabled={busy}
+                    className="px-4 py-2 rounded-xl font-heading text-xs disabled:opacity-50"
+                    style={{ background: COLORS.ink, color: COLORS.card }}>저장</button>
+                  <button onClick={() => { setDraft(row.body || ''); setEditing(false); }} disabled={busy}
+                    className="px-4 py-2 rounded-xl font-heading text-xs"
+                    style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>취소</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="font-body text-sm leading-relaxed whitespace-pre-wrap" style={{ color: COLORS.stone }}>{row.body}</p>
+                <button onClick={() => setEditing(true)}
+                  className="mt-3 inline-flex items-center gap-1 font-heading text-xs"
+                  style={{ color: COLORS.primary }}>
+                  <Edit3 size={13} /> 내용 수정
+                </button>
+              </>
+            )}
+          </div>
+
+          {!editing && (
+            <div className="flex gap-2 p-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+              <button onClick={() => decide('approved')} disabled={busy}
+                className="flex-1 py-3 rounded-xl font-heading text-sm transition-transform active:scale-95 disabled:opacity-50"
+                style={{ background: COLORS.primary, color: COLORS.card }}>
+                {busy ? '처리 중…' : '게시'}
+              </button>
+              <button onClick={() => decide('skipped')} disabled={busy}
+                className="px-5 py-3 rounded-xl font-heading text-sm transition-transform active:scale-95 disabled:opacity-50"
+                style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                건너뛰기
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {viewing && <MediaViewer url={viewing} onClose={() => setViewing(null)} />}
+    </div>
+  );
+}
+
+// 리포트에 달린 대화. 원장이 피드백을 남기면 담당 직원이 읽고 답한다.
+// 답변은 자동화가 주기적으로 돌면서 만들기 때문에 바로 오지는 않는다.
+function ReportThread({ reportId }) {
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from('ai_messages')
+        .select('*')
+        .eq('report_id', reportId)
+        .order('created_at', { ascending: true });
+      if (error) console.error('대화 로드 에러:', error);
+      setMessages(data || []);
+      setLoading(false);
+    })();
+  }, [reportId, reloadKey]);
+
+  // 답변은 자동화가 주기적으로 만들기 때문에, 기다리는 동안에만 짧게 다시 확인한다.
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== 'owner' || last.answered) return;
+    const timer = setInterval(() => setReloadKey(k => k + 1), 15000);
+    return () => clearInterval(timer);
+  }, [messages]);
+
+  const send = async () => {
+    const body = draft.trim();
+    if (!body) return;
+    setSending(true);
+    const { error } = await supabase.from('ai_messages').insert({ report_id: reportId, role: 'owner', body });
+    setSending(false);
+    if (error) {
+      toast('보내지 못했어요: ' + error.message);
+      return;
+    }
+    setDraft('');
+    toast('전달했어요. 잠시 후 답이 옵니다');
+    setReloadKey(k => k + 1);
+  };
+
+  const waiting = messages.length > 0
+    && messages[messages.length - 1].role === 'owner'
+    && !messages[messages.length - 1].answered;
+
+  return (
+    <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+      <p className="font-mono text-[9px] mb-3 tracking-widest" style={{ color: COLORS.muted }}>담당 직원과 대화</p>
+
+      {!loading && messages.map(m => (
+        <div key={m.id} className={`mb-3 flex flex-col ${m.role === 'owner' ? 'items-end' : 'items-start'}`}>
+          <div className="max-w-[85%] rounded-2xl px-3 py-2"
+            style={m.role === 'owner'
+              ? { background: COLORS.primary, color: COLORS.card }
+              : { background: COLORS.cardElev, color: COLORS.ink }}>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>
+          </div>
+          <p className="font-mono text-[9px] mt-1 px-1" style={{ color: COLORS.muted }}>
+            {m.role === 'owner' ? '' : '담당 직원 · '}
+            {new Date(m.created_at).toLocaleString('ko-KR', {
+              month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+            })}
+          </p>
+        </div>
+      ))}
+
+      {waiting && (
+        <p className="font-body text-xs mb-2" style={{ color: COLORS.muted }}>답변을 준비하고 있어요…</p>
+      )}
+
+      <div className="flex gap-2 pt-3 pb-1"
+        style={{ position: 'sticky', bottom: 0, background: COLORS.card, zIndex: 5 }}>
+        <input value={draft} onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="고쳤으면 하는 점을 알려주세요"
+          className="flex-1 rounded-xl px-3 py-2.5 font-body text-sm"
+          style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+        <button onClick={send} disabled={sending || !draft.trim()}
+          className="px-4 rounded-xl font-heading text-xs disabled:opacity-40"
+          style={{ background: COLORS.ink, color: COLORS.card }}>
+          보내기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// 🧑‍💼 AI 직원 명단.
+// 픽셀 캐릭터가 아니라 실제로 돌고 있는 자동화다. 각자 담당 업무와 마지막 근무 기록이 진짜다.
+const AI_STAFF = [
+  {
+    id: 'plan',
+    person: '박서준',
+    title: '팀장',
+    role: '콘텐츠 기획',
+    color: 'orange',
+    job: '성과를 읽고 다음에 만들 콘텐츠를 제안',
+    icon: Sparkles,
+    filter: 'plan',
+    lastOf: (d) => d.reports.find(r => r.kind === 'plan'),
+  },
+  {
+    id: 'feed',
+    person: '변우석',
+    title: '분석',
+    role: '피드 분석',
+    color: 'charcoal',
+    job: '메인 계정 성과를 보고 무엇이 통했는지 정리',
+    icon: BarChart3,
+    filter: 'feed',
+    lastOf: (d) => d.reports.find(r => r.kind === 'feed'),
+  },
+  {
+    id: 'staff',
+    person: '전정국',
+    title: '인사',
+    role: '직원 관리',
+    color: 'brown',
+    job: '직원 계정을 비교하고 회의 안건을 정리',
+    icon: Users,
+    filter: 'staff',
+    lastOf: (d) => d.reports.find(r => r.kind === 'staff'),
+  },
+  {
+    id: 'editor',
+    person: '김주훈',
+    title: '편집',
+    role: '콘텐츠 편집',
+    color: 'mocha',
+    job: '사진과 영상에 브랜드를 입히고 캡션을 작성',
+    icon: Edit3,
+    filter: 'awaiting',
+    lastOf: (d) => d.approvals[0],
+  },
+  {
+    id: 'publisher',
+    person: '나나',
+    title: '게시',
+    role: '게시 담당',
+    color: 'coral',
+    job: '승인된 콘텐츠를 인스타그램에 게시',
+    icon: Upload,
+    filter: 'decided',
+    lastOf: (d) => d.approvals.find(a => a.status === 'sent'),
+  },
+];
+
+const sinceText = (iso, now) => {
+  if (!iso) return '아직 기록 없음';
+  const diff = now - new Date(iso).getTime();
+  const hour = diff / 3600000;
+  if (hour < 1) return '방금 전';
+  if (hour < 24) return `${Math.floor(hour)}시간 전`;
+  const day = Math.floor(hour / 24);
+  if (day < 7) return `${day}일 전`;
+  return new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+};
+
+function StaffRoster({ data, onPick, now }) {
+  const [showChart, setShowChart] = useState(false);
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-heading text-sm" style={{ color: COLORS.ink }}>우리 팀</h2>
+        <button onClick={() => setShowChart(v => !v)}
+          className="font-heading text-xs" style={{ color: COLORS.primary }}>
+          {showChart ? '명단 보기' : '조직도 보기'}
+        </button>
+      </div>
+
+      {showChart ? (
+        <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="flex flex-col items-center">
+            <div className="rounded-xl px-5 py-2.5 text-center"
+              style={{ background: COLORS.primary, color: COLORS.card }}>
+              <p className="font-heading text-sm">원장님</p>
+              <p className="font-mono text-[9px] opacity-80">CEO</p>
+            </div>
+            <div style={{ width: 1, height: 18, background: COLORS.light }} />
+            <div style={{ height: 1, width: '90%', background: COLORS.light }} />
+
+            <div className="grid grid-cols-2 gap-2 w-full mt-4">
+              {AI_STAFF.map(m => (
+                <div key={m.id} className="rounded-xl px-3 py-2.5 flex items-center gap-2"
+                  style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+                  <Avatar user={{ name: m.person, avatar_color: m.color }} size="xs" />
+                  <div className="min-w-0">
+                    <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>{m.person} 팀장</p>
+                    <p className="font-mono text-[9px]" style={{ color: COLORS.muted }}>{m.role}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="font-body text-[11px] text-center mt-4" style={{ color: COLORS.muted }}>
+            전원 팀장입니다. 팀원은 없습니다
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {AI_STAFF.map(member => {
+            const last = member.lastOf(data);
+            const when = last?.created_at;
+            const active = when && (now - new Date(when).getTime()) < 8 * 24 * 3600000;
+            return (
+              <button key={member.id} onClick={() => onPick(member.filter)}
+                className="rounded-2xl p-3 text-left transition-transform active:scale-95"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <div className="flex items-start gap-2">
+                  <div className="relative shrink-0">
+                    <Avatar user={{ name: member.person, avatar_color: member.color }} size="sm" />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
+                      style={{ background: active ? '#22A05A' : COLORS.muted, border: `2px solid ${COLORS.card}` }} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>
+                      {member.person} 팀장
+                    </p>
+                    <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.primary }}>{member.role}</p>
+                    <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.muted }}>{sinceText(when, now)}</p>
+                  </div>
+                </div>
+                <p className="font-body text-[11px] leading-snug mt-2" style={{ color: COLORS.stone }}>{member.job}</p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const APPROVAL_STATUS_LABEL = {
+  approved: { ko: '처리 중', tone: 'wait' },
+  sent: { ko: '게시됨', tone: 'ok' },
+  skipped: { ko: '건너뜀', tone: 'muted' },
+  failed: { ko: '실패', tone: 'bad' },
+};
+
+// 이미 결정된 건은 버튼 없이 결과만 보여준다. 제목만 먼저 보이고 눌러야 내용이 열린다.
+function DecidedCard({ row }) {
+  const [open, setOpen] = useState(false);
+  const meta = APPROVAL_STATUS_LABEL[row.status] || { ko: row.status, tone: 'muted' };
+  const tone = {
+    ok: { bg: 'rgba(34,160,90,0.12)', fg: '#22A05A' },
+    wait: { bg: COLORS.peach, fg: COLORS.primary },
+    bad: { bg: 'rgba(220,60,60,0.12)', fg: '#DC3C3C' },
+    muted: { bg: COLORS.cardElev, fg: COLORS.muted },
+  }[meta.tone];
+  const firstLine = (row.body || '').split('\n').find(l => l.trim()) || '내용 없음';
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+      <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
+        <span className="font-mono text-[9px] px-2 py-1 rounded-full tracking-widest shrink-0"
+          style={{ background: tone.bg, color: tone.fg }}>{meta.ko}</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-heading text-sm truncate" style={{ color: COLORS.ink }}>{firstLine}</p>
+          <p className="font-mono text-[10px] mt-1 tracking-wider" style={{ color: COLORS.muted }}>
+            {row.channel} · {new Date(row.decided_at || row.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </p>
+        </div>
+        <ChevronRight size={17} strokeWidth={1.8}
+          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+          <p className="font-body text-sm leading-relaxed whitespace-pre-wrap" style={{ color: COLORS.stone }}>{row.body}</p>
+          {row.error && <p className="font-body text-xs mt-2" style={{ color: '#DC3C3C' }}>{row.error}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AdminAIOffice({ user }) {
+  const [reports, setReports] = useState([]);
+  const [approvals, setApprovals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [openId, setOpenId] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const [loadedAt, setLoadedAt] = useState(0);
+  const cardRefs = React.useRef({});
+
+  useEffect(() => {
+    (async () => {
+      const [rep, app] = await Promise.all([
+        supabase.from('ai_reports').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.from('ai_approvals').select('*').order('created_at', { ascending: false }).limit(50),
+      ]);
+      if (rep.error) {
+        console.error('리포트 로드 에러:', rep.error);
+        toast('리포트를 불러오지 못했어요: ' + rep.error.message);
+      }
+      if (app.error) console.error('승인 목록 로드 에러:', app.error);
+      setReports(rep.data || []);
+      setApprovals(app.data || []);
+      setLoadedAt(Date.now());
+      setLoading(false);
+    })();
+  }, []);
+
+  // 원장이 캡션을 고치면 자동화가 게시할 때 이 내용을 쓴다.
+  const saveBody = async (row, body) => {
+    const { error } = await supabase.from('ai_approvals').update({ body }).eq('id', row.id);
+    if (error) {
+      toast('저장하지 못했어요: ' + error.message);
+      return false;
+    }
+    setApprovals(prev => prev.map(r => (r.id === row.id ? { ...r, body } : r)));
+    toast('수정했어요');
+    return true;
+  };
+
+  // 승인만 기록한다. 실제 게시는 자동화가 이 상태를 보고 처리한다.
+  const decide = async (row, status) => {
+    const decidedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from('ai_approvals')
+      .update({ status, decided_at: decidedAt, decided_by: user?.id || null })
+      .eq('id', row.id);
+    if (error) {
+      toast('처리하지 못했어요: ' + error.message);
+      return false;
+    }
+    setApprovals(prev => prev.map(r => (r.id === row.id ? { ...r, status, decided_at: decidedAt } : r)));
+    toast(status === 'approved' ? '곧 게시됩니다' : '건너뛰었어요');
+    return true;
+  };
+
+  // 긴 리포트를 접었다 펴면 위치가 튀어서, 펼친 카드를 화면 위로 끌어온다.
+  const toggleReport = (id) => {
+    const next = openId === id ? null : id;
+    setOpenId(next);
+    if (next) {
+      requestAnimationFrame(() => {
+        cardRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  };
+
+  const awaiting = approvals.filter(r => r.status === 'awaiting');
+  const decided = approvals.filter(r => r.status !== 'awaiting');
+
+  const TABS = [
+    { key: 'all', label: '전체' },
+    { key: 'plan', label: '콘텐츠 기획' },
+    { key: 'feed', label: '피드 분석' },
+    { key: 'staff', label: '직원 계정' },
+    { key: 'awaiting', label: '승인 대기', count: awaiting.length },
+    { key: 'decided', label: '승인 완료' },
+  ];
+
+  // 종류를 섞어 한 줄로 세우고 최신순으로 정렬한다.
+  // (승인 대기와 리포트를 따로 쌓아두면 뭐가 새로 온 건지 한눈에 안 보인다.)
+  const items = (() => {
+    if (filter === 'awaiting') return awaiting.map(r => ({ type: 'approval', row: r }));
+    if (filter === 'decided') return decided.map(r => ({ type: 'decided', row: r }));
+    if (filter === 'plan' || filter === 'feed' || filter === 'staff') {
+      return reports.filter(r => r.kind === filter).map(r => ({ type: 'report', row: r }));
+    }
+    return [
+      ...awaiting.map(r => ({ type: 'approval', row: r })),
+      ...reports.map(r => ({ type: 'report', row: r })),
+    ].sort((a, b) => new Date(b.row.created_at) - new Date(a.row.created_at));
+  })();
+
+  const fmtDate = (v) => new Date(v).toLocaleString('ko-KR', {
+    month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+  const nothing = !loading && items.length === 0;
+
+  return (
+    <>
+      <PageIntro ko="AI 오피스" en="AI Office" />
+      <div className="px-5 pb-10">
+        {!loading && <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />}
+
+        <div className="flex gap-2 mb-5 overflow-x-auto -mx-5 px-5 pb-1">
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setFilter(t.key)}
+              className="px-4 py-2 rounded-full font-heading text-xs whitespace-nowrap flex items-center gap-1.5"
+              style={filter === t.key
+                ? { background: COLORS.primary, color: COLORS.card }
+                : { background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+              {t.label}
+              {t.count > 0 && (
+                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded-full"
+                  style={filter === t.key
+                    ? { background: 'rgba(255,255,255,0.25)' }
+                    : { background: COLORS.primary, color: COLORS.card }}>{t.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <p className="font-body text-sm py-10 text-center" style={{ color: COLORS.muted }}>불러오는 중…</p>
+        ) : nothing ? (
+          <div className="rounded-2xl p-8 text-center" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>아직 아무것도 없습니다</p>
+            <p className="font-body text-xs mt-2" style={{ color: COLORS.muted }}>
+              자동화가 돌면 여기에 쌓입니다.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {items.map(item => {
+              const r = item.row;
+              if (item.type === 'approval') {
+                return <ApprovalCard key={`a${r.id}`} row={r} onDecide={decide} onSaveBody={saveBody} />;
+              }
+              if (item.type === 'decided') {
+                return <DecidedCard key={`d${r.id}`} row={r} />;
+              }
+              const meta = REPORT_KINDS[r.kind] || { ko: r.kind, icon: BarChart3 };
+              const Icon = meta.icon;
+              const open = openId === r.id;
+              return (
+                <div key={`r${r.id}`} ref={el => { cardRefs.current[r.id] = el; }}
+                  className="rounded-2xl overflow-hidden"
+                  style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, scrollMarginTop: 16 }}>
+                  <button onClick={() => toggleReport(r.id)}
+                    className="w-full p-4 flex items-center gap-3 text-left">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+                      <Icon size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-heading text-sm truncate" style={{ color: COLORS.ink }}>{r.title}</p>
+                      <p className="font-mono text-[10px] mt-1 tracking-wider" style={{ color: COLORS.muted }}>
+                        {meta.ko} · {fmtDate(r.created_at)}
+                        {r.period_days ? ` · 최근 ${r.period_days}일` : ''}
+                      </p>
+                    </div>
+                    <ChevronRight size={17} strokeWidth={1.8}
+                      style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                  </button>
+                  {open && (
+                    <div className="px-4 pb-5 pt-1" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+                      <ReportBody text={r.body} />
+                      <ReportThread reportId={r.id} />
+                      <button onClick={() => toggleReport(r.id)}
+                        className="mt-5 w-full py-3 rounded-xl font-heading text-xs"
+                        style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+                        접기
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>
   );
