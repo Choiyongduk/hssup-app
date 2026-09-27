@@ -10,7 +10,7 @@ import { useDraft } from '../hooks';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
-import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck } from 'lucide-react';
+import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck } from 'lucide-react';
 
 export function AdminImprovements({ user }) {
   const [items, setItems] = useState([]);
@@ -5795,6 +5795,84 @@ function StaffRoster({ data, onPick, now }) {
   );
 }
 
+// 🗒️ 사업 상황 메모. 숫자로는 알 수 없는 사정(모집 시기, 신제품, 이번 분기 목표)을
+// 여기 적어두면 기획자가 매번 읽고 반영한다. 대화로 알려주면 그 주에만 반영되고 끝난다.
+function BusinessContext({ userId }) {
+  const [body, setBody] = useState('');
+  const [saved, setSaved] = useState('');
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('ai_context').select('body').eq('key', 'business').maybeSingle();
+      setBody(data?.body || '');
+      setSaved(data?.body || '');
+    })();
+  }, []);
+
+  const save = async () => {
+    setBusy(true);
+    const { error } = await supabase.from('ai_context').upsert({
+      key: 'business', body, updated_at: new Date().toISOString(), updated_by: userId || null,
+    });
+    setBusy(false);
+    if (error) {
+      toast('저장하지 못했어요: ' + error.message);
+      return;
+    }
+    setSaved(body);
+    setOpen(false);
+    toast('다음 기획부터 반영됩니다');
+  };
+
+  const preview = saved.split('\n').find(l => l.trim()) || '아직 비어 있습니다';
+
+  return (
+    <div className="rounded-2xl mb-6 overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+      <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+          <FileText size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-heading text-sm" style={{ color: COLORS.ink }}>사업 상황 메모</p>
+          <p className="font-body text-xs mt-1 truncate" style={{ color: saved ? COLORS.stone : COLORS.muted }}>{preview}</p>
+        </div>
+        <ChevronRight size={17} strokeWidth={1.8}
+          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+          <p className="font-body text-xs my-3" style={{ color: COLORS.muted }}>
+            숫자로는 알 수 없는 것을 적어주세요. 기획할 때마다 읽고 반영합니다.
+            (예: 10월부터 창업반 모집, 색소 판매 시작, 당분간 촬영 여력 부족)
+          </p>
+          <textarea value={body} onChange={e => setBody(e.target.value)} rows={8}
+            placeholder="지금 히썹이 뭘 하고 있는지, 이번 분기에 뭘 하고 싶은지"
+            className="w-full rounded-xl p-3 font-body text-sm leading-relaxed"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
+          <div className="flex gap-2 mt-2">
+            <button onClick={save} disabled={busy || body === saved}
+              className="px-4 py-2 rounded-xl font-heading text-xs disabled:opacity-40"
+              style={{ background: COLORS.primary, color: COLORS.card }}>
+              {busy ? '저장 중…' : '저장'}
+            </button>
+            {body !== saved && (
+              <button onClick={() => setBody(saved)}
+                className="px-4 py-2 rounded-xl font-heading text-xs"
+                style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                되돌리기
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const APPROVAL_STATUS_LABEL = {
   approved: { ko: '처리 중', tone: 'wait' },
   sent: { ko: '게시됨', tone: 'ok' },
@@ -5946,6 +6024,7 @@ export function AdminAIOffice({ user }) {
     <>
       <PageIntro ko="AI 오피스" en="AI Office" />
       <div className="px-5 pb-10">
+        {!loading && <BusinessContext userId={user?.id} />}
         {!loading && <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />}
 
         <div className="flex gap-2 mb-5 overflow-x-auto -mx-5 px-5 pb-1">
