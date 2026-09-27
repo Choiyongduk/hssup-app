@@ -5551,7 +5551,7 @@ function ApprovalCard({ row, onDecide, onSaveBody }) {
 
 // 리포트에 달린 대화. 원장이 피드백을 남기면 담당 직원이 읽고 답한다.
 // 답변은 자동화가 주기적으로 돌면서 만들기 때문에 바로 오지는 않는다.
-function ReportThread({ reportId }) {
+function ReportThread({ reportId, onStaffReplied }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -5567,10 +5567,18 @@ function ReportThread({ reportId }) {
         .eq('report_id', reportId)
         .order('created_at', { ascending: true });
       if (error) console.error('대화 로드 에러:', error);
-      setMessages(data || []);
+      setMessages(prev => {
+        const last = (data || [])[(data || []).length - 1];
+        const prevLast = prev[prev.length - 1];
+        // 새 답변이 왔으면 결과물도 고쳐졌을 수 있으니 부모에게 알린다.
+        if (last && last.role === 'staff' && last.id !== prevLast?.id && prevLast) {
+          onStaffReplied?.();
+        }
+        return data || [];
+      });
       setLoading(false);
     })();
-  }, [reportId, reloadKey]);
+  }, [reportId, reloadKey, onStaffReplied]);
 
   // 답변은 자동화가 주기적으로 만들기 때문에, 기다리는 동안에만 짧게 다시 확인한다.
   useEffect(() => {
@@ -5857,6 +5865,13 @@ export function AdminAIOffice({ user }) {
     })();
   }, []);
 
+  // 담당자가 피드백을 반영해 결과물을 다시 쓰면 화면도 새로 읽어와야 한다.
+  const refreshReports = React.useCallback(async () => {
+    const { data } = await supabase
+      .from('ai_reports').select('*').order('created_at', { ascending: false }).limit(50);
+    if (data) setReports(data);
+  }, []);
+
   // 원장이 캡션을 고치면 자동화가 게시할 때 이 내용을 쓴다.
   const saveBody = async (row, body) => {
     const { error } = await supabase.from('ai_approvals').update({ body }).eq('id', row.id);
@@ -5996,7 +6011,7 @@ export function AdminAIOffice({ user }) {
                   {open && (
                     <div className="px-4 pb-5 pt-1" style={{ borderTop: `1px solid ${COLORS.light}` }}>
                       <ReportBody text={r.body} />
-                      <ReportThread reportId={r.id} />
+                      <ReportThread reportId={r.id} onStaffReplied={refreshReports} />
                       <button onClick={() => toggleReport(r.id)}
                         className="mt-5 w-full py-3 rounded-xl font-heading text-xs"
                         style={{ background: COLORS.cardElev, color: COLORS.stone }}>
