@@ -5551,7 +5551,7 @@ function ApprovalCard({ row, onDecide, onSaveBody }) {
 
 // 리포트에 달린 대화. 원장이 피드백을 남기면 담당 직원이 읽고 답한다.
 // 답변은 자동화가 주기적으로 돌면서 만들기 때문에 바로 오지는 않는다.
-function ReportThread({ reportId, onStaffReplied }) {
+function ReportThread({ reportId, reportBody, onStaffReplied, onCollapse }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -5608,8 +5608,13 @@ function ReportThread({ reportId, onStaffReplied }) {
     && !messages[messages.length - 1].answered;
 
   return (
-    <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-      <p className="font-mono text-[9px] mb-3 tracking-widest" style={{ color: COLORS.muted }}>담당 직원과 대화</p>
+    // 이 div 가 카드 본문 전체를 감싼다. 입력창의 sticky 는 부모 박스 안에서만
+    // 움직이므로, 리포트 본문까지 여기 들어와야 읽는 내내 하단에 붙어 있는다.
+    <div className="px-4 pb-4 pt-1" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+      <ReportBody text={reportBody} />
+
+      <p className="font-mono text-[9px] mb-3 mt-6 pt-4 tracking-widest"
+        style={{ color: COLORS.muted, borderTop: `1px solid ${COLORS.light}` }}>담당 직원과 대화</p>
 
       {!loading && messages.map(m => (
         <div key={m.id} className={`mb-3 flex flex-col ${m.role === 'owner' ? 'items-end' : 'items-start'}`}>
@@ -5617,7 +5622,10 @@ function ReportThread({ reportId, onStaffReplied }) {
             style={m.role === 'owner'
               ? { background: COLORS.primary, color: COLORS.card }
               : { background: COLORS.cardElev, color: COLORS.ink }}>
-            <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>
+            {/* 직원 답변에는 고친 결과물이 마크다운으로 들어온다. 원장 메시지는 직접 친 글이라 그대로 둔다. */}
+            {m.role === 'staff'
+              ? <ReportBody text={m.body} />
+              : <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>}
           </div>
           <p className="font-mono text-[9px] mt-1 px-1" style={{ color: COLORS.muted }}>
             {m.role === 'owner' ? '' : '담당 직원 · '}
@@ -5634,14 +5642,19 @@ function ReportThread({ reportId, onStaffReplied }) {
 
       <div className="flex gap-2 pt-3 pb-1"
         style={{ position: 'sticky', bottom: 0, background: COLORS.card, zIndex: 5 }}>
+        <button onClick={onCollapse} aria-label="접기"
+          className="px-3 rounded-xl font-heading text-xs shrink-0"
+          style={{ background: COLORS.cardElev, color: COLORS.stone, minHeight: 44 }}>
+          접기
+        </button>
         <input value={draft} onChange={e => setDraft(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
           placeholder="고쳤으면 하는 점을 알려주세요"
-          className="flex-1 rounded-xl px-3 py-2.5 font-body text-sm"
-          style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          className="flex-1 rounded-xl px-3 font-body text-sm"
+          style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minHeight: 44 }} />
         <button onClick={send} disabled={sending || !draft.trim()}
-          className="px-4 rounded-xl font-heading text-xs disabled:opacity-40"
-          style={{ background: COLORS.ink, color: COLORS.card }}>
+          className="px-4 rounded-xl font-heading text-xs disabled:opacity-40 shrink-0"
+          style={{ background: COLORS.ink, color: COLORS.card, minHeight: 44 }}>
           보내기
         </button>
       </div>
@@ -6068,8 +6081,10 @@ export function AdminAIOffice({ user }) {
               const Icon = meta.icon;
               const open = openId === r.id;
               return (
+                // overflow-hidden 을 주면 안 된다. 안에 있는 대화 입력창의
+                // position: sticky 가 조상의 overflow 때문에 동작하지 않는다.
                 <div key={`r${r.id}`} ref={el => { cardRefs.current[r.id] = el; }}
-                  className="rounded-2xl overflow-hidden"
+                  className="rounded-2xl"
                   style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, scrollMarginTop: 16 }}>
                   <button onClick={() => toggleReport(r.id)}
                     className="w-full p-4 flex items-center gap-3 text-left">
@@ -6088,15 +6103,9 @@ export function AdminAIOffice({ user }) {
                       style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
                   </button>
                   {open && (
-                    <div className="px-4 pb-5 pt-1" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-                      <ReportBody text={r.body} />
-                      <ReportThread reportId={r.id} onStaffReplied={refreshReports} />
-                      <button onClick={() => toggleReport(r.id)}
-                        className="mt-5 w-full py-3 rounded-xl font-heading text-xs"
-                        style={{ background: COLORS.cardElev, color: COLORS.stone }}>
-                        접기
-                      </button>
-                    </div>
+                    <ReportThread reportId={r.id} reportBody={r.body}
+                      onStaffReplied={refreshReports}
+                      onCollapse={() => toggleReport(r.id)} />
                   )}
                 </div>
               );
