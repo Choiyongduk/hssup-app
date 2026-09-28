@@ -5339,6 +5339,7 @@ export function AdminQna({ user }) {
 // 🤖 AI OFFICE — 자동화(hssup-cardnews)가 만든 분석 리포트를 읽는 화면.
 // 직원 계정 분석처럼 민감한 내용이 들어가므로 원장(admin)만 볼 수 있다. (RLS로도 막혀 있음)
 const REPORT_KINDS = {
+  request: { ko: '요청 기획', icon: Sparkles },
   plan: { ko: '콘텐츠 기획', icon: Sparkles },
   feed: { ko: '피드 분석', icon: BarChart3 },
   staff: { ko: '직원 계정', icon: Users },
@@ -5808,6 +5809,119 @@ function StaffRoster({ data, onPick, now }) {
   );
 }
 
+// 📌 콘텐츠 요청. 떠오른 아이디어를 적어두는 자리.
+// "지금" 은 몇 분 안에 기획안이 나오고, "주간" 은 월요일 기획에 반영된다.
+function ContentRequest({ userId }) {
+  const [open, setOpen] = useState(false);
+  const [body, setBody] = useState('');
+  const [urgency, setUrgency] = useState('now');
+  const [items, setItems] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('ai_requests').select('*').eq('status', 'open').order('created_at', { ascending: true });
+      setItems(data || []);
+    })();
+  }, [reloadKey]);
+
+  const submit = async () => {
+    const text = body.trim();
+    if (!text) return;
+    setBusy(true);
+    const { error } = await supabase.from('ai_requests')
+      .insert({ body: text, urgency, created_by: userId || null });
+    setBusy(false);
+    if (error) {
+      toast('보내지 못했어요: ' + error.message);
+      return;
+    }
+    setBody('');
+    setReloadKey(k => k + 1);
+    toast(urgency === 'now' ? '곧 기획안이 올라옵니다' : '월요일 기획에 반영됩니다');
+  };
+
+  const remove = async (id) => {
+    const { error } = await supabase.from('ai_requests').delete().eq('id', id);
+    if (error) {
+      toast('취소하지 못했어요: ' + error.message);
+      return;
+    }
+    setReloadKey(k => k + 1);
+  };
+
+  return (
+    <div className="rounded-2xl mb-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+      <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+          <Plus size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-heading text-sm" style={{ color: COLORS.ink }}>콘텐츠 요청</p>
+          <p className="font-body text-xs mt-1" style={{ color: items.length ? COLORS.stone : COLORS.muted }}>
+            {items.length ? `대기 중 ${items.length}건` : '만들고 싶은 콘텐츠를 알려주세요'}
+          </p>
+        </div>
+        <ChevronRight size={17} strokeWidth={1.8}
+          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+          {items.length > 0 && (
+            <div className="space-y-2 my-3">
+              {items.map(it => (
+                <div key={it.id} className="flex items-start gap-2 rounded-xl p-3" style={{ background: COLORS.cardElev }}>
+                  <span className="font-mono text-[9px] px-2 py-1 rounded-full shrink-0"
+                    style={it.urgency === 'now'
+                      ? { background: COLORS.primary, color: COLORS.card }
+                      : { background: COLORS.card, color: COLORS.stone }}>
+                    {it.urgency === 'now' ? '지금' : '주간'}
+                  </span>
+                  <p className="font-body text-sm flex-1" style={{ color: COLORS.ink }}>{it.body}</p>
+                  <button onClick={() => remove(it.id)} aria-label="요청 취소"
+                    className="shrink-0" style={{ color: COLORS.muted }}>
+                    <X size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <textarea value={body} onChange={e => setBody(e.target.value)} rows={3}
+            placeholder="예: 리커버 브로우 비포애프터를 릴스로 만들어주세요"
+            className="w-full rounded-xl p-3 mt-3 font-body text-sm leading-relaxed"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
+
+          <div className="flex gap-2 mt-2">
+            {[['now', '지금 만들기'], ['weekly', '월요일 기획에']].map(([key, label]) => (
+              <button key={key} onClick={() => setUrgency(key)}
+                className="px-3 rounded-xl font-heading text-xs"
+                style={urgency === key
+                  ? { background: COLORS.ink, color: COLORS.card, minHeight: 44 }
+                  : { background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}`, minHeight: 44 }}>
+                {label}
+              </button>
+            ))}
+            <button onClick={submit} disabled={busy || !body.trim()}
+              className="flex-1 rounded-xl font-heading text-sm disabled:opacity-40"
+              style={{ background: COLORS.primary, color: COLORS.card, minHeight: 44 }}>
+              {busy ? '보내는 중…' : '요청'}
+            </button>
+          </div>
+
+          <p className="font-body text-[11px] mt-3" style={{ color: COLORS.muted }}>
+            지금 만들기는 몇 분 안에 기획안이 올라옵니다. 월요일 기획에는 주간 기획안에 함께 반영됩니다.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 🗒️ 사업 상황 메모. 숫자로는 알 수 없는 사정(모집 시기, 신제품, 이번 분기 목표)을
 // 여기 적어두면 기획자가 매번 읽고 반영한다. 대화로 알려주면 그 주에만 반영되고 끝난다.
 function BusinessContext({ userId }) {
@@ -6007,6 +6121,7 @@ export function AdminAIOffice({ user }) {
 
   const TABS = [
     { key: 'all', label: '전체' },
+    { key: 'request', label: '요청 기획' },
     { key: 'plan', label: '콘텐츠 기획' },
     { key: 'feed', label: '피드 분석' },
     { key: 'staff', label: '직원 계정' },
@@ -6019,7 +6134,7 @@ export function AdminAIOffice({ user }) {
   const items = (() => {
     if (filter === 'awaiting') return awaiting.map(r => ({ type: 'approval', row: r }));
     if (filter === 'decided') return decided.map(r => ({ type: 'decided', row: r }));
-    if (filter === 'plan' || filter === 'feed' || filter === 'staff') {
+    if (filter === 'request' || filter === 'plan' || filter === 'feed' || filter === 'staff') {
       return reports.filter(r => r.kind === filter).map(r => ({ type: 'report', row: r }));
     }
     return [
@@ -6037,6 +6152,7 @@ export function AdminAIOffice({ user }) {
     <>
       <PageIntro ko="AI 오피스" en="AI Office" />
       <div className="px-5 pb-10">
+        {!loading && <ContentRequest userId={user?.id} />}
         {!loading && <BusinessContext userId={user?.id} />}
         {!loading && <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />}
 
