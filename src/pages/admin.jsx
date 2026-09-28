@@ -5572,11 +5572,25 @@ function ApprovalCard({ row, onDecide, onSaveBody, onRevised }) {
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
       <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        {/* 접힌 상태에서도 시안이 보여야 한다. 아이콘만 있으면 열어보기 전엔 뭔지 모른다. */}
+        <div className="w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center shrink-0 relative"
           style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
-          {hasVideo
-            ? <Play size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
-            : <Camera size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />}
+          {media.length === 0 ? (
+            <Camera size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+          ) : isVideoUrl(media[0]) ? (
+            <>
+              <video src={media[0]} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+              <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
+                <Play size={16} style={{ color: '#fff' }} />
+              </span>
+            </>
+          ) : (
+            <img src={media[0]} alt="" loading="lazy" className="w-full h-full object-cover" />
+          )}
+          {media.length > 1 && (
+            <span className="absolute bottom-0 right-0 px-1 font-mono text-[9px]"
+              style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>{media.length}</span>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-heading text-sm truncate" style={{ color: COLORS.ink }}>{firstLine}</p>
@@ -5931,7 +5945,7 @@ function OfficeGuide() {
     ['언제', '사진·영상이 이미 있을 때', '아이디어만 있고 찍은 게 없을 때'],
     ['넣는 것', '사진 최대 10장 또는 영상 + 설명', '글로 된 요청'],
     ['나오는 것', '게시할 게시물', '기획안 (뭘 어떻게 찍을지)'],
-    ['그다음', '승인하면 인스타에 올라감', '기획안 보고 촬영 → 소재 올리기로'],
+    ['그다음', '승인 요청 확인 → 게시 누르면 올라감', '기획안 보고 촬영 → 소재 올리기로'],
   ];
 
   return (
@@ -5990,7 +6004,7 @@ const UPLOAD_BUCKET = 'content-media';
 
 const MAX_FILES = 10;  // 인스타 캐러셀 한 게시물 최대 장수
 
-function MediaUpload({ userId }) {
+function MediaUpload({ userId, approvals = [] }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState([]);
   const [caption, setCaption] = useState('');
@@ -6001,13 +6015,29 @@ function MediaUpload({ userId }) {
   const [queued, setQueued] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
 
+  // 처리가 끝난 것도 잠깐은 남겨둔다. 올리자마자 목록에서 사라지면
+  // 내가 뭘 올렸는지, 지금 어디까지 갔는지 알 길이 없다.
   useEffect(() => {
     (async () => {
+      const since = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
-        .from('ai_media_queue').select('*').eq('status', 'queued').order('created_at', { ascending: true });
+        .from('ai_media_queue').select('*')
+        .in('status', ['queued', 'done'])
+        .gte('created_at', since)
+        .order('created_at', { ascending: true });
       setQueued(data || []);
     })();
   }, [reloadKey]);
+
+  // 시안이 나온 소재는 승인 요청에 원본 경로가 적혀 있다. 그걸로 짝을 맞춘다.
+  const donePaths = React.useMemo(() => {
+    const set = new Set();
+    for (const a of approvals) {
+      const pl = a.payload || {};
+      for (const path of pl.storage_paths || (pl.storage_path ? [pl.storage_path] : [])) set.add(path);
+    }
+    return set;
+  }, [approvals]);
 
   const previews = React.useMemo(
     () => files.map(f => (f.type.startsWith('video/') ? null : URL.createObjectURL(f))),
@@ -6026,8 +6056,14 @@ function MediaUpload({ userId }) {
     for (const list of map.values()) {
       list.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
     }
-    return [...map.entries()].map(([key, rows]) => ({ key, rows }));
-  }, [queued]);
+    return [...map.entries()].map(([key, rows]) => {
+      const waiting = rows.some(r => r.status === 'queued');
+      const shown = rows.some(r => donePaths.has(r.storage_path));
+      return { key, rows, state: waiting ? 'queued' : shown ? 'shown' : 'working' };
+    });
+  }, [queued, donePaths]);
+
+  const waitingCount = groups.filter(g => g.state === 'queued').length;
 
   // 한 번에 고른 사진들은 같은 묶음 = 한 게시물(캐러셀)로 올라간다.
   // 영상은 인스타에서 사진과 같이 묶을 수 없어서 각자 따로 간다.
@@ -6040,7 +6076,15 @@ function MediaUpload({ userId }) {
       for (let i = 0; i < files.length; i++) {
         const picked = files[i];
         const isVideo = picked.type.startsWith('video/');
-        const toUpload = isVideo ? picked : await compressImage(picked, 1440, 0.9);
+        // 압축은 용량을 줄이려는 것뿐이다. 실패해도 원본으로 올린다.
+        let toUpload = picked;
+        if (!isVideo) {
+          try {
+            toUpload = await compressImage(picked, 1440, 0.9);
+          } catch {
+            toUpload = picked;
+          }
+        }
         const ext = toUpload.name.split('.').pop();
         const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
@@ -6073,7 +6117,7 @@ function MediaUpload({ userId }) {
       const what = files.length > 1 ? `${files.length}장을 한 게시물로` : '소재를';
       toast(urgency === 'now'
         ? `${what} 올렸어요. 몇 분 안에 승인 요청이 올라와요`
-        : `${what} 올렸어요. 다음 처리 시간에 올라와요`);
+        : `${what} 올렸어요. 다음 처리 시간에 승인 요청이 올라와요`);
     } catch (e) {
       toast('올리지 못했어요: ' + (e.message || e));
     } finally {
@@ -6083,7 +6127,10 @@ function MediaUpload({ userId }) {
   };
 
   // 묶음은 한 게시물이라 통째로 뺀다. 몇 장만 빼면 나머지가 어중간해진다.
+  // 사진 원본까지 지우고 되돌릴 수 없어서 반드시 한 번 물어본다.
   const removeGroup = async (rows) => {
+    const what = rows.length > 1 ? `사진 ${rows.length}장을` : '이 소재를';
+    if (!await confirmDialog(`${what} 대기열에서 빼고 원본도 지울까요?\n지우면 되돌릴 수 없어요.`)) return;
     await supabase.storage.from(UPLOAD_BUCKET).remove(rows.map(r => r.storage_path));
     const { error } = await supabase.from('ai_media_queue').delete().in('id', rows.map(r => r.id));
     if (error) {
@@ -6105,7 +6152,7 @@ function MediaUpload({ userId }) {
         <div className="flex-1 min-w-0">
           <p className="font-heading text-sm" style={{ color: COLORS.ink }}>소재 올리기</p>
           <p className="font-body text-xs mt-1" style={{ color: queued.length ? COLORS.stone : COLORS.muted }}>
-            {groups.length ? `대기 중 ${groups.length}건` : '찍어둔 사진·영상을 게시물로'}
+            {waitingCount ? `대기 중 ${waitingCount}건` : '찍어둔 사진·영상을 게시물로'}
           </p>
         </div>
         <ChevronRight size={17} strokeWidth={1.8}
@@ -6116,9 +6163,14 @@ function MediaUpload({ userId }) {
         <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
           {groups.length > 0 && (
             <div className="space-y-2 my-3">
-              {groups.map(({ key, rows }) => {
+              {groups.map(({ key, rows, state }) => {
                 const head = rows[0];
                 const note = rows.find(r => r.user_caption)?.user_caption;
+                const STATE = {
+                  queued: { ko: '대기 중', tone: COLORS.muted },
+                  working: { ko: '만드는 중', tone: COLORS.primary },
+                  shown: { ko: '시안 나옴 ↑', tone: COLORS.primary },
+                }[state];
                 return (
                   <div key={key} className="flex items-center gap-2 rounded-xl p-2" style={{ background: COLORS.cardElev }}>
                     <div className="relative shrink-0">
@@ -6133,22 +6185,23 @@ function MediaUpload({ userId }) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-mono text-[10px] flex items-center gap-1" style={{ color: COLORS.muted }}>
-                        {head.urgency === 'now' && (
-                          <span className="rounded px-1" style={{ background: COLORS.peach, color: COLORS.primary }}>지금</span>
-                        )}
-                        <span>
+                        <span className="rounded px-1" style={{ background: COLORS.peach, color: STATE.tone }}>{STATE.ko}</span>
+                        <span className="truncate">
                           {head.channel === 'hssup-academy' ? '아카데미' : '아트메이크'}
                           {' · '}
                           {head.media_type === 'video' ? '영상' : (rows.length > 1 ? `사진 ${rows.length}장` : '사진')}
+                          {head.urgency === 'now' ? ' · 바로' : ''}
                         </span>
                       </p>
                       <p className="font-body text-xs truncate" style={{ color: COLORS.stone }}>
                         {note || '설명 없음'}
                       </p>
                     </div>
-                    <button onClick={() => removeGroup(rows)} aria-label="취소" className="shrink-0" style={{ color: COLORS.muted }}>
-                      <X size={15} />
-                    </button>
+                    {state === 'queued' && (
+                      <button onClick={() => removeGroup(rows)} aria-label="빼기" className="shrink-0" style={{ color: COLORS.muted }}>
+                        <X size={15} />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -6216,7 +6269,7 @@ function MediaUpload({ userId }) {
           <div className="flex gap-2 mt-2">
             {[
               ['scheduled', '정해진 시간에', '낮 12:30 / 저녁 8시'],
-              ['now', '지금 바로', '몇 분 안에'],
+              ['now', '바로 작업', '몇 분 안에 승인 요청'],
             ].map(([key, label, hint]) => (
               <button key={key} onClick={() => setUrgency(key)}
                 className="flex-1 rounded-xl px-2 py-2"
@@ -6239,13 +6292,21 @@ function MediaUpload({ userId }) {
             style={{ background: COLORS.primary, color: COLORS.card, minHeight: 44 }}>
             {busy
               ? (files.length > 1 ? `올리는 중… ${progress}/${files.length}` : '올리는 중…')
-              : (urgency === 'now' ? '지금 바로 맡기기' : '대기열에 올리기')}
+              : (urgency === 'now' ? '바로 작업 맡기기' : '대기열에 올리기')}
           </button>
+
+          {/* 여기서 올리면 바로 게시되는 줄 알기 쉬워서 버튼 밑에 붙여 둔다. */}
+          <div className="flex items-start gap-2 mt-2 rounded-xl p-3" style={{ background: COLORS.cardElev }}>
+            <AlertCircle size={14} strokeWidth={1.8} className="shrink-0 mt-0.5" style={{ color: COLORS.primary }} />
+            <p className="font-body text-[11px] leading-relaxed" style={{ color: COLORS.stone }}>
+              올려도 인스타에 바로 게시되지 않아요.
+              캡션과 로고가 붙은 완성본이 <strong>승인 요청</strong>으로 올라오면,
+              거기서 <strong>게시</strong>를 누르셔야 올라갑니다.
+            </p>
+          </div>
 
           <p className="font-body text-[11px] mt-3" style={{ color: COLORS.muted }}>
             사진을 여러 장 고르면 한 게시물(넘겨보는 형태)로 올라갑니다. 영상은 한 편씩 따로예요.
-            캡션과 브랜드 로고가 붙으면 승인 요청으로 올라오고,
-            인스타에 올라가는 건 원장님이 승인하신 뒤입니다. &quot;지금 바로&quot; 도 마찬가지예요.
           </p>
         </div>
       )}
@@ -6576,22 +6637,20 @@ export function AdminAIOffice({ user }) {
     { key: 'plan', label: '콘텐츠 기획' },
     { key: 'feed', label: '피드 분석' },
     { key: 'staff', label: '직원 계정' },
-    { key: 'awaiting', label: '승인 대기', count: awaiting.length },
     { key: 'decided', label: '승인 완료' },
   ];
 
   // 종류를 섞어 한 줄로 세우고 최신순으로 정렬한다.
   // (승인 대기와 리포트를 따로 쌓아두면 뭐가 새로 온 건지 한눈에 안 보인다.)
+  // 승인 대기는 맨 위 "시안 확인" 에서 보여주므로 여기서는 뺀다.
   const items = (() => {
-    if (filter === 'awaiting') return awaiting.map(r => ({ type: 'approval', row: r }));
     if (filter === 'decided') return decided.map(r => ({ type: 'decided', row: r }));
     if (filter === 'request' || filter === 'plan' || filter === 'feed' || filter === 'staff') {
       return reports.filter(r => r.kind === filter).map(r => ({ type: 'report', row: r }));
     }
-    return [
-      ...awaiting.map(r => ({ type: 'approval', row: r })),
-      ...reports.map(r => ({ type: 'report', row: r })),
-    ].sort((a, b) => new Date(b.row.created_at) - new Date(a.row.created_at));
+    return reports
+      .map(r => ({ type: 'report', row: r }))
+      .sort((a, b) => new Date(b.row.created_at) - new Date(a.row.created_at));
   })();
 
   const fmtDate = (v) => new Date(v).toLocaleString('ko-KR', {
@@ -6603,8 +6662,27 @@ export function AdminAIOffice({ user }) {
     <>
       <PageIntro ko="AI 오피스" en="AI Office" />
       <div className="px-5 pb-10">
+        {!loading && awaiting.length > 0 && (
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className="font-heading text-sm" style={{ color: COLORS.ink }}>시안 확인</h2>
+              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded-full"
+                style={{ background: COLORS.primary, color: COLORS.card }}>{awaiting.length}</span>
+            </div>
+            <p className="font-body text-xs mb-3" style={{ color: COLORS.muted }}>
+              올리신 소재로 만든 게시물입니다. 열어서 보시고, 고칠 게 있으면 말로 적어 주세요.
+              <strong style={{ color: COLORS.stone }}> 게시</strong>를 누르셔야 인스타에 올라갑니다.
+            </p>
+            <div className="space-y-3">
+              {awaiting.map(r => (
+                <ApprovalCard key={`top${r.id}`} row={r} onDecide={decide} onSaveBody={saveBody} onRevised={refreshApprovals} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {!loading && <OfficeGuide />}
-        {!loading && <MediaUpload userId={user?.id} />}
+        {!loading && <MediaUpload userId={user?.id} approvals={approvals} />}
         {!loading && <ContentRequest userId={user?.id} />}
         {!loading && <BusinessContext userId={user?.id} />}
         {!loading && <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />}
