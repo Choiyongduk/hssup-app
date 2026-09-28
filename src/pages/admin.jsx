@@ -6430,35 +6430,49 @@ function ContentRequest({ userId }) {
 // 🗒️ 사업 상황 메모. 숫자로는 알 수 없는 사정(모집 시기, 신제품, 이번 분기 목표)을
 // 여기 적어두면 기획자가 매번 읽고 반영한다. 대화로 알려주면 그 주에만 반영되고 끝난다.
 function BusinessContext({ userId }) {
-  const [body, setBody] = useState('');
-  const [saved, setSaved] = useState('');
+  const [notes, setNotes] = useState([]);
+  const [draft, setDraft] = useState('');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('ai_context').select('body').eq('key', 'business').maybeSingle();
-      setBody(data?.body || '');
-      setSaved(data?.body || '');
+      const { data } = await supabase
+        .from('ai_notes').select('*').eq('key', 'business').order('created_at', { ascending: false });
+      setNotes(data || []);
     })();
-  }, []);
+  }, [reloadKey]);
 
-  const save = async () => {
+  const add = async () => {
+    const body = draft.trim();
+    if (!body) return;
     setBusy(true);
-    const { error } = await supabase.from('ai_context').upsert({
-      key: 'business', body, updated_at: new Date().toISOString(), updated_by: userId || null,
-    });
+    const { error } = await supabase.from('ai_notes')
+      .insert({ key: 'business', body, created_by: userId || null });
     setBusy(false);
     if (error) {
       toast('저장하지 못했어요: ' + error.message);
       return;
     }
-    setSaved(body);
-    setOpen(false);
+    setDraft('');
+    setReloadKey(k => k + 1);
     toast('다음 기획부터 반영됩니다');
   };
 
-  const preview = saved.split('\n').find(l => l.trim()) || '아직 비어 있습니다';
+  const remove = async (note) => {
+    if (!await confirmDialog('이 메모를 지울까요?')) return;
+    const { error } = await supabase.from('ai_notes').delete().eq('id', note.id);
+    if (error) {
+      toast('지우지 못했어요: ' + error.message);
+      return;
+    }
+    setReloadKey(k => k + 1);
+  };
+
+  const preview = notes.length
+    ? (notes[0].body.split('\n').find(l => l.trim()) || '')
+    : '아직 비어 있습니다';
 
   return (
     <div className="rounded-2xl mb-6 overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -6468,8 +6482,10 @@ function BusinessContext({ userId }) {
           <FileText size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-heading text-sm" style={{ color: COLORS.ink }}>사업 상황 메모</p>
-          <p className="font-body text-xs mt-1 truncate" style={{ color: saved ? COLORS.stone : COLORS.muted }}>{preview}</p>
+          <p className="font-heading text-sm" style={{ color: COLORS.ink }}>
+            사업 상황 메모{notes.length > 0 ? ` ${notes.length}장` : ''}
+          </p>
+          <p className="font-body text-xs mt-1 truncate" style={{ color: notes.length ? COLORS.stone : COLORS.muted }}>{preview}</p>
         </div>
         <ChevronRight size={17} strokeWidth={1.8}
           style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
@@ -6478,27 +6494,37 @@ function BusinessContext({ userId }) {
       {open && (
         <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
           <p className="font-body text-xs my-3" style={{ color: COLORS.muted }}>
-            숫자로는 알 수 없는 것을 적어주세요. 기획할 때마다 읽고 반영합니다.
-            (예: 10월부터 창업반 모집, 색소 판매 시작, 당분간 촬영 여력 부족)
+            숫자로는 알 수 없는 것을 한 장에 하나씩 적어주세요. 기획할 때마다 전부 읽고 반영합니다.
+            지난 일이 되면 지우시면 됩니다.
           </p>
-          <textarea value={body} onChange={e => setBody(e.target.value)} rows={8}
-            placeholder="지금 히썹이 뭘 하고 있는지, 이번 분기에 뭘 하고 싶은지"
+
+          <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={3}
+            placeholder="예: 10월부터 창업반 모집, 색소 판매 시작, 당분간 촬영 여력 부족"
             className="w-full rounded-xl p-3 font-body text-sm leading-relaxed"
             style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
-          <div className="flex gap-2 mt-2">
-            <button onClick={save} disabled={busy || body === saved}
-              className="px-4 py-2 rounded-xl font-heading text-xs disabled:opacity-40"
-              style={{ background: COLORS.primary, color: COLORS.card }}>
-              {busy ? '저장 중…' : '저장'}
-            </button>
-            {body !== saved && (
-              <button onClick={() => setBody(saved)}
-                className="px-4 py-2 rounded-xl font-heading text-xs"
-                style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
-                되돌리기
-              </button>
-            )}
-          </div>
+          <button onClick={add} disabled={busy || !draft.trim()}
+            className="w-full mt-2 rounded-xl font-heading text-sm disabled:opacity-40"
+            style={{ background: COLORS.primary, color: COLORS.card, minHeight: 44 }}>
+            {busy ? '저장 중…' : '메모 추가'}
+          </button>
+
+          {notes.length > 0 && (
+            <div className="space-y-2 mt-4">
+              {notes.map(n => (
+                <div key={n.id} className="flex items-start gap-2 rounded-xl p-3" style={{ background: COLORS.cardElev }}>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-body text-sm leading-relaxed whitespace-pre-wrap" style={{ color: COLORS.ink }}>{n.body}</p>
+                    <p className="font-mono text-[9px] mt-1.5" style={{ color: COLORS.muted }}>
+                      {new Date(n.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                    </p>
+                  </div>
+                  <button onClick={() => remove(n)} aria-label="메모 지우기" className="shrink-0 mt-0.5" style={{ color: COLORS.muted }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -6662,6 +6688,9 @@ export function AdminAIOffice({ user }) {
     <>
       <PageIntro ko="AI 오피스" en="AI Office" />
       <div className="px-5 pb-10">
+        {!loading && <OfficeGuide />}
+        {!loading && <MediaUpload userId={user?.id} approvals={approvals} />}
+        {!loading && <ContentRequest userId={user?.id} />}
         {!loading && awaiting.length > 0 && (
           <div className="mb-5">
             <div className="flex items-center gap-2 mb-2">
@@ -6681,9 +6710,6 @@ export function AdminAIOffice({ user }) {
           </div>
         )}
 
-        {!loading && <OfficeGuide />}
-        {!loading && <MediaUpload userId={user?.id} approvals={approvals} />}
-        {!loading && <ContentRequest userId={user?.id} />}
         {!loading && <BusinessContext userId={user?.id} />}
         {!loading && <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />}
 
