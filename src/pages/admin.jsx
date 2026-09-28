@@ -5904,30 +5904,23 @@ function StaffRoster({ data, onPick, now }) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex gap-2 overflow-x-auto -mx-5 px-5 pb-1">
           {AI_STAFF.map(member => {
             const last = member.lastOf(data);
             const when = last?.created_at;
             const active = when && (now - new Date(when).getTime()) < 8 * 24 * 3600000;
             return (
               <button key={member.id} onClick={() => onPick(member.filter)}
-                className="rounded-2xl p-3 text-left transition-transform active:scale-95"
-                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <div className="flex items-start gap-2">
-                  <div className="relative shrink-0">
-                    <Avatar user={{ name: member.person, avatar_color: member.color }} size="sm" />
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
-                      style={{ background: active ? '#22A05A' : COLORS.muted, border: `2px solid ${COLORS.card}` }} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>
-                      {member.person} 팀장
-                    </p>
-                    <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.primary }}>{member.role}</p>
-                    <p className="font-mono text-[9px] mt-0.5" style={{ color: COLORS.muted }}>{sinceText(when, now)}</p>
-                  </div>
+                className="rounded-2xl p-3 text-center shrink-0 transition-transform active:scale-95"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, width: 96 }}>
+                <div className="relative inline-block">
+                  <Avatar user={{ name: member.person, avatar_color: member.color }} size="sm" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
+                    style={{ background: active ? '#22A05A' : COLORS.muted, border: `2px solid ${COLORS.card}` }} />
                 </div>
-                <p className="font-body text-[11px] leading-snug mt-2" style={{ color: COLORS.stone }}>{member.job}</p>
+                <p className="font-heading text-[11px] mt-1.5 truncate" style={{ color: COLORS.ink }}>{member.person}</p>
+                <p className="font-mono text-[9px] truncate" style={{ color: COLORS.muted }}>{member.role}</p>
+                <p className="font-mono text-[9px] mt-1 truncate" style={{ color: COLORS.muted }}>{sinceText(when, now)}</p>
               </button>
             );
           })}
@@ -5938,7 +5931,7 @@ function StaffRoster({ data, onPick, now }) {
 }
 
 // 두 카드가 이름만 봐서는 헷갈려서, 언제 뭘 쓰는지 접었다 펼 수 있게 둔다.
-function OfficeGuide() {
+function OfficeGuide({ row = false }) {
   const [open, setOpen] = useState(false);
 
   const ROWS = [
@@ -5949,7 +5942,8 @@ function OfficeGuide() {
   ];
 
   return (
-    <div className="rounded-2xl mb-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+    <div className={row ? '' : 'rounded-2xl mb-3'}
+      style={row ? undefined : { background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
       <button onClick={() => setOpen(v => !v)} className="w-full px-4 py-3 flex items-center gap-2 text-left">
         <AlertCircle size={15} strokeWidth={1.8} style={{ color: COLORS.muted }} />
         <p className="flex-1 font-body text-xs" style={{ color: COLORS.stone }}>
@@ -6004,7 +5998,7 @@ const UPLOAD_BUCKET = 'content-media';
 
 const MAX_FILES = 10;  // 인스타 캐러셀 한 게시물 최대 장수
 
-function MediaUpload({ userId, approvals = [] }) {
+function MediaUpload({ userId, approvals = [], row = false }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState([]);
   const [caption, setCaption] = useState('');
@@ -6143,11 +6137,12 @@ function MediaUpload({ userId, approvals = [] }) {
   const CHANNELS = [['hssup-academy', '아카데미'], ['hssup-artmake', '아트메이크']];
 
   return (
-    <div className="rounded-2xl mb-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+    <div className={row ? '' : 'rounded-2xl mb-3'}
+      style={row ? undefined : { background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
       <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
-          <Upload size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+          <Upload size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-heading text-sm" style={{ color: COLORS.ink }}>소재 올리기</p>
@@ -6316,7 +6311,7 @@ function MediaUpload({ userId, approvals = [] }) {
 
 // 📌 콘텐츠 요청. 떠오른 아이디어를 적어두는 자리.
 // "지금" 은 몇 분 안에 기획안이 나오고, "주간" 은 월요일 기획에 반영된다.
-function ContentRequest({ userId }) {
+function ContentRequest({ userId, row = false }) {
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
   const [urgency, setUrgency] = useState('now');
@@ -6358,11 +6353,12 @@ function ContentRequest({ userId }) {
   };
 
   return (
-    <div className="rounded-2xl mb-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+    <div className={row ? '' : 'rounded-2xl mb-3'}
+      style={row ? undefined : { background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
       <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
-          <Plus size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+          <Plus size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-heading text-sm" style={{ color: COLORS.ink }}>콘텐츠 요청</p>
@@ -6429,7 +6425,7 @@ function ContentRequest({ userId }) {
 
 // 🗒️ 사업 상황 메모. 숫자로는 알 수 없는 사정(모집 시기, 신제품, 이번 분기 목표)을
 // 여기 적어두면 기획자가 매번 읽고 반영한다. 대화로 알려주면 그 주에만 반영되고 끝난다.
-function BusinessContext({ userId }) {
+function BusinessContext({ userId, row = false }) {
   const [notes, setNotes] = useState([]);
   const [draft, setDraft] = useState('');
   const [open, setOpen] = useState(false);
@@ -6475,11 +6471,12 @@ function BusinessContext({ userId }) {
     : '아직 비어 있습니다';
 
   return (
-    <div className="rounded-2xl mb-6 overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+    <div className={row ? '' : 'rounded-2xl mb-6 overflow-hidden'}
+      style={row ? undefined : { background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
       <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
-          <FileText size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+          <FileText size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-heading text-sm" style={{ color: COLORS.ink }}>
@@ -6580,6 +6577,7 @@ export function AdminAIOffice({ user }) {
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [showAllDrafts, setShowAllDrafts] = useState(false);
   const [loadedAt, setLoadedAt] = useState(0);
   const cardRefs = React.useRef({});
 
@@ -6688,9 +6686,20 @@ export function AdminAIOffice({ user }) {
     <>
       <PageIntro ko="AI 오피스" en="AI Office" />
       <div className="px-5 pb-10">
-        {!loading && <OfficeGuide />}
-        {!loading && <MediaUpload userId={user?.id} approvals={approvals} />}
-        {!loading && <ContentRequest userId={user?.id} />}
+        {/* 작업 세 가지를 한 상자에 묶는다. 각각 전체 폭 카드로 두면 화면만 길어진다. */}
+        {!loading && (
+          <div className="rounded-2xl mb-5 overflow-hidden"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            <MediaUpload userId={user?.id} approvals={approvals} row />
+            <div style={{ height: 1, background: COLORS.light }} />
+            <ContentRequest userId={user?.id} row />
+            <div style={{ height: 1, background: COLORS.light }} />
+            <BusinessContext userId={user?.id} row />
+            <div style={{ height: 1, background: COLORS.light }} />
+            <OfficeGuide row />
+          </div>
+        )}
+
         {!loading && awaiting.length > 0 && (
           <div className="mb-5">
             <div className="flex items-center gap-2 mb-2">
@@ -6702,15 +6711,21 @@ export function AdminAIOffice({ user }) {
               올리신 소재로 만든 게시물입니다. 열어서 보시고, 고칠 게 있으면 말로 적어 주세요.
               <strong style={{ color: COLORS.stone }}> 게시</strong>를 누르셔야 인스타에 올라갑니다.
             </p>
-            <div className="space-y-3">
-              {awaiting.map(r => (
+            <div className="space-y-2">
+              {(showAllDrafts ? awaiting : awaiting.slice(0, 3)).map(r => (
                 <ApprovalCard key={`top${r.id}`} row={r} onDecide={decide} onSaveBody={saveBody} onRevised={refreshApprovals} />
               ))}
             </div>
+            {awaiting.length > 3 && (
+              <button onClick={() => setShowAllDrafts(v => !v)}
+                className="w-full mt-2 py-2.5 rounded-xl font-heading text-xs"
+                style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                {showAllDrafts ? '접기' : `${awaiting.length - 3}건 더 보기`}
+              </button>
+            )}
           </div>
         )}
 
-        {!loading && <BusinessContext userId={user?.id} />}
         {!loading && <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />}
 
         <div className="flex gap-2 mb-5 overflow-x-auto -mx-5 px-5 pb-1">
