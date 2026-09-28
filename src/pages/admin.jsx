@@ -251,6 +251,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
     newStudents: 0,
     monthOrders: 0,
     monthlyTrend: [],
+    awaitingApprovals: 0,
   });
 
   useEffect(() => {
@@ -271,6 +272,10 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         supabase.from('orders').select('amount').eq('status', 'paid').gte('paid_at', lastMonthStart).lt('paid_at', lastMonthEnd),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student').neq('status', 'deleted').gte('created_at', thisMonthStart),
       ]);
+
+      // AI 오피스 타일에 띄울 숫자. 원장님만 보는 화면이라 여기서 같이 읽는다.
+      const { count: awaitingApprovals } = await supabase
+        .from('ai_approvals').select('*', { count: 'exact', head: true }).eq('status', 'awaiting');
       
       const monthRevenue = (thisMonthOrders || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
       const lastMonthRevenue = (lastMonthOrders || []).reduce((sum, o) => sum + Number(o.amount || 0), 0);
@@ -304,6 +309,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         newStudents: newStudents || 0,
         monthOrders: thisMonthOrders?.length || 0,
         monthlyTrend,
+        awaitingApprovals: awaitingApprovals || 0,
       });
     };
     load();
@@ -375,33 +381,53 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         <p className="font-serif-italic text-base mt-2" style={{ color: COLORS.stone }}>오늘의 운영 현황</p>
       </section>
 
-      {/* 이번 달 매출 - 큰 강조 카드 (admin만) */}
+      {/* 이번 달 매출 + AI 오피스 (admin만).
+          AI 오피스가 햄버거 메뉴 안에만 있으면 잘 안 들어가게 돼서
+          매출 카드를 반으로 줄이고 옆에 나란히 뒀다. */}
       {canViewRevenue && (
-      <section className="px-5 mb-3">
-        <button onClick={() => setCurrentPage('admin-orders')} className="w-full rounded-3xl p-6 text-left relative overflow-hidden glow-primary" style={{ background: COLORS.primary }}>
-          <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
-          <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(0,0,0,0.15)' }}></div>
-          <div className="relative" style={{ color: COLORS.white }}>
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase opacity-80">━━ This Month Revenue</p>
-            <p className="font-display text-5xl mt-2 leading-none tracking-tighter">
-              {formatRevenue(stats.monthRevenue)}<span className="font-body text-2xl font-medium opacity-80">원</span>
+      <section className="px-5 mb-3 grid grid-cols-2 gap-2 items-stretch">
+        <button onClick={() => setCurrentPage('admin-orders')} className="rounded-3xl p-5 text-left relative overflow-hidden glow-primary" style={{ background: COLORS.primary }}>
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
+          <div className="absolute -bottom-10 -left-10 w-28 h-28 rounded-full" style={{ background: 'rgba(0,0,0,0.15)' }}></div>
+          <div className="relative flex flex-col h-full" style={{ color: COLORS.white }}>
+            <p className="font-mono text-[9px] font-bold tracking-[0.2em] uppercase opacity-80">━━ This Month</p>
+            <p className="font-display text-3xl mt-2 leading-none tracking-tighter">
+              {formatRevenue(stats.monthRevenue)}<span className="font-body text-base font-medium opacity-80">원</span>
             </p>
-            <div className="flex items-center justify-between mt-4">
-              <div className="flex items-center gap-2 flex-wrap">
+            <div className="mt-auto pt-4 flex items-end justify-between gap-2">
+              <div className="min-w-0">
                 {revenueChange !== null && (
-                  <span className="font-mono text-xs font-bold px-2 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.25)' }}>
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-full inline-block" style={{ background: 'rgba(0,0,0,0.25)' }}>
                     {revenueChange > 0 ? '↑' : revenueChange < 0 ? '↓' : '→'} {Math.abs(revenueChange)}%
                   </span>
                 )}
-                <p className="font-body text-xs opacity-90">
-                  {revenueChange === null ? '지난 달 데이터 없음' : 
+                <p className="font-body text-[10px] opacity-90 mt-1 leading-tight">
+                  {revenueChange === null ? '지난 달 데이터 없음' :
                    revenueChange > 0 ? `지난 달보다 ${revenueChange}% 증가` :
                    revenueChange < 0 ? `지난 달보다 ${Math.abs(revenueChange)}% 감소` :
                    '지난 달과 동일'}
                 </p>
               </div>
-              <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 ml-2" style={{ background: COLORS.white }}>
-                <ArrowUpRight size={16} strokeWidth={2.5} style={{ color: COLORS.primary }} />
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: COLORS.white }}>
+                <ArrowUpRight size={14} strokeWidth={2.5} style={{ color: COLORS.primary }} />
+              </div>
+            </div>
+          </div>
+        </button>
+
+        <button onClick={() => setCurrentPage('admin-ai')} className="rounded-3xl p-5 text-left relative overflow-hidden" style={{ background: COLORS.ink }}>
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full" style={{ background: 'rgba(255,92,31,0.18)' }}></div>
+          <div className="relative flex flex-col h-full" style={{ color: COLORS.white }}>
+            <p className="font-mono text-[9px] font-bold tracking-[0.2em] uppercase" style={{ color: COLORS.primary }}>━━ AI Office</p>
+            <p className="font-display text-3xl mt-2 leading-none tracking-tighter">
+              {stats.awaitingApprovals}<span className="font-body text-base font-medium opacity-70">건</span>
+            </p>
+            <div className="mt-auto pt-4 flex items-end justify-between gap-2">
+              <p className="font-body text-[10px] opacity-80 leading-tight min-w-0">
+                {stats.awaitingApprovals > 0 ? '승인 기다리는 중' : '승인할 것 없음'}
+              </p>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: COLORS.primary }}>
+                <ArrowUpRight size={14} strokeWidth={2.5} style={{ color: COLORS.white }} />
               </div>
             </div>
           </div>
@@ -1698,7 +1724,7 @@ export function AdminOrders() {
           <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>전체 완료/취소</p>
             <p className="font-display text-xl mt-1 tracking-tight" style={{ color: COLORS.ink }}>
-              {paidOrders.length} <span style={{ color: COLORS.stone, fontSize: '14px' }}>/ {cancelledCount}</span>
+              {allTime.paidCount} <span style={{ color: COLORS.stone, fontSize: '14px' }}>/ {cancelledCount}</span>
             </p>
           </div>
         </div>
@@ -5969,6 +5995,7 @@ function MediaUpload({ userId }) {
   const [files, setFiles] = useState([]);
   const [caption, setCaption] = useState('');
   const [channel, setChannel] = useState('hssup-academy');
+  const [urgency, setUrgency] = useState('scheduled');
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [queued, setQueued] = useState([]);
@@ -6029,6 +6056,7 @@ function MediaUpload({ userId }) {
           media_type: isVideo ? 'video' : 'image',
           group_key: isVideo ? `${photoGroup}-v${i}` : photoGroup,
           sort_order: i,
+          urgency,
           // 설명은 묶음의 첫 장에만 달면 자동화가 찾아 쓴다.
           user_caption: i === 0 ? (caption.trim() || null) : null,
           created_by: userId || null,
@@ -6042,7 +6070,10 @@ function MediaUpload({ userId }) {
       setFiles([]);
       setCaption('');
       setReloadKey(k => k + 1);
-      toast(files.length > 1 ? `${files.length}장을 한 게시물로 올렸어요` : '대기열에 올렸어요');
+      const what = files.length > 1 ? `${files.length}장을 한 게시물로` : '소재를';
+      toast(urgency === 'now'
+        ? `${what} 올렸어요. 몇 분 안에 승인 요청이 올라와요`
+        : `${what} 올렸어요. 다음 처리 시간에 올라와요`);
     } catch (e) {
       toast('올리지 못했어요: ' + (e.message || e));
     } finally {
@@ -6101,10 +6132,15 @@ function MediaUpload({ userId }) {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-mono text-[10px]" style={{ color: COLORS.muted }}>
-                        {head.channel === 'hssup-academy' ? '아카데미' : '아트메이크'}
-                        {' · '}
-                        {head.media_type === 'video' ? '영상' : (rows.length > 1 ? `사진 ${rows.length}장` : '사진')}
+                      <p className="font-mono text-[10px] flex items-center gap-1" style={{ color: COLORS.muted }}>
+                        {head.urgency === 'now' && (
+                          <span className="rounded px-1" style={{ background: COLORS.peach, color: COLORS.primary }}>지금</span>
+                        )}
+                        <span>
+                          {head.channel === 'hssup-academy' ? '아카데미' : '아트메이크'}
+                          {' · '}
+                          {head.media_type === 'video' ? '영상' : (rows.length > 1 ? `사진 ${rows.length}장` : '사진')}
+                        </span>
                       </p>
                       <p className="font-body text-xs truncate" style={{ color: COLORS.stone }}>
                         {note || '설명 없음'}
@@ -6177,6 +6213,22 @@ function MediaUpload({ userId }) {
             </>
           )}
 
+          <div className="flex gap-2 mt-2">
+            {[
+              ['scheduled', '정해진 시간에', '낮 12:30 / 저녁 8시'],
+              ['now', '지금 바로', '몇 분 안에'],
+            ].map(([key, label, hint]) => (
+              <button key={key} onClick={() => setUrgency(key)}
+                className="flex-1 rounded-xl px-2 py-2"
+                style={urgency === key
+                  ? { background: COLORS.ink, color: COLORS.card }
+                  : { background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                <p className="font-heading text-xs">{label}</p>
+                <p className="font-mono text-[9px] mt-0.5" style={{ opacity: 0.7 }}>{hint}</p>
+              </button>
+            ))}
+          </div>
+
           <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={3}
             placeholder="어떤 내용인지 알려주세요 (캡션 쓸 때 참고합니다)"
             className="w-full rounded-xl p-3 mt-2 font-body text-sm leading-relaxed"
@@ -6187,13 +6239,13 @@ function MediaUpload({ userId }) {
             style={{ background: COLORS.primary, color: COLORS.card, minHeight: 44 }}>
             {busy
               ? (files.length > 1 ? `올리는 중… ${progress}/${files.length}` : '올리는 중…')
-              : '대기열에 올리기'}
+              : (urgency === 'now' ? '지금 바로 맡기기' : '대기열에 올리기')}
           </button>
 
           <p className="font-body text-[11px] mt-3" style={{ color: COLORS.muted }}>
             사진을 여러 장 고르면 한 게시물(넘겨보는 형태)로 올라갑니다. 영상은 한 편씩 따로예요.
-            올린 소재는 낮 12시 30분과 저녁 8시에 하나씩 처리되고,
-            캡션과 브랜드 로고가 붙은 뒤 승인 요청으로 올라와요.
+            캡션과 브랜드 로고가 붙으면 승인 요청으로 올라오고,
+            인스타에 올라가는 건 원장님이 승인하신 뒤입니다. &quot;지금 바로&quot; 도 마찬가지예요.
           </p>
         </div>
       )}
