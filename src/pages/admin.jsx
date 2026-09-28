@@ -5809,6 +5809,159 @@ function StaffRoster({ data, onPick, now }) {
   );
 }
 
+// 📤 소재 올리기. 사진이나 영상을 올리면 대기열에 들어가고,
+// 정해진 시간에 캡션과 브랜드 오버레이가 붙어 승인 요청으로 온다.
+// 원본은 Supabase 에 임시로만 두고 처리가 끝나면 자동화가 지운다.
+const UPLOAD_BUCKET = 'content-media';
+
+function MediaUpload({ userId }) {
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState(null);
+  const [caption, setCaption] = useState('');
+  const [channel, setChannel] = useState('hssup-academy');
+  const [busy, setBusy] = useState(false);
+  const [queued, setQueued] = useState([]);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('ai_media_queue').select('*').eq('status', 'queued').order('created_at', { ascending: true });
+      setQueued(data || []);
+    })();
+  }, [reloadKey]);
+
+  const submit = async () => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const isVideo = file.type.startsWith('video/');
+      const ext = file.name.split('.').pop();
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+      const { error: upErr } = await supabase.storage.from(UPLOAD_BUCKET)
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (upErr) throw upErr;
+
+      const { data: pub } = supabase.storage.from(UPLOAD_BUCKET).getPublicUrl(path);
+      const { error } = await supabase.from('ai_media_queue').insert({
+        channel,
+        media_url: pub.publicUrl,
+        storage_path: path,
+        media_type: isVideo ? 'video' : 'image',
+        user_caption: caption.trim() || null,
+        created_by: userId || null,
+      });
+      if (error) throw error;
+
+      setFile(null);
+      setCaption('');
+      setReloadKey(k => k + 1);
+      toast('대기열에 올렸어요');
+    } catch (e) {
+      toast('올리지 못했어요: ' + (e.message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (row) => {
+    await supabase.storage.from(UPLOAD_BUCKET).remove([row.storage_path]);
+    const { error } = await supabase.from('ai_media_queue').delete().eq('id', row.id);
+    if (error) {
+      toast('취소하지 못했어요: ' + error.message);
+      return;
+    }
+    setReloadKey(k => k + 1);
+  };
+
+  const CHANNELS = [['hssup-academy', '아카데미'], ['hssup-artmake', '아트메이크']];
+
+  return (
+    <div className="rounded-2xl mb-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+      <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+          <Upload size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-heading text-sm" style={{ color: COLORS.ink }}>소재 올리기</p>
+          <p className="font-body text-xs mt-1" style={{ color: queued.length ? COLORS.stone : COLORS.muted }}>
+            {queued.length ? `대기 중 ${queued.length}건` : '사진이나 영상을 올려주세요'}
+          </p>
+        </div>
+        <ChevronRight size={17} strokeWidth={1.8}
+          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+          {queued.length > 0 && (
+            <div className="space-y-2 my-3">
+              {queued.map(row => (
+                <div key={row.id} className="flex items-center gap-2 rounded-xl p-2" style={{ background: COLORS.cardElev }}>
+                  {row.media_type === 'video'
+                    ? <video src={row.media_url} muted playsInline preload="metadata"
+                        className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                    : <img src={row.media_url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono text-[10px]" style={{ color: COLORS.muted }}>
+                      {row.channel === 'hssup-academy' ? '아카데미' : '아트메이크'} · {row.media_type === 'video' ? '영상' : '사진'}
+                    </p>
+                    <p className="font-body text-xs truncate" style={{ color: COLORS.stone }}>
+                      {row.user_caption || '설명 없음'}
+                    </p>
+                  </div>
+                  <button onClick={() => remove(row)} aria-label="취소" className="shrink-0" style={{ color: COLORS.muted }}>
+                    <X size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-3">
+            {CHANNELS.map(([key, label]) => (
+              <button key={key} onClick={() => setChannel(key)}
+                className="px-3 rounded-xl font-heading text-xs"
+                style={channel === key
+                  ? { background: COLORS.ink, color: COLORS.card, minHeight: 44 }
+                  : { background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}`, minHeight: 44 }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <label className="block mt-2 rounded-xl p-4 text-center cursor-pointer"
+            style={{ background: COLORS.cardElev, border: `1px dashed ${COLORS.light}` }}>
+            <input type="file" accept="image/*,video/*" className="hidden"
+              onChange={e => setFile(e.target.files?.[0] || null)} />
+            <p className="font-body text-sm" style={{ color: file ? COLORS.ink : COLORS.muted }}>
+              {file ? file.name : '사진 또는 영상 선택'}
+            </p>
+          </label>
+
+          <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={3}
+            placeholder="어떤 내용인지 알려주세요 (캡션 쓸 때 참고합니다)"
+            className="w-full rounded-xl p-3 mt-2 font-body text-sm leading-relaxed"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
+
+          <button onClick={submit} disabled={busy || !file}
+            className="w-full mt-2 rounded-xl font-heading text-sm disabled:opacity-40"
+            style={{ background: COLORS.primary, color: COLORS.card, minHeight: 44 }}>
+            {busy ? '올리는 중…' : '대기열에 올리기'}
+          </button>
+
+          <p className="font-body text-[11px] mt-3" style={{ color: COLORS.muted }}>
+            올린 소재는 낮 12시 30분과 저녁 8시에 하나씩 처리됩니다.
+            캡션과 브랜드 로고가 붙은 뒤 승인 요청으로 올라와요.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 📌 콘텐츠 요청. 떠오른 아이디어를 적어두는 자리.
 // "지금" 은 몇 분 안에 기획안이 나오고, "주간" 은 월요일 기획에 반영된다.
 function ContentRequest({ userId }) {
@@ -6152,6 +6305,7 @@ export function AdminAIOffice({ user }) {
     <>
       <PageIntro ko="AI 오피스" en="AI Office" />
       <div className="px-5 pb-10">
+        {!loading && <MediaUpload userId={user?.id} />}
         {!loading && <ContentRequest userId={user?.id} />}
         {!loading && <BusinessContext userId={user?.id} />}
         {!loading && <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />}
