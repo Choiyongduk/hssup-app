@@ -6217,7 +6217,9 @@ function MediaUpload({ userId, approvals = [], row = false }) {
 
           <label className="block mt-2 rounded-xl p-4 text-center cursor-pointer"
             style={{ background: COLORS.cardElev, border: `1px dashed ${COLORS.light}` }}>
-            <input type="file" accept="image/*,video/*" multiple className="hidden"
+            {/* 윈도우 파일 창이 image/* 만 보면 아이폰 사진(HEIC)을 회색으로 감추는 일이 있다.
+                확장자를 직접 적어 목록에 뜨게 한다. */}
+            <input type="file" accept="image/*,video/*,.heic,.heif,.HEIC,.HEIF" multiple className="hidden"
               onChange={e => {
                 const picked = [...(e.target.files || [])];
                 if (picked.length > MAX_FILES) toast(`한 게시물에 ${MAX_FILES}장까지예요. 앞 ${MAX_FILES}장만 담았어요`);
