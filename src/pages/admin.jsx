@@ -5430,9 +5430,96 @@ function MediaViewer({ url, onClose }) {
   );
 }
 
+// 승인 대기 게시물에 대고 "이렇게 바꿔줘" 라고 말하는 자리.
+// 캡션만 고치는 요청은 금방 오고, 그림까지 다시 만드는 요청은 조금 더 걸린다.
+function ApprovalThread({ approvalId, onRevised }) {
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('ai_approval_messages').select('*')
+        .eq('approval_id', approvalId).order('created_at', { ascending: true });
+      setMessages(prev => {
+        const last = (data || [])[(data || []).length - 1];
+        const prevLast = prev[prev.length - 1];
+        if (last && last.role === 'staff' && prevLast && last.id !== prevLast.id) onRevised?.();
+        return data || [];
+      });
+    })();
+  }, [approvalId, reloadKey, onRevised]);
+
+  const waiting = messages.length > 0
+    && messages[messages.length - 1].role === 'owner'
+    && !messages[messages.length - 1].answered;
+
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => setReloadKey(k => k + 1), 15000);
+    return () => clearInterval(timer);
+  }, [waiting]);
+
+  const send = async () => {
+    const body = draft.trim();
+    if (!body) return;
+    setSending(true);
+    const { error } = await supabase.from('ai_approval_messages')
+      .insert({ approval_id: approvalId, role: 'owner', body });
+    setSending(false);
+    if (error) {
+      toast('보내지 못했어요: ' + error.message);
+      return;
+    }
+    setDraft('');
+    setReloadKey(k => k + 1);
+    toast('전달했어요. 잠시 후 반영됩니다');
+  };
+
+  return (
+    <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+      {messages.map(m => (
+        <div key={m.id} className={`mb-2 flex flex-col ${m.role === 'owner' ? 'items-end' : 'items-start'}`}>
+          <div className="max-w-[85%] rounded-2xl px-3 py-2"
+            style={m.role === 'owner'
+              ? { background: COLORS.primary, color: COLORS.card }
+              : { background: COLORS.cardElev, color: COLORS.ink }}>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>
+          </div>
+          <p className="font-mono text-[9px] mt-1 px-1" style={{ color: COLORS.muted }}>
+            {m.role === 'owner' ? '' : '김주훈 팀장 · '}
+            {new Date(m.created_at).toLocaleString('ko-KR', {
+              month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+            })}
+          </p>
+        </div>
+      ))}
+
+      {waiting && (
+        <p className="font-body text-xs mb-2" style={{ color: COLORS.muted }}>고치고 있어요…</p>
+      )}
+
+      <div className="flex gap-2 mt-2">
+        <input value={draft} onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="예: 캡션 좀 더 짧게, 헤드라인은 리커버 브로우로"
+          className="flex-1 rounded-xl px-3 font-body text-sm"
+          style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minHeight: 44 }} />
+        <button onClick={send} disabled={sending || !draft.trim()}
+          className="px-4 rounded-xl font-heading text-xs disabled:opacity-40 shrink-0"
+          style={{ background: COLORS.ink, color: COLORS.card, minHeight: 44 }}>
+          보내기
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // 승인 대기 카드. 지금은 인스타그램 게시만 올라온다.
 // (DM 자동응대는 인스타 기본 자동응답을 쓰기로 해서 자동화에서 뺐다.)
-function ApprovalCard({ row, onDecide, onSaveBody }) {
+function ApprovalCard({ row, onDecide, onSaveBody, onRevised }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -5522,8 +5609,9 @@ function ApprovalCard({ row, onDecide, onSaveBody }) {
                 <button onClick={() => setEditing(true)}
                   className="mt-3 inline-flex items-center gap-1 font-heading text-xs"
                   style={{ color: COLORS.primary }}>
-                  <Edit3 size={13} /> 내용 수정
+                  <Edit3 size={13} /> 직접 고치기
                 </button>
+                <ApprovalThread approvalId={row.id} onRevised={onRevised} />
               </>
             )}
           </div>
@@ -6223,6 +6311,13 @@ export function AdminAIOffice({ user }) {
     })();
   }, []);
 
+  // 편집자가 캡션이나 그림을 고치면 카드도 새로 읽어와야 한다.
+  const refreshApprovals = React.useCallback(async () => {
+    const { data } = await supabase
+      .from('ai_approvals').select('*').order('created_at', { ascending: false }).limit(50);
+    if (data) setApprovals(data);
+  }, []);
+
   // 담당자가 피드백을 반영해 결과물을 다시 쓰면 화면도 새로 읽어와야 한다.
   const refreshReports = React.useCallback(async () => {
     const { data } = await supabase
@@ -6342,7 +6437,7 @@ export function AdminAIOffice({ user }) {
             {items.map(item => {
               const r = item.row;
               if (item.type === 'approval') {
-                return <ApprovalCard key={`a${r.id}`} row={r} onDecide={decide} onSaveBody={saveBody} />;
+                return <ApprovalCard key={`a${r.id}`} row={r} onDecide={decide} onSaveBody={saveBody} onRevised={refreshApprovals} />;
               }
               if (item.type === 'decided') {
                 return <DecidedCard key={`d${r.id}`} row={r} />;
