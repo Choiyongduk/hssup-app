@@ -5897,17 +5897,80 @@ function StaffRoster({ data, onPick, now }) {
   );
 }
 
+// 두 카드가 이름만 봐서는 헷갈려서, 언제 뭘 쓰는지 접었다 펼 수 있게 둔다.
+function OfficeGuide() {
+  const [open, setOpen] = useState(false);
+
+  const ROWS = [
+    ['언제', '사진·영상이 이미 있을 때', '아이디어만 있고 찍은 게 없을 때'],
+    ['넣는 것', '사진 최대 10장 또는 영상 + 설명', '글로 된 요청'],
+    ['나오는 것', '게시할 게시물', '기획안 (뭘 어떻게 찍을지)'],
+    ['그다음', '승인하면 인스타에 올라감', '기획안 보고 촬영 → 소재 올리기로'],
+  ];
+
+  return (
+    <div className="rounded-2xl mb-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+      <button onClick={() => setOpen(v => !v)} className="w-full px-4 py-3 flex items-center gap-2 text-left">
+        <AlertCircle size={15} strokeWidth={1.8} style={{ color: COLORS.muted }} />
+        <p className="flex-1 font-body text-xs" style={{ color: COLORS.stone }}>
+          소재 올리기와 콘텐츠 요청, 뭐가 다른가요?
+        </p>
+        <ChevronRight size={15} strokeWidth={1.8}
+          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+          <p className="font-body text-sm mt-3 mb-3" style={{ color: COLORS.ink }}>
+            소재 올리기는 <strong>이거 올려줘</strong>, 콘텐츠 요청은 <strong>뭘 만들지 알려줘</strong> 입니다.
+          </p>
+
+          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${COLORS.light}` }}>
+            <div className="grid grid-cols-[64px_1fr_1fr]">
+              <div className="px-2 py-2" style={{ background: COLORS.cardElev }}></div>
+              <div className="px-2 py-2 font-heading text-[11px]"
+                style={{ background: COLORS.cardElev, color: COLORS.ink }}>소재 올리기</div>
+              <div className="px-2 py-2 font-heading text-[11px]"
+                style={{ background: COLORS.cardElev, color: COLORS.ink }}>콘텐츠 요청</div>
+
+              {ROWS.map(([label, a, b]) => (
+                <React.Fragment key={label}>
+                  <div className="px-2 py-2 font-mono text-[10px]"
+                    style={{ color: COLORS.muted, borderTop: `1px solid ${COLORS.light}` }}>{label}</div>
+                  <div className="px-2 py-2 font-body text-[11px] leading-snug"
+                    style={{ color: COLORS.stone, borderTop: `1px solid ${COLORS.light}` }}>{a}</div>
+                  <div className="px-2 py-2 font-body text-[11px] leading-snug"
+                    style={{ color: COLORS.stone, borderTop: `1px solid ${COLORS.light}` }}>{b}</div>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+
+          <p className="font-body text-[11px] mt-3" style={{ color: COLORS.muted }}>
+            실습 사진을 찍어두셨으면 소재 올리기로 올리시면 됩니다.
+            &quot;비포애프터 같은 걸 만들고 싶은데 어떻게 찍지?&quot; 싶으면 콘텐츠 요청을 하시고,
+            나온 기획안대로 찍어서 다시 소재 올리기로 올리시면 돼요.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 📤 소재 올리기. 사진이나 영상을 올리면 대기열에 들어가고,
 // 정해진 시간에 캡션과 브랜드 오버레이가 붙어 승인 요청으로 온다.
 // 원본은 Supabase 에 임시로만 두고 처리가 끝나면 자동화가 지운다.
 const UPLOAD_BUCKET = 'content-media';
 
+const MAX_FILES = 10;  // 인스타 캐러셀 한 게시물 최대 장수
+
 function MediaUpload({ userId }) {
   const [open, setOpen] = useState(false);
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [caption, setCaption] = useState('');
   const [channel, setChannel] = useState('hssup-academy');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [queued, setQueued] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -5919,43 +5982,79 @@ function MediaUpload({ userId }) {
     })();
   }, [reloadKey]);
 
+  const previews = React.useMemo(
+    () => files.map(f => (f.type.startsWith('video/') ? null : URL.createObjectURL(f))),
+    [files],
+  );
+  useEffect(() => () => previews.forEach(u => u && URL.revokeObjectURL(u)), [previews]);
+
+  // 같은 묶음은 한 줄로 보여준다. 대기 건수도 장수가 아니라 게시물 수로 센다.
+  const groups = React.useMemo(() => {
+    const map = new Map();
+    for (const row of queued) {
+      const key = row.group_key || `id${row.id}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(row);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
+    }
+    return [...map.entries()].map(([key, rows]) => ({ key, rows }));
+  }, [queued]);
+
+  // 한 번에 고른 사진들은 같은 묶음 = 한 게시물(캐러셀)로 올라간다.
+  // 영상은 인스타에서 사진과 같이 묶을 수 없어서 각자 따로 간다.
   const submit = async () => {
-    if (!file) return;
+    if (!files.length) return;
     setBusy(true);
+    const photoGroup = `g${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const rows = [];
     try {
-      const isVideo = file.type.startsWith('video/');
-      const ext = file.name.split('.').pop();
-      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      for (let i = 0; i < files.length; i++) {
+        const picked = files[i];
+        const isVideo = picked.type.startsWith('video/');
+        const toUpload = isVideo ? picked : await compressImage(picked, 1440, 0.9);
+        const ext = toUpload.name.split('.').pop();
+        const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-      const { error: upErr } = await supabase.storage.from(UPLOAD_BUCKET)
-        .upload(path, file, { contentType: file.type, upsert: false });
-      if (upErr) throw upErr;
+        const { error: upErr } = await supabase.storage.from(UPLOAD_BUCKET)
+          .upload(path, toUpload, { contentType: toUpload.type, upsert: false });
+        if (upErr) throw upErr;
 
-      const { data: pub } = supabase.storage.from(UPLOAD_BUCKET).getPublicUrl(path);
-      const { error } = await supabase.from('ai_media_queue').insert({
-        channel,
-        media_url: pub.publicUrl,
-        storage_path: path,
-        media_type: isVideo ? 'video' : 'image',
-        user_caption: caption.trim() || null,
-        created_by: userId || null,
-      });
+        const { data: pub } = supabase.storage.from(UPLOAD_BUCKET).getPublicUrl(path);
+        rows.push({
+          channel,
+          media_url: pub.publicUrl,
+          storage_path: path,
+          media_type: isVideo ? 'video' : 'image',
+          group_key: isVideo ? `${photoGroup}-v${i}` : photoGroup,
+          sort_order: i,
+          // 설명은 묶음의 첫 장에만 달면 자동화가 찾아 쓴다.
+          user_caption: i === 0 ? (caption.trim() || null) : null,
+          created_by: userId || null,
+        });
+        setProgress(i + 1);
+      }
+
+      const { error } = await supabase.from('ai_media_queue').insert(rows);
       if (error) throw error;
 
-      setFile(null);
+      setFiles([]);
       setCaption('');
       setReloadKey(k => k + 1);
-      toast('대기열에 올렸어요');
+      toast(files.length > 1 ? `${files.length}장을 한 게시물로 올렸어요` : '대기열에 올렸어요');
     } catch (e) {
       toast('올리지 못했어요: ' + (e.message || e));
     } finally {
+      setProgress(0);
       setBusy(false);
     }
   };
 
-  const remove = async (row) => {
-    await supabase.storage.from(UPLOAD_BUCKET).remove([row.storage_path]);
-    const { error } = await supabase.from('ai_media_queue').delete().eq('id', row.id);
+  // 묶음은 한 게시물이라 통째로 뺀다. 몇 장만 빼면 나머지가 어중간해진다.
+  const removeGroup = async (rows) => {
+    await supabase.storage.from(UPLOAD_BUCKET).remove(rows.map(r => r.storage_path));
+    const { error } = await supabase.from('ai_media_queue').delete().in('id', rows.map(r => r.id));
     if (error) {
       toast('취소하지 못했어요: ' + error.message);
       return;
@@ -5975,7 +6074,7 @@ function MediaUpload({ userId }) {
         <div className="flex-1 min-w-0">
           <p className="font-heading text-sm" style={{ color: COLORS.ink }}>소재 올리기</p>
           <p className="font-body text-xs mt-1" style={{ color: queued.length ? COLORS.stone : COLORS.muted }}>
-            {queued.length ? `대기 중 ${queued.length}건` : '사진이나 영상을 올려주세요'}
+            {groups.length ? `대기 중 ${groups.length}건` : '찍어둔 사진·영상을 게시물로'}
           </p>
         </div>
         <ChevronRight size={17} strokeWidth={1.8}
@@ -5984,27 +6083,39 @@ function MediaUpload({ userId }) {
 
       {open && (
         <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-          {queued.length > 0 && (
+          {groups.length > 0 && (
             <div className="space-y-2 my-3">
-              {queued.map(row => (
-                <div key={row.id} className="flex items-center gap-2 rounded-xl p-2" style={{ background: COLORS.cardElev }}>
-                  {row.media_type === 'video'
-                    ? <video src={row.media_url} muted playsInline preload="metadata"
-                        className="w-12 h-12 rounded-lg object-cover shrink-0" />
-                    : <img src={row.media_url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-mono text-[10px]" style={{ color: COLORS.muted }}>
-                      {row.channel === 'hssup-academy' ? '아카데미' : '아트메이크'} · {row.media_type === 'video' ? '영상' : '사진'}
-                    </p>
-                    <p className="font-body text-xs truncate" style={{ color: COLORS.stone }}>
-                      {row.user_caption || '설명 없음'}
-                    </p>
+              {groups.map(({ key, rows }) => {
+                const head = rows[0];
+                const note = rows.find(r => r.user_caption)?.user_caption;
+                return (
+                  <div key={key} className="flex items-center gap-2 rounded-xl p-2" style={{ background: COLORS.cardElev }}>
+                    <div className="relative shrink-0">
+                      {head.media_type === 'video'
+                        ? <video src={head.media_url} muted playsInline preload="metadata"
+                            className="w-12 h-12 rounded-lg object-cover" />
+                        : <img src={head.media_url} alt="" className="w-12 h-12 rounded-lg object-cover" />}
+                      {rows.length > 1 && (
+                        <span className="absolute -top-1 -right-1 rounded-full px-1.5 font-mono text-[9px]"
+                          style={{ background: COLORS.ink, color: COLORS.card }}>{rows.length}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-mono text-[10px]" style={{ color: COLORS.muted }}>
+                        {head.channel === 'hssup-academy' ? '아카데미' : '아트메이크'}
+                        {' · '}
+                        {head.media_type === 'video' ? '영상' : (rows.length > 1 ? `사진 ${rows.length}장` : '사진')}
+                      </p>
+                      <p className="font-body text-xs truncate" style={{ color: COLORS.stone }}>
+                        {note || '설명 없음'}
+                      </p>
+                    </div>
+                    <button onClick={() => removeGroup(rows)} aria-label="취소" className="shrink-0" style={{ color: COLORS.muted }}>
+                      <X size={15} />
+                    </button>
                   </div>
-                  <button onClick={() => remove(row)} aria-label="취소" className="shrink-0" style={{ color: COLORS.muted }}>
-                    <X size={15} />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -6022,26 +6133,66 @@ function MediaUpload({ userId }) {
 
           <label className="block mt-2 rounded-xl p-4 text-center cursor-pointer"
             style={{ background: COLORS.cardElev, border: `1px dashed ${COLORS.light}` }}>
-            <input type="file" accept="image/*,video/*" className="hidden"
-              onChange={e => setFile(e.target.files?.[0] || null)} />
-            <p className="font-body text-sm" style={{ color: file ? COLORS.ink : COLORS.muted }}>
-              {file ? file.name : '사진 또는 영상 선택'}
+            <input type="file" accept="image/*,video/*" multiple className="hidden"
+              onChange={e => {
+                const picked = [...(e.target.files || [])];
+                if (picked.length > MAX_FILES) toast(`한 게시물에 ${MAX_FILES}장까지예요. 앞 ${MAX_FILES}장만 담았어요`);
+                setFiles(picked.slice(0, MAX_FILES));
+                e.target.value = '';  // 같은 파일을 다시 골라도 반응하게
+              }} />
+            <p className="font-body text-sm" style={{ color: files.length ? COLORS.ink : COLORS.muted }}>
+              {files.length
+                ? (files.length > 1 ? `${files.length}장 선택됨` : files[0].name)
+                : `사진 또는 영상 선택 (최대 ${MAX_FILES}장)`}
             </p>
           </label>
+
+          {files.length > 1 && (
+            <>
+              <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1">
+                {files.map((f, i) => (
+                  <div key={`${f.name}-${i}`} className="relative shrink-0">
+                    {f.type.startsWith('video/')
+                      ? <div className="w-14 h-14 rounded-lg flex items-center justify-center"
+                          style={{ background: COLORS.cardElev }}>
+                          <PlayCircle size={16} strokeWidth={1.8} style={{ color: COLORS.muted }} />
+                        </div>
+                      : <img src={previews[i]} alt="" className="w-14 h-14 rounded-lg object-cover" />}
+                    <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))}
+                      aria-label={`${i + 1}번째 빼기`}
+                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ background: COLORS.ink, color: COLORS.card }}>
+                      <X size={11} />
+                    </button>
+                    {i === 0 && (
+                      <span className="absolute bottom-0 left-0 right-0 rounded-b-lg text-center font-mono text-[8px] py-0.5"
+                        style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>표지</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="font-body text-[11px] mt-1" style={{ color: COLORS.muted }}>
+                맨 앞이 표지입니다. 헤드라인은 표지에만 얹혀요.
+              </p>
+            </>
+          )}
 
           <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={3}
             placeholder="어떤 내용인지 알려주세요 (캡션 쓸 때 참고합니다)"
             className="w-full rounded-xl p-3 mt-2 font-body text-sm leading-relaxed"
             style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
 
-          <button onClick={submit} disabled={busy || !file}
+          <button onClick={submit} disabled={busy || !files.length}
             className="w-full mt-2 rounded-xl font-heading text-sm disabled:opacity-40"
             style={{ background: COLORS.primary, color: COLORS.card, minHeight: 44 }}>
-            {busy ? '올리는 중…' : '대기열에 올리기'}
+            {busy
+              ? (files.length > 1 ? `올리는 중… ${progress}/${files.length}` : '올리는 중…')
+              : '대기열에 올리기'}
           </button>
 
           <p className="font-body text-[11px] mt-3" style={{ color: COLORS.muted }}>
-            올린 소재는 낮 12시 30분과 저녁 8시에 하나씩 처리됩니다.
+            사진을 여러 장 고르면 한 게시물(넘겨보는 형태)로 올라갑니다. 영상은 한 편씩 따로예요.
+            올린 소재는 낮 12시 30분과 저녁 8시에 하나씩 처리되고,
             캡션과 브랜드 로고가 붙은 뒤 승인 요청으로 올라와요.
           </p>
         </div>
@@ -6103,7 +6254,7 @@ function ContentRequest({ userId }) {
         <div className="flex-1 min-w-0">
           <p className="font-heading text-sm" style={{ color: COLORS.ink }}>콘텐츠 요청</p>
           <p className="font-body text-xs mt-1" style={{ color: items.length ? COLORS.stone : COLORS.muted }}>
-            {items.length ? `대기 중 ${items.length}건` : '만들고 싶은 콘텐츠를 알려주세요'}
+            {items.length ? `대기 중 ${items.length}건` : '뭘 만들지 아이디어만 있을 때'}
           </p>
         </div>
         <ChevronRight size={17} strokeWidth={1.8}
@@ -6400,6 +6551,7 @@ export function AdminAIOffice({ user }) {
     <>
       <PageIntro ko="AI 오피스" en="AI Office" />
       <div className="px-5 pb-10">
+        {!loading && <OfficeGuide />}
         {!loading && <MediaUpload userId={user?.id} />}
         {!loading && <ContentRequest userId={user?.id} />}
         {!loading && <BusinessContext userId={user?.id} />}
