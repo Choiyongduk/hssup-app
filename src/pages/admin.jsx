@@ -5517,6 +5517,14 @@ function MediaViewer({ urls, index = 0, onClose }) {
   );
 }
 
+// 대화에 나오는 담당자들. 자동화 쪽 engine/staff.py 와 같은 사람들이다.
+const CHAT_STAFF = {
+  editor:   { name: '김주훈', role: '콘텐츠 편집', color: 'mocha' },
+  designer: { name: '차은우', role: '카드 디자인', color: 'charcoal' },
+  planner:  { name: '박서준', role: '콘텐츠 기획', color: 'orange' },
+};
+const staffOf = (key) => CHAT_STAFF[key] || CHAT_STAFF.editor;
+
 // 승인 대기 게시물에 대고 "이렇게 바꿔줘" 라고 말하는 자리.
 // 캡션만 고치는 요청은 금방 오고, 그림까지 다시 만드는 요청은 조금 더 걸린다.
 function ApprovalThread({ approvalId, onRevised }) {
@@ -5566,32 +5574,73 @@ function ApprovalThread({ approvalId, onRevised }) {
   };
 
   return (
-    <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
-      {messages.map(m => (
-        <div key={m.id} className={`mb-2 flex flex-col ${m.role === 'owner' ? 'items-end' : 'items-start'}`}>
-          <div className="max-w-[85%] rounded-2xl px-3 py-2"
-            style={m.role === 'owner'
-              ? { background: COLORS.primary, color: COLORS.card }
-              : { background: COLORS.cardElev, color: COLORS.ink }}>
-            <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>
+    <div className="mt-4 pt-1" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+      {messages.map((m, i) => {
+        const mine = m.role === 'owner';
+        const who = mine ? null : staffOf(m.staff);
+        // 같은 사람이 연달아 말하면 이름과 얼굴을 한 번만 보여준다.
+        const prev = messages[i - 1];
+        const samePerson = prev && prev.role === m.role && (mine || prev.staff === m.staff);
+        const time = new Date(m.created_at).toLocaleTimeString('ko-KR', {
+          hour: '2-digit', minute: '2-digit',
+        });
+
+        if (mine) {
+          return (
+            <div key={m.id} className={`flex justify-end ${samePerson ? 'mt-1' : 'mt-4'}`}>
+              <div className="flex items-end gap-1.5 max-w-[88%]">
+                <span className="font-mono text-[9px] pb-1 shrink-0" style={{ color: COLORS.muted }}>{time}</span>
+                <div className="rounded-2xl rounded-br-md px-3.5 py-2.5"
+                  style={{ background: COLORS.primary, color: COLORS.card }}>
+                  <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={m.id} className={`flex gap-2 ${samePerson ? 'mt-1' : 'mt-4'}`}>
+            <div className="w-7 shrink-0">
+              {!samePerson && <Avatar user={{ name: who.name, avatar_color: who.color }} size="xs" />}
+            </div>
+            <div className="min-w-0 max-w-[88%]">
+              {!samePerson && (
+                <p className="font-heading text-[11px] mb-1" style={{ color: COLORS.stone }}>
+                  {who.name} 팀장
+                  <span className="font-mono text-[9px] ml-1.5" style={{ color: COLORS.muted }}>{who.role}</span>
+                </p>
+              )}
+              <div className="flex items-end gap-1.5">
+                <div className="rounded-2xl rounded-bl-md px-3.5 py-2.5"
+                  style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, color: COLORS.ink }}>
+                  <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>
+                </div>
+                <span className="font-mono text-[9px] pb-1 shrink-0" style={{ color: COLORS.muted }}>{time}</span>
+              </div>
+            </div>
           </div>
-          <p className="font-mono text-[9px] mt-1 px-1" style={{ color: COLORS.muted }}>
-            {m.role === 'owner' ? '' : '김주훈 팀장 · '}
-            {new Date(m.created_at).toLocaleString('ko-KR', {
-              month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
-            })}
-          </p>
-        </div>
-      ))}
+        );
+      })}
 
       {waiting && (
-        <p className="font-body text-xs mb-2" style={{ color: COLORS.muted }}>고치고 있어요…</p>
+        <div className="flex gap-2 mt-4 items-center">
+          <div className="w-7 shrink-0" />
+          <div className="rounded-2xl rounded-bl-md px-3.5 py-2.5 flex gap-1"
+            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+            {[0, 1, 2].map(i => (
+              <span key={i} className="w-1.5 h-1.5 rounded-full"
+                style={{ background: COLORS.muted, animation: `pulse 1.2s ${i * 0.2}s infinite` }} />
+            ))}
+          </div>
+          <p className="font-body text-[11px]" style={{ color: COLORS.muted }}>담당자가 보고 있어요</p>
+        </div>
       )}
 
       <div className="flex gap-2 mt-2">
         <input value={draft} onChange={e => setDraft(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="예: 캡션 좀 더 짧게, 헤드라인은 리커버 브로우로"
+          placeholder="예: 캡션 짧게, 글자 더 크게, 3번 카드 내용 바꿔줘"
           className="flex-1 rounded-xl px-3 font-body text-sm"
           style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minHeight: 44 }} />
         <button onClick={send} disabled={sending || !draft.trim()}
