@@ -397,6 +397,25 @@ export default function HSSUPApp() {
     };
   }, [currentPage, routeId]);
 
+  // 🍊 iOS 가 앱을 정리한 뒤 다시 열면 sessionStorage 가 비어 있다.
+  //    그때 쓰는 백업. 너무 오래된 건 쓰지 않는다 — 어제 보던 화면으로 열리면 그것대로 이상하다.
+  const restoreBackupPage = (userId) => {
+    try {
+      const raw = localStorage.getItem('hssup_last_page_backup');
+      if (!raw) return false;
+      const saved = JSON.parse(raw);
+      const FRESH = 6 * 60 * 60 * 1000;   // 6시간
+      if (saved.userId !== userId || Date.now() - (saved.ts || 0) > FRESH) {
+        localStorage.removeItem('hssup_last_page_backup');
+        return false;
+      }
+      setCurrentPage(saved.page);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
   const loadProfile = async (userId) => {
     setLoading(true);
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
@@ -445,6 +464,8 @@ export default function HSSUPApp() {
           setCurrentPage(lastPage);
         } else if (lastPage) {
           setCurrentPage(lastPage);
+        } else if (restoreBackupPage(data.id)) {
+          // sessionStorage 가 날아간 콜드스타트. localStorage 백업으로 돌아간다.
         } else {
           let restored = false;
           try {
@@ -490,6 +511,7 @@ export default function HSSUPApp() {
     setProfile(null); setSession(null); setDrawerOpen(false);
     // 🍊 로그아웃 시점 페이지(대부분 마이페이지)가 복원돼 다음 로그인이 거기서 시작되는 것 방지
     try { sessionStorage.removeItem('hssup_last_page'); } catch (e) { /* 무시 */ }
+    try { localStorage.removeItem('hssup_last_page_backup'); } catch (e) { /* 무시 */ }
   };
 
   // 🍊 로고/홈 탭처럼 "새로 홈으로" 의도의 이동은 홈에 남아있던 검색 상태도 같이 초기화
@@ -536,6 +558,13 @@ export default function HSSUPApp() {
     ];
     if (SAVABLE_PAGES.includes(currentPage)) {
       sessionStorage.setItem('hssup_last_page', currentPage);
+      // 🍊 iOS 가 앱을 정리하면 sessionStorage 가 통째로 사라진다.
+      //    다른 앱 잠깐 쓰고 돌아왔는데 첫 화면으로 떨어지는 게 그 때문이다.
+      //    localStorage 에도 남겨두고, 오래된 건 쓰지 않는다.
+      try {
+        localStorage.setItem('hssup_last_page_backup',
+          JSON.stringify({ page: currentPage, userId: profile.id, ts: Date.now() }));
+      } catch (e) { /* 저장이 막혀 있어도 그냥 넘어간다 */ }
     }
   }, [currentPage, profile]);
 

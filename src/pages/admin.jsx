@@ -6851,7 +6851,31 @@ export function AdminAIOffice({ user }) {
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
   const [filter, setFilter] = useState('all');
-  const [sheet, setSheet] = useState(null);   // 지금 덮고 올라와 있는 창
+  // 지금 덮고 올라와 있는 창.
+  // 다른 앱 잠깐 쓰고 돌아왔을 때 보던 자리로 돌아오게 기억해 둔다.
+  // 오래된 건 쓰지 않는다 — 어제 열어둔 대화가 다시 뜨면 그것대로 이상하다.
+  const [sheet, setSheet] = useState(() => {
+    try {
+      const raw = localStorage.getItem('hssup_ai_sheet');
+      if (!raw) return null;
+      const saved = JSON.parse(raw);
+      if (Date.now() - (saved.ts || 0) > 6 * 60 * 60 * 1000) {
+        localStorage.removeItem('hssup_ai_sheet');
+        return null;
+      }
+      return saved.sheet || null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (sheet) localStorage.setItem('hssup_ai_sheet', JSON.stringify({ sheet, ts: Date.now() }));
+      else localStorage.removeItem('hssup_ai_sheet');
+    } catch { /* 저장이 막혀 있어도 그냥 넘어간다 */ }
+  }, [sheet]);
+
   const [loadedAt, setLoadedAt] = useState(0);
   const cardRefs = React.useRef({});
 
