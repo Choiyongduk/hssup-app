@@ -5606,8 +5606,8 @@ function ApprovalThread({ approvalId, onRevised }) {
 
 // 승인 대기 카드. 지금은 인스타그램 게시만 올라온다.
 // (DM 자동응대는 인스타 기본 자동응답을 쓰기로 해서 자동화에서 뺐다.)
-function ApprovalCard({ row, onDecide, onSaveBody, onRevised }) {
-  const [open, setOpen] = useState(false);
+function ApprovalCard({ row, onDecide, onSaveBody, onRevised, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(row.body || '');
@@ -6012,18 +6012,39 @@ function StaffRoster({ data, onPick, now }) {
   );
 }
 
-// 화면을 덩어리로 끊어 읽히게 하는 작은 제목.
-function SectionTitle({ children, count }) {
-  return (
-    <div className="flex items-center gap-2 mb-2 mt-1">
-      <h2 className="font-mono text-[10px] font-bold tracking-[0.2em] uppercase"
-        style={{ color: COLORS.primary }}>{children}</h2>
-      {count > 0 && (
-        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded-full"
-          style={{ background: COLORS.primary, color: COLORS.card }}>{count}</span>
-      )}
-      <div className="flex-1 h-px" style={{ background: COLORS.light }} />
-    </div>
+// 눌렀을 때 화면을 덮고 올라오는 창.
+// 첫 화면에 다 늘어놓으면 뭘 해야 할지 안 보여서, 자주 쓰는 것만 밖에 두고
+// 나머지는 여기로 넣는다.
+function Sheet({ title, onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9998, background: COLORS.cream,
+      display: 'flex', flexDirection: 'column',
+    }}>
+      <div className="flex items-center gap-3 px-5"
+        style={{
+          paddingTop: 'max(16px, env(safe-area-inset-top))', paddingBottom: 14,
+          background: COLORS.cream, borderBottom: `1px solid ${COLORS.light}`,
+        }}>
+        <h2 className="flex-1 font-heading text-base" style={{ color: COLORS.ink }}>{title}</h2>
+        <button onClick={onClose} aria-label="닫기"
+          className="w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, color: COLORS.stone }}>
+          <X size={17} />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-5 py-5"
+        style={{ paddingBottom: 'max(40px, env(safe-area-inset-bottom))' }}>
+        {children}
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -6095,7 +6116,7 @@ const UPLOAD_BUCKET = 'content-media';
 
 const MAX_FILES = 10;  // 인스타 캐러셀 한 게시물 최대 장수
 
-function MediaUpload({ userId, approvals = [], row = false }) {
+function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState([]);
   const [caption, setCaption] = useState('');
@@ -6236,23 +6257,25 @@ function MediaUpload({ userId, approvals = [], row = false }) {
   return (
     <div className={row ? '' : 'rounded-2xl mb-3'}
       style={row ? undefined : { background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-      <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
-          <Upload size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-heading text-sm" style={{ color: COLORS.ink }}>소재 올리기</p>
-          <p className="font-body text-xs mt-1" style={{ color: queued.length ? COLORS.stone : COLORS.muted }}>
-            {waitingCount ? `대기 중 ${waitingCount}건` : '찍어둔 사진·영상을 게시물로'}
-          </p>
-        </div>
-        <ChevronRight size={17} strokeWidth={1.8}
-          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-      </button>
+      {!bare && (
+        <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+            <Upload size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>소재 올리기</p>
+            <p className="font-body text-xs mt-1" style={{ color: queued.length ? COLORS.stone : COLORS.muted }}>
+              {waitingCount ? `대기 중 ${waitingCount}건` : '찍어둔 사진·영상을 게시물로'}
+            </p>
+          </div>
+          <ChevronRight size={17} strokeWidth={1.8}
+            style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+        </button>
+      )}
 
-      {open && (
-        <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+      {(open || bare) && (
+        <div className="px-4 pb-4" style={bare ? undefined : { borderTop: `1px solid ${COLORS.light}` }}>
           {groups.length > 0 && (
             <div className="space-y-2 my-3">
               {groups.map(({ key, rows, state }) => {
@@ -6410,7 +6433,7 @@ function MediaUpload({ userId, approvals = [], row = false }) {
 
 // 📌 콘텐츠 요청. 떠오른 아이디어를 적어두는 자리.
 // "지금" 은 몇 분 안에 기획안이 나오고, "주간" 은 월요일 기획에 반영된다.
-function ContentRequest({ userId, row = false }) {
+function ContentRequest({ userId, row = false, bare = false }) {
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
   const [urgency, setUrgency] = useState('now');
@@ -6454,23 +6477,25 @@ function ContentRequest({ userId, row = false }) {
   return (
     <div className={row ? '' : 'rounded-2xl mb-3'}
       style={row ? undefined : { background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-      <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
-          <Plus size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-heading text-sm" style={{ color: COLORS.ink }}>콘텐츠 요청</p>
-          <p className="font-body text-xs mt-1" style={{ color: items.length ? COLORS.stone : COLORS.muted }}>
-            {items.length ? `대기 중 ${items.length}건` : '뭘 만들지 아이디어만 있을 때'}
-          </p>
-        </div>
-        <ChevronRight size={17} strokeWidth={1.8}
-          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-      </button>
+      {!bare && (
+        <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+            <Plus size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>콘텐츠 요청</p>
+            <p className="font-body text-xs mt-1" style={{ color: items.length ? COLORS.stone : COLORS.muted }}>
+              {items.length ? `대기 중 ${items.length}건` : '뭘 만들지 아이디어만 있을 때'}
+            </p>
+          </div>
+          <ChevronRight size={17} strokeWidth={1.8}
+            style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+        </button>
+      )}
 
-      {open && (
-        <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+      {(open || bare) && (
+        <div className="px-4 pb-4" style={bare ? undefined : { borderTop: `1px solid ${COLORS.light}` }}>
           {items.length > 0 && (
             <div className="space-y-2 my-3">
               {items.map(it => (
@@ -6524,7 +6549,7 @@ function ContentRequest({ userId, row = false }) {
 
 // 🗒️ 사업 상황 메모. 숫자로는 알 수 없는 사정(모집 시기, 신제품, 이번 분기 목표)을
 // 여기 적어두면 기획자가 매번 읽고 반영한다. 대화로 알려주면 그 주에만 반영되고 끝난다.
-function BusinessContext({ userId, row = false }) {
+function BusinessContext({ userId, row = false, bare = false }) {
   const [notes, setNotes] = useState([]);
   const [draft, setDraft] = useState('');
   const [open, setOpen] = useState(false);
@@ -6572,23 +6597,25 @@ function BusinessContext({ userId, row = false }) {
   return (
     <div className={row ? '' : 'rounded-2xl mb-6 overflow-hidden'}
       style={row ? undefined : { background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-      <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
-          <FileText size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-heading text-sm" style={{ color: COLORS.ink }}>
-            사업 상황 메모{notes.length > 0 ? ` ${notes.length}장` : ''}
-          </p>
-          <p className="font-body text-xs mt-1 truncate" style={{ color: notes.length ? COLORS.stone : COLORS.muted }}>{preview}</p>
-        </div>
-        <ChevronRight size={17} strokeWidth={1.8}
-          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-      </button>
+      {!bare && (
+        <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+            <FileText size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>
+              사업 상황 메모{notes.length > 0 ? ` ${notes.length}장` : ''}
+            </p>
+            <p className="font-body text-xs mt-1 truncate" style={{ color: notes.length ? COLORS.stone : COLORS.muted }}>{preview}</p>
+          </div>
+          <ChevronRight size={17} strokeWidth={1.8}
+            style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+        </button>
+      )}
 
-      {open && (
-        <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+      {(open || bare) && (
+        <div className="px-4 pb-4" style={bare ? undefined : { borderTop: `1px solid ${COLORS.light}` }}>
           <p className="font-body text-xs my-3" style={{ color: COLORS.muted }}>
             숫자로는 알 수 없는 것을 한 장에 하나씩 적어주세요. 기획할 때마다 전부 읽고 반영합니다.
             지난 일이 되면 지우시면 됩니다.
@@ -6676,7 +6703,7 @@ export function AdminAIOffice({ user }) {
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
   const [filter, setFilter] = useState('all');
-  const [showAllDrafts, setShowAllDrafts] = useState(false);
+  const [sheet, setSheet] = useState(null);   // 지금 덮고 올라와 있는 창
   const [loadedAt, setLoadedAt] = useState(0);
   const cardRefs = React.useRef({});
 
@@ -6785,45 +6812,142 @@ export function AdminAIOffice({ user }) {
     <>
       <PageIntro ko="AI 오피스" en="AI Office" />
       <div className="px-5 pb-10">
-        {/* 만들기 — 원장님이 무언가를 넣는 자리 */}
-        {!loading && (
+        {loading ? (
+          <p className="font-body text-sm py-10 text-center" style={{ color: COLORS.muted }}>불러오는 중…</p>
+        ) : (
           <>
-            <SectionTitle>만들기</SectionTitle>
-            <div className="rounded-2xl mb-5 overflow-hidden"
-              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-              <MediaUpload userId={user?.id} approvals={approvals} row />
-              <div style={{ height: 1, background: COLORS.light }} />
-              <ContentRequest userId={user?.id} row />
+            {/* 기다리는 시안 — 목록이 아니라 그림으로 보여준다 */}
+            {awaiting.length > 0 ? (
+              <div className="mb-4">
+                <div className="flex items-baseline gap-2 mb-3">
+                  <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>
+                    시안 {awaiting.length}건
+                  </h2>
+                  <p className="font-body text-xs" style={{ color: COLORS.muted }}>확인해 주세요</p>
+                </div>
+                <div className="flex gap-3 overflow-x-auto -mx-5 px-5 pb-2">
+                  {awaiting.map(r => {
+                    const imgs = Array.isArray(r.image_urls) ? r.image_urls : [];
+                    const cover = imgs[0];
+                    return (
+                      <button key={r.id} onClick={() => setSheet({ kind: 'draft', id: r.id })}
+                        className="shrink-0 rounded-2xl overflow-hidden text-left transition-transform active:scale-95"
+                        style={{ width: 168, background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                        <div style={{ width: '100%', aspectRatio: '4 / 5', background: COLORS.cardElev, position: 'relative' }}>
+                          {cover && (isVideoUrl(cover)
+                            ? <video src={cover} muted playsInline preload="metadata"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <img src={cover} alt="" loading="lazy"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />)}
+                          {imgs.length > 1 && (
+                            <span className="absolute top-2 right-2 rounded-full px-2 py-0.5 font-mono text-[10px]"
+                              style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>{imgs.length}</span>
+                          )}
+                        </div>
+                        <p className="font-body text-xs leading-snug px-3 py-2.5 line-clamp-2"
+                          style={{ color: COLORS.stone }}>
+                          {(r.body || '').split('\n').find(l => l.trim()) || '내용 없음'}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl p-5 mb-4 text-center"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <p className="font-heading text-sm" style={{ color: COLORS.ink }}>확인할 시안이 없어요</p>
+                <p className="font-body text-xs mt-1.5" style={{ color: COLORS.muted }}>
+                  사진을 올리시면 게시물로 만들어 여기에 올려드립니다
+                </p>
+              </div>
+            )}
+
+            {/* 만들기 — 매일 누르는 두 가지만 크게 */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <button onClick={() => setSheet({ kind: 'upload' })}
+                className="rounded-2xl p-5 text-left relative overflow-hidden transition-transform active:scale-95"
+                style={{ background: COLORS.ink, minHeight: 148 }}>
+                <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full"
+                  style={{ background: COLORS.primary, opacity: 0.9 }} />
+                <div className="relative flex flex-col h-full" style={{ color: COLORS.white }}>
+                  <Upload size={22} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+                  <p className="font-heading text-base mt-auto">소재 올리기</p>
+                  <p className="font-body text-[11px] mt-1" style={{ opacity: 0.65 }}>사진·영상을 게시물로</p>
+                </div>
+              </button>
+
+              <button onClick={() => setSheet({ kind: 'request' })}
+                className="rounded-2xl p-5 text-left relative overflow-hidden transition-transform active:scale-95"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, minHeight: 148 }}>
+                <div className="flex flex-col h-full">
+                  <Sparkles size={22} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+                  <p className="font-heading text-base mt-auto" style={{ color: COLORS.ink }}>콘텐츠 요청</p>
+                  <p className="font-body text-[11px] mt-1" style={{ color: COLORS.muted }}>아이디어만 있을 때</p>
+                </div>
+              </button>
+            </div>
+
+            {/* 나머지는 한 줄로 접어 둔다 */}
+            <div className="flex gap-2">
+              <button onClick={() => setSheet({ kind: 'log' })}
+                className="flex-1 rounded-xl px-4 py-3 flex items-center justify-between"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <span className="font-heading text-xs" style={{ color: COLORS.ink }}>기록</span>
+                <span className="font-mono text-[10px]" style={{ color: COLORS.muted }}>{reports.length + decided.length}</span>
+              </button>
+              <button onClick={() => setSheet({ kind: 'ref' })}
+                className="flex-1 rounded-xl px-4 py-3 flex items-center justify-between"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <span className="font-heading text-xs" style={{ color: COLORS.ink }}>참고</span>
+                <ChevronRight size={14} style={{ color: COLORS.muted }} />
+              </button>
             </div>
           </>
         )}
 
-        {/* 확인할 것 — 지금 원장님 손이 필요한 것 */}
-        {!loading && awaiting.length > 0 && (
-          <div className="mb-5">
-            <SectionTitle count={awaiting.length}>시안 확인</SectionTitle>
+        {sheet?.kind === 'upload' && (
+          <Sheet title="소재 올리기" onClose={() => setSheet(null)}>
+            <MediaUpload userId={user?.id} approvals={approvals} bare />
+          </Sheet>
+        )}
+
+        {sheet?.kind === 'request' && (
+          <Sheet title="콘텐츠 요청" onClose={() => setSheet(null)}>
+            <ContentRequest userId={user?.id} bare />
+          </Sheet>
+        )}
+
+        {sheet?.kind === 'draft' && (
+          <Sheet title="시안 확인" onClose={() => setSheet(null)}>
             <p className="font-body text-xs mb-3" style={{ color: COLORS.muted }}>
-              올리신 소재로 만든 게시물입니다. 고칠 게 있으면 말로 적어 주세요.
+              고칠 게 있으면 말로 적어 주세요.
               <strong style={{ color: COLORS.stone }}> 게시</strong>를 누르셔야 인스타에 올라갑니다.
             </p>
             <div className="space-y-2">
-              {(showAllDrafts ? awaiting : awaiting.slice(0, 3)).map(r => (
-                <ApprovalCard key={`top${r.id}`} row={r} onDecide={decide} onSaveBody={saveBody} onRevised={refreshApprovals} />
+              {awaiting.map(r => (
+                <ApprovalCard key={`s${r.id}`} row={r} onDecide={decide} onSaveBody={saveBody}
+                  onRevised={refreshApprovals} defaultOpen={r.id === sheet.id} />
               ))}
             </div>
-            {awaiting.length > 3 && (
-              <button onClick={() => setShowAllDrafts(v => !v)}
-                className="w-full mt-2 py-2.5 rounded-xl font-heading text-xs"
-                style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
-                {showAllDrafts ? '접기' : `${awaiting.length - 3}건 더 보기`}
-              </button>
-            )}
-          </div>
+          </Sheet>
         )}
 
-        {/* 기록 — 지나간 것들. 필터는 여기에만 걸린다 */}
-        {!loading && <SectionTitle>기록</SectionTitle>}
+        {sheet?.kind === 'ref' && (
+          <Sheet title="참고" onClose={() => setSheet(null)}>
+            <div className="rounded-2xl overflow-hidden"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <BusinessContext userId={user?.id} row />
+              <div style={{ height: 1, background: COLORS.light }} />
+              <StaffRoster data={{ reports, approvals }} onPick={() => {}} now={loadedAt} />
+              <div style={{ height: 1, background: COLORS.light }} />
+              <OfficeGuide row />
+            </div>
+          </Sheet>
+        )}
 
+        {sheet?.kind === 'log' && (
+          <Sheet title="기록" onClose={() => setSheet(null)}>
         <div className="flex gap-2 mb-5 overflow-x-auto -mx-5 px-5 pb-1">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setFilter(t.key)}
@@ -6896,21 +7020,7 @@ export function AdminAIOffice({ user }) {
             })}
           </div>
         )}
-
-        {/* 참고 — 자주 열지 않는 것들은 맨 아래로 */}
-        {!loading && (
-          <>
-            <div className="mt-8" />
-            <SectionTitle>참고</SectionTitle>
-            <div className="rounded-2xl overflow-hidden"
-              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-              <BusinessContext userId={user?.id} row />
-              <div style={{ height: 1, background: COLORS.light }} />
-              <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />
-              <div style={{ height: 1, background: COLORS.light }} />
-              <OfficeGuide row />
-            </div>
-          </>
+          </Sheet>
         )}
       </div>
     </>
