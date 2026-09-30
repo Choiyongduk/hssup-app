@@ -5428,28 +5428,89 @@ function ReportBody({ text }) {
 const isVideoUrl = (url) => /\.(mp4|mov|webm)(\?|$)/i.test(url || '');
 
 // 미디어 전체보기. 사진은 크게, 영상은 재생할 수 있게 띄운다.
-function MediaViewer({ url, onClose }) {
+// 시안을 크게 보는 창. 카드뉴스는 여러 장이라 좌우로 넘길 수 있어야 한다.
+// 키보드 좌우키, 화면 좌우 절반 터치, 옆으로 쓸기 셋 다 받는다.
+function MediaViewer({ urls, index = 0, onClose }) {
+  const list = Array.isArray(urls) ? urls : [urls];
+  const [at, setAt] = useState(Math.min(Math.max(index, 0), list.length - 1));
+  const touchX = React.useRef(null);
+
+  const go = React.useCallback((step) => {
+    setAt(i => Math.min(Math.max(i + step, 0), list.length - 1));
+  }, [list.length]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'ArrowRight') go(1);
+      else if (e.key === 'ArrowLeft') go(-1);
+      else if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [go, onClose]);
+
+  const url = list[at];
+  const many = list.length > 1;
+
   return createPortal(
-    <div onClick={onClose}
+    <div
+      onTouchStart={e => { touchX.current = e.changedTouches[0].clientX; }}
+      onTouchEnd={e => {
+        if (touchX.current === null) return;
+        const dx = e.changedTouches[0].clientX - touchX.current;
+        touchX.current = null;
+        if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+      }}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        touchAction: 'pan-y',
       }}>
-      <button onClick={onClose}
+      <button onClick={onClose} aria-label="닫기"
         style={{
           position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', right: 12,
-          width: 40, height: 40, border: 'none', borderRadius: 20,
+          width: 40, height: 40, border: 'none', borderRadius: 20, zIndex: 2,
           background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
         <X size={20} />
       </button>
+
       {isVideoUrl(url) ? (
-        <video src={url} controls autoPlay playsInline onClick={e => e.stopPropagation()}
+        <video key={url} src={url} controls autoPlay playsInline onClick={e => e.stopPropagation()}
           style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12 }} />
       ) : (
-        <img src={url} alt="" onClick={e => e.stopPropagation()}
+        <img key={url} src={url} alt="" onClick={e => e.stopPropagation()}
           style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 12 }} />
+      )}
+
+      {many && (
+        <>
+          {/* 화면 좌우 절반을 눌러도 넘어간다. 폰에서는 이게 제일 편하다. */}
+          <button onClick={() => go(-1)} aria-label="이전 장" disabled={at === 0}
+            style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '32%',
+                     border: 'none', background: 'transparent', cursor: at === 0 ? 'default' : 'pointer' }} />
+          <button onClick={() => go(1)} aria-label="다음 장" disabled={at === list.length - 1}
+            style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '32%',
+                     border: 'none', background: 'transparent', cursor: at === list.length - 1 ? 'default' : 'pointer' }} />
+
+          <div style={{
+            position: 'absolute', bottom: 'max(20px, env(safe-area-inset-bottom))',
+            left: 0, right: 0, display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center',
+          }}>
+            {list.map((_, i) => (
+              <span key={i} style={{
+                width: i === at ? 18 : 6, height: 6, borderRadius: 3,
+                background: i === at ? '#fff' : 'rgba(255,255,255,0.4)', transition: 'width 0.2s',
+              }} />
+            ))}
+          </div>
+
+          <p style={{
+            position: 'absolute', top: 'max(20px, env(safe-area-inset-top))', left: 16,
+            color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'monospace', margin: 0,
+          }}>{at + 1} / {list.length}</p>
+        </>
       )}
     </div>,
     document.body
@@ -5550,7 +5611,7 @@ function ApprovalCard({ row, onDecide, onSaveBody, onRevised }) {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(row.body || '');
-  const [viewing, setViewing] = useState(null);
+  const [viewing, setViewing] = useState(null);   // 몇 번째 장을 크게 보는 중인지
   const media = Array.isArray(row.image_urls) ? row.image_urls : [];
   const hasVideo = media.some(isVideoUrl);
 
@@ -5610,7 +5671,7 @@ function ApprovalCard({ row, onDecide, onSaveBody, onRevised }) {
             {media.length > 0 && (
               <div className="flex gap-2 overflow-x-auto my-3 -mx-1 px-1">
                 {media.map((url, i) => (
-                  <button key={i} onClick={() => setViewing(url)}
+                  <button key={i} onClick={() => setViewing(i)}
                     className="relative w-24 h-24 rounded-xl overflow-hidden shrink-0"
                     style={{ border: `1px solid ${COLORS.light}`, background: COLORS.cardElev }}>
                     {isVideoUrl(url) ? (
@@ -5673,7 +5734,9 @@ function ApprovalCard({ row, onDecide, onSaveBody, onRevised }) {
         </>
       )}
 
-      {viewing && <MediaViewer url={viewing} onClose={() => setViewing(null)} />}
+      {viewing !== null && (
+        <MediaViewer urls={media} index={viewing} onClose={() => setViewing(null)} />
+      )}
     </div>
   );
 }
