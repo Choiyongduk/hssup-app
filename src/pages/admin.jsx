@@ -5365,6 +5365,8 @@ export function AdminQna({ user }) {
 // 🤖 AI OFFICE — 자동화(hssup-cardnews)가 만든 분석 리포트를 읽는 화면.
 // 직원 계정 분석처럼 민감한 내용이 들어가므로 원장(admin)만 볼 수 있다. (RLS로도 막혀 있음)
 const REPORT_KINDS = {
+  brief: { ko: '아침 보고', icon: Bell },
+  meeting: { ko: '회의록', icon: FileText },
   request: { ko: '요청 기획', icon: Sparkles },
   plan: { ko: '콘텐츠 기획', icon: Sparkles },
   feed: { ko: '피드 분석', icon: BarChart3 },
@@ -6827,6 +6829,20 @@ export function AdminAIOffice({ user }) {
     }
   };
 
+  // 오늘 날짜로 올라온 아침 보고. 있으면 맨 위에 띄운다.
+  const todayBrief = (() => {
+    const today = new Date().toDateString();
+    return reports.find(r => r.kind === 'brief' && new Date(r.created_at).toDateString() === today);
+  })();
+  const briefSummary = (() => {
+    if (!todayBrief) return '';
+    const line = (todayBrief.body || '').split('\n')
+      .map(l => l.replace(/^[-*#\s]+/, '').replace(/\*\*/g, '').trim())
+      .filter(Boolean)
+      .find(l => !l.startsWith('20') && l.length > 6);
+    return line || '열어서 확인하세요';
+  })();
+
   const awaiting = approvals.filter(r => r.status === 'awaiting');
   const decided = approvals.filter(r => r.status !== 'awaiting');
 
@@ -6836,6 +6852,7 @@ export function AdminAIOffice({ user }) {
     { key: 'plan', label: '콘텐츠 기획' },
     { key: 'feed', label: '피드 분석' },
     { key: 'staff', label: '직원 계정' },
+    { key: 'meeting', label: '회의록' },
     { key: 'decided', label: '승인 완료' },
   ];
 
@@ -6844,7 +6861,7 @@ export function AdminAIOffice({ user }) {
   // 승인 대기는 맨 위 "시안 확인" 에서 보여주므로 여기서는 뺀다.
   const items = (() => {
     if (filter === 'decided') return decided.map(r => ({ type: 'decided', row: r }));
-    if (filter === 'request' || filter === 'plan' || filter === 'feed' || filter === 'staff') {
+    if (['request', 'plan', 'feed', 'staff', 'meeting'].includes(filter)) {
       return reports.filter(r => r.kind === filter).map(r => ({ type: 'report', row: r }));
     }
     return reports
@@ -6865,6 +6882,21 @@ export function AdminAIOffice({ user }) {
           <p className="font-body text-sm py-10 text-center" style={{ color: COLORS.muted }}>불러오는 중…</p>
         ) : (
           <>
+            {todayBrief && (
+              <button onClick={() => setSheet({ kind: 'brief' })}
+                className="w-full rounded-2xl p-4 mb-4 text-left flex items-start gap-3"
+                style={{ background: COLORS.ink }}>
+                <Bell size={16} strokeWidth={1.8} className="shrink-0 mt-0.5" style={{ color: COLORS.primary }} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-heading text-xs" style={{ color: COLORS.white }}>오늘 아침 보고</p>
+                  <p className="font-body text-[11px] mt-1 line-clamp-2" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                    {briefSummary}
+                  </p>
+                </div>
+                <ChevronRight size={15} style={{ color: 'rgba(255,255,255,0.5)' }} />
+              </button>
+            )}
+
             {/* 기다리는 시안 — 목록이 아니라 그림으로 보여준다 */}
             {awaiting.length > 0 ? (
               <div className="mb-4">
@@ -6978,6 +7010,15 @@ export function AdminAIOffice({ user }) {
                 <ApprovalCard key={`s${r.id}`} row={r} onDecide={decide} onSaveBody={saveBody}
                   onRevised={refreshApprovals} defaultOpen={r.id === sheet.id} />
               ))}
+            </div>
+          </Sheet>
+        )}
+
+        {sheet?.kind === 'brief' && todayBrief && (
+          <Sheet title={todayBrief.title} onClose={() => setSheet(null)}>
+            <div className="rounded-2xl p-4"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <ReportBody text={todayBrief.body} />
             </div>
           </Sheet>
         )}
