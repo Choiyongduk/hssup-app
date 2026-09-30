@@ -10,7 +10,7 @@ import { useDraft } from '../hooks';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
-import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck } from 'lucide-react';
+import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck, Mic } from 'lucide-react';
 
 export function AdminImprovements({ user }) {
   const [items, setItems] = useState([]);
@@ -5519,6 +5519,99 @@ function MediaViewer({ urls, index = 0, onClose }) {
   );
 }
 
+// 말하면 글자로 바꿔주는 기능. 브라우저에 들어 있어서 서버도 키도 필요 없다.
+// 다만 아이폰 사파리에서는 되다 안 되다 하고, 홈 화면에 추가한 앱에서는
+// 아예 안 되는 경우가 있다. 그럴 때는 키보드 마이크를 쓰시라고 안내한다.
+function useDictation(onText) {
+  const Recognition = typeof window !== 'undefined'
+    && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const [listening, setListening] = useState(false);
+  const ref = React.useRef(null);
+  // 받아쓰는 동안 바깥 함수가 바뀔 수 있어 최신 것을 들고 있는다.
+  const onTextRef = React.useRef(onText);
+  useEffect(() => { onTextRef.current = onText; }, [onText]);
+
+  const stop = React.useCallback(() => {
+    try { ref.current?.stop(); } catch { /* 이미 멈춘 경우 */ }
+    setListening(false);
+  }, []);
+
+  const start = React.useCallback(() => {
+    if (!Recognition) {
+      toast('이 브라우저는 앱 안에서 받아쓰기가 안 돼요. 키보드의 마이크를 눌러 말씀해 주세요');
+      return;
+    }
+    let rec;
+    try {
+      rec = new Recognition();
+    } catch {
+      toast('받아쓰기를 켜지 못했어요. 키보드의 마이크를 눌러 말씀해 주세요');
+      return;
+    }
+    rec.lang = 'ko-KR';
+    rec.interimResults = true;
+    rec.continuous = false;
+
+    let finalText = '';
+    rec.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const chunk = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += chunk;
+        else interim += chunk;
+      }
+      onTextRef.current?.(finalText + interim);
+    };
+    rec.onerror = (e) => {
+      setListening(false);
+      if (e.error === 'not-allowed') toast('마이크 사용을 허용해 주세요');
+      else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+        toast('잘 못 들었어요. 키보드의 마이크를 눌러 말씀해 주셔도 됩니다');
+      }
+    };
+    rec.onend = () => setListening(false);
+
+    ref.current = rec;
+    try {
+      rec.start();
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
+  }, [Recognition]);
+
+  useEffect(() => () => { try { ref.current?.abort(); } catch { /* 정리 */ } }, []);
+
+  return { supported: !!Recognition, listening, start, stop };
+}
+
+// 말하기 버튼. 누르면 듣고, 다시 누르면 멈춘다.
+function MicButton({ onText, value }) {
+  const base = React.useRef('');
+  const dictation = useDictation((text) => onText(`${base.current}${text}`));
+
+  const toggle = () => {
+    if (dictation.listening) {
+      dictation.stop();
+      return;
+    }
+    // 이미 적어둔 글 뒤에 이어 붙인다. 말하다 지워지면 곤란하다.
+    base.current = value ? `${value.trim()} ` : '';
+    dictation.start();
+  };
+
+  return (
+    <button onClick={toggle} aria-label={dictation.listening ? '그만 듣기' : '말로 적기'}
+      className="px-3 rounded-xl shrink-0 flex items-center justify-center"
+      style={dictation.listening
+        ? { background: COLORS.primary, color: COLORS.card, minHeight: 44 }
+        : { background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}`, minHeight: 44 }}>
+      <Mic size={16} strokeWidth={1.8}
+        style={dictation.listening ? { animation: 'pulse 1.2s infinite' } : undefined} />
+    </button>
+  );
+}
+
 // 대화에 나오는 담당자들. 자동화 쪽 engine/staff.py 와 같은 사람들이다.
 const CHAT_STAFF = {
   editor:   { name: '김주훈', role: '콘텐츠 편집', color: 'mocha' },
@@ -5642,9 +5735,10 @@ function ApprovalThread({ approvalId, onRevised }) {
       <div className="flex gap-2 mt-2">
         <input value={draft} onChange={e => setDraft(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="예: 캡션 짧게, 글자 더 크게, 3번 카드 내용 바꿔줘"
-          className="flex-1 rounded-xl px-3 font-body text-sm"
+          placeholder="말로 하시거나 적어주세요"
+          className="flex-1 min-w-0 rounded-xl px-3 font-body text-sm"
           style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minHeight: 44 }} />
+        <MicButton onText={setDraft} value={draft} />
         <button onClick={send} disabled={sending || !draft.trim()}
           className="px-4 rounded-xl font-heading text-xs disabled:opacity-40 shrink-0"
           style={{ background: COLORS.ink, color: COLORS.card, minHeight: 44 }}>
@@ -6450,8 +6544,11 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
             ))}
           </div>
 
+          <div className="flex justify-end mt-2">
+            <MicButton onText={setCaption} value={caption} />
+          </div>
           <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={3}
-            placeholder="어떤 내용인지 알려주세요 (캡션 쓸 때 참고합니다)"
+            placeholder="어떤 내용인지 말하거나 적어주세요 (캡션 쓸 때 참고합니다)"
             className="w-full rounded-xl p-3 mt-2 font-body text-sm leading-relaxed"
             style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
 
@@ -6568,7 +6665,7 @@ function ContentRequest({ userId, row = false, bare = false }) {
           )}
 
           <textarea value={body} onChange={e => setBody(e.target.value)} rows={3}
-            placeholder="예: 리커버 브로우 비포애프터를 릴스로 만들어주세요"
+            placeholder="말로 하시거나 적어주세요. 예: 리커버 브로우 비포애프터를 릴스로"
             className="w-full rounded-xl p-3 mt-3 font-body text-sm leading-relaxed"
             style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
 
@@ -6949,8 +7046,8 @@ export function AdminAIOffice({ user }) {
               <button onClick={() => setSheet({ kind: 'upload' })}
                 className="rounded-2xl p-5 text-left relative overflow-hidden transition-transform active:scale-95"
                 style={{ background: COLORS.ink, minHeight: 148 }}>
-                <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full"
-                  style={{ background: COLORS.primary, opacity: 0.9 }} />
+                <div className="absolute -top-14 -right-14 w-28 h-28 rounded-full"
+                  style={{ background: COLORS.primary }} />
                 <div className="relative flex flex-col h-full" style={{ color: COLORS.white }}>
                   <Upload size={22} strokeWidth={1.8} style={{ color: COLORS.primary }} />
                   <p className="font-heading text-base mt-auto">소재 올리기</p>
