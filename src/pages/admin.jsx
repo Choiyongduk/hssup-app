@@ -5927,11 +5927,28 @@ const sinceText = (iso, now) => {
 
 function StaffRoster({ data, onPick, now }) {
   const [showChart, setShowChart] = useState(false);
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-heading text-sm" style={{ color: COLORS.ink }}>우리 팀</h2>
+    <div>
+      <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+          <Users size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-heading text-sm" style={{ color: COLORS.ink }}>우리 팀</p>
+          <p className="font-body text-xs mt-1" style={{ color: COLORS.muted }}>
+            {AI_STAFF.length}명이 맡아서 하고 있습니다
+          </p>
+        </div>
+        <ChevronRight size={17} strokeWidth={1.8}
+          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {!open ? null : (
+      <div className="px-4 pb-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+      <div className="flex items-center justify-end my-3">
         <button onClick={() => setShowChart(v => !v)}
           className="font-heading text-xs" style={{ color: COLORS.primary }}>
           {showChart ? '명단 보기' : '조직도 보기'}
@@ -5967,7 +5984,7 @@ function StaffRoster({ data, onPick, now }) {
           </p>
         </div>
       ) : (
-        <div className="flex gap-2 overflow-x-auto -mx-5 px-5 pb-1">
+        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1">
           {AI_STAFF.map(member => {
             const last = member.lastOf(data);
             const when = last?.created_at;
@@ -5989,6 +6006,23 @@ function StaffRoster({ data, onPick, now }) {
           })}
         </div>
       )}
+      </div>
+      )}
+    </div>
+  );
+}
+
+// 화면을 덩어리로 끊어 읽히게 하는 작은 제목.
+function SectionTitle({ children, count }) {
+  return (
+    <div className="flex items-center gap-2 mb-2 mt-1">
+      <h2 className="font-mono text-[10px] font-bold tracking-[0.2em] uppercase"
+        style={{ color: COLORS.primary }}>{children}</h2>
+      {count > 0 && (
+        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded-full"
+          style={{ background: COLORS.primary, color: COLORS.card }}>{count}</span>
+      )}
+      <div className="flex-1 h-px" style={{ background: COLORS.light }} />
     </div>
   );
 }
@@ -6751,29 +6785,25 @@ export function AdminAIOffice({ user }) {
     <>
       <PageIntro ko="AI 오피스" en="AI Office" />
       <div className="px-5 pb-10">
-        {/* 작업 세 가지를 한 상자에 묶는다. 각각 전체 폭 카드로 두면 화면만 길어진다. */}
+        {/* 만들기 — 원장님이 무언가를 넣는 자리 */}
         {!loading && (
-          <div className="rounded-2xl mb-5 overflow-hidden"
-            style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <MediaUpload userId={user?.id} approvals={approvals} row />
-            <div style={{ height: 1, background: COLORS.light }} />
-            <ContentRequest userId={user?.id} row />
-            <div style={{ height: 1, background: COLORS.light }} />
-            <BusinessContext userId={user?.id} row />
-            <div style={{ height: 1, background: COLORS.light }} />
-            <OfficeGuide row />
-          </div>
+          <>
+            <SectionTitle>만들기</SectionTitle>
+            <div className="rounded-2xl mb-5 overflow-hidden"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <MediaUpload userId={user?.id} approvals={approvals} row />
+              <div style={{ height: 1, background: COLORS.light }} />
+              <ContentRequest userId={user?.id} row />
+            </div>
+          </>
         )}
 
+        {/* 확인할 것 — 지금 원장님 손이 필요한 것 */}
         {!loading && awaiting.length > 0 && (
           <div className="mb-5">
-            <div className="flex items-center gap-2 mb-2">
-              <h2 className="font-heading text-sm" style={{ color: COLORS.ink }}>시안 확인</h2>
-              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded-full"
-                style={{ background: COLORS.primary, color: COLORS.card }}>{awaiting.length}</span>
-            </div>
+            <SectionTitle count={awaiting.length}>시안 확인</SectionTitle>
             <p className="font-body text-xs mb-3" style={{ color: COLORS.muted }}>
-              올리신 소재로 만든 게시물입니다. 열어서 보시고, 고칠 게 있으면 말로 적어 주세요.
+              올리신 소재로 만든 게시물입니다. 고칠 게 있으면 말로 적어 주세요.
               <strong style={{ color: COLORS.stone }}> 게시</strong>를 누르셔야 인스타에 올라갑니다.
             </p>
             <div className="space-y-2">
@@ -6791,7 +6821,8 @@ export function AdminAIOffice({ user }) {
           </div>
         )}
 
-        {!loading && <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />}
+        {/* 기록 — 지나간 것들. 필터는 여기에만 걸린다 */}
+        {!loading && <SectionTitle>기록</SectionTitle>}
 
         <div className="flex gap-2 mb-5 overflow-x-auto -mx-5 px-5 pb-1">
           {TABS.map(t => (
@@ -6864,6 +6895,22 @@ export function AdminAIOffice({ user }) {
               );
             })}
           </div>
+        )}
+
+        {/* 참고 — 자주 열지 않는 것들은 맨 아래로 */}
+        {!loading && (
+          <>
+            <div className="mt-8" />
+            <SectionTitle>참고</SectionTitle>
+            <div className="rounded-2xl overflow-hidden"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <BusinessContext userId={user?.id} row />
+              <div style={{ height: 1, background: COLORS.light }} />
+              <StaffRoster data={{ reports, approvals }} onPick={setFilter} now={loadedAt} />
+              <div style={{ height: 1, background: COLORS.light }} />
+              <OfficeGuide row />
+            </div>
+          </>
         )}
       </div>
     </>
