@@ -10,7 +10,7 @@ import { useDraft } from '../hooks';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
-import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck, Mic, Paperclip } from 'lucide-react';
+import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck, Mic, Paperclip, Copy } from 'lucide-react';
 
 export function AdminImprovements({ user }) {
   const [items, setItems] = useState([]);
@@ -6388,6 +6388,35 @@ const UPLOAD_BUCKET = 'content-media';
 
 const MAX_FILES = 10;  // 인스타 캐러셀 한 게시물 최대 장수
 
+// 디자인 칸의 "완성본 그대로". ChatGPT 로 다 만든 이미지를 글씨 얹지 않고 올린다.
+// 이미지는 원장님 ChatGPT Plus 안에서 만들어지니 따로 드는 돈이 없다.
+const AS_IS = 'as_is';
+
+// ChatGPT 에 매번 히썹 느낌을 설명하지 않아도 되게 붙여넣을 요청문.
+async function copyChatGptPrompt(channel) {
+  const who = channel === 'hssup-artmake' ? '히썹 아트메이크(반영구 시술)' : '히썹 아카데미(반영구 교육)';
+  const text = `${who} 인스타그램 게시물 이미지를 만들어 주세요.
+
+[규격]
+- 세로형 4:5 비율 (1080×1350)
+- 한글은 맞춤법 그대로, 글자가 깨지거나 뭉개지지 않게
+
+[히썹 브랜드]
+- 메인 색은 주황 #FF5C1F, 나머지는 검정과 흰색, 베이지 위주
+- 굵고 깔끔한 고딕체
+- 로고 자리에 "HSSUP ACADEMY" 문구
+- 깔끔하고 고급스럽게, 과한 장식 없이
+
+[내용]
+(여기에 이미지에 넣을 내용과 원하는 느낌을 적어 주세요)`;
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('복사했어요. ChatGPT에 붙여넣고 [내용]만 채우세요');
+  } catch {
+    toast('복사하지 못했어요. 브라우저가 막았을 수 있어요');
+  }
+}
+
 function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState([]);
@@ -6505,12 +6534,16 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
           created_by: userId || null,
           // 디자인을 골랐을 때만 넣는다. 기본 틀은 칸 자체를 건드리지 않는다(SQL 실행 전에도 올라가게).
           ...(pickedStyle && !isVideo ? { style_id: pickedStyle.id } : {}),
+          ...(styleId === AS_IS && !isVideo ? { as_is: true } : {}),
         });
         setProgress(i + 1);
       }
 
       const { error } = await supabase.from('ai_media_queue').insert(rows);
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('as_is')) throw new Error('완성본 올리기 준비(DB 설정)가 아직 안 됐어요');
+        throw error;
+      }
 
       setFiles([]);
       setCaption('');
@@ -6594,7 +6627,7 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
                           {head.channel === 'hssup-academy' ? '아카데미' : '아트메이크'}
                           {' · '}
                           {head.media_type === 'video' ? '영상' : (rows.length > 1 ? `사진 ${rows.length}장` : '사진')}
-                          {head.urgency === 'now' ? ' · 바로' : ''}
+                          {head.urgency === 'now' ? ' · 바로' : ''}{head.as_is ? ' · 완성본' : ''}
                         </span>
                       </p>
                       <p className="font-body text-xs truncate" style={{ color: COLORS.stone }}>
@@ -6672,11 +6705,10 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
             </>
           )}
 
-          {channelStyles.length > 0 && (
-            <div className="mt-2">
+          <div className="mt-2">
               <p className="font-mono text-[10px] mb-1.5 tracking-wider" style={{ color: COLORS.muted }}>디자인</p>
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {[{ id: null, name: '기본' }, ...channelStyles].map(s => (
+                {[{ id: null, name: '기본' }, { id: AS_IS, name: '완성본 그대로' }, ...channelStyles].map(s => (
                   <button key={s.id ?? 'base'} onClick={() => setStyleId(s.id)}
                     className="px-3 rounded-xl font-heading text-xs shrink-0 flex items-center gap-1.5"
                     style={styleId === s.id
@@ -6703,8 +6735,20 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
                   </button>
                 </div>
               )}
+              {styleId === AS_IS && (
+                <div className="mt-1 rounded-xl p-3" style={{ background: COLORS.cardElev }}>
+                  <p className="font-body text-[11px] leading-relaxed" style={{ color: COLORS.stone }}>
+                    ChatGPT 등으로 다 만든 이미지를 <strong>글씨를 얹지 않고</strong> 그대로 올려요. 담당자는 캡션만 써요.
+                    세로가 너무 긴 이미지는 인스타 비율(4:5)에 맞게 양옆에 여백을 붙여요.
+                  </p>
+                  <button onClick={() => copyChatGptPrompt(channel)}
+                    className="w-full mt-2 rounded-xl font-heading text-xs flex items-center justify-center gap-1.5"
+                    style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minHeight: 40 }}>
+                    <Copy size={13} /> ChatGPT에 붙여넣을 요청문 복사
+                  </button>
+                </div>
+              )}
             </div>
-          )}
 
           <div className="flex gap-2 mt-2">
             {[
