@@ -6495,7 +6495,45 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
 
   // 한 번에 고른 사진들은 같은 묶음 = 한 게시물(캐러셀)로 올라간다.
   // 영상은 인스타에서 사진과 같이 묶을 수 없어서 각자 따로 간다.
+  // 사진 없이 글로만 요청. 디자인 담당이 새 그림까지 그려 한 장을 만든다.
+  // 고른 사진은 게시물이 아니라 "이런 느낌으로" 참고 사진으로 간다.
+  const [fromText, setFromText] = useState(false);
+  const refs = useChatPhotos();
+
+  const submitDesign = async () => {
+    const text = caption.trim();
+    if (!text) return;
+    setBusy(true);
+    try {
+      const refUrls = refs.files.length ? await uploadChatPhotos(refs.files) : [];
+      const { error } = await supabase.from('ai_media_queue').insert({
+        channel,
+        media_type: 'design',
+        group_key: `d${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        urgency,
+        user_caption: text,
+        ref_urls: refUrls,
+        created_by: userId || null,
+      });
+      if (error) {
+        if (/ref_urls|media_url|storage_path/.test(error.message)) throw new Error('사진 없이 만들기 준비(DB 설정)가 아직 안 됐어요');
+        throw error;
+      }
+      setCaption('');
+      refs.clear();
+      setReloadKey(k => k + 1);
+      toast(urgency === 'now'
+        ? '디자인을 맡겼어요. 몇 분 안에 승인 요청이 올라와요'
+        : '디자인을 맡겼어요. 다음 처리 시간에 승인 요청이 올라와요');
+    } catch (e) {
+      toast('맡기지 못했어요: ' + (e.message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async () => {
+    if (fromText) return submitDesign();
     if (!files.length) return;
     setBusy(true);
     const photoGroup = `g${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -6565,7 +6603,8 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
   const removeGroup = async (rows) => {
     const what = rows.length > 1 ? `사진 ${rows.length}장을` : '이 소재를';
     if (!await confirmDialog(`${what} 대기열에서 빼고 원본도 지울까요?\n지우면 되돌릴 수 없어요.`)) return;
-    await supabase.storage.from(UPLOAD_BUCKET).remove(rows.map(r => r.storage_path));
+    const paths = rows.map(r => r.storage_path).filter(Boolean);  // 사진 없이 만든 요청은 원본이 없다
+    if (paths.length) await supabase.storage.from(UPLOAD_BUCKET).remove(paths);
     const { error } = await supabase.from('ai_media_queue').delete().in('id', rows.map(r => r.id));
     if (error) {
       toast('취소하지 못했어요: ' + error.message);
@@ -6611,7 +6650,11 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
                 return (
                   <div key={key} className="flex items-center gap-2 rounded-xl p-2" style={{ background: COLORS.cardElev }}>
                     <div className="relative shrink-0">
-                      {head.media_type === 'video'
+                      {head.media_type === 'design'
+                        ? <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: COLORS.peach }}>
+                            <Sparkles size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+                          </div>
+                        : head.media_type === 'video'
                         ? <video src={head.media_url} muted playsInline preload="metadata"
                             className="w-12 h-12 rounded-lg object-cover" />
                         : <img src={head.media_url} alt="" className="w-12 h-12 rounded-lg object-cover" />}
@@ -6626,7 +6669,8 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
                         <span className="truncate">
                           {head.channel === 'hssup-academy' ? '아카데미' : '아트메이크'}
                           {' · '}
-                          {head.media_type === 'video' ? '영상' : (rows.length > 1 ? `사진 ${rows.length}장` : '사진')}
+                          {head.media_type === 'design' ? '사진 없이 디자인'
+                            : head.media_type === 'video' ? '영상' : (rows.length > 1 ? `사진 ${rows.length}장` : '사진')}
                           {head.urgency === 'now' ? ' · 바로' : ''}{head.as_is ? ' · 완성본' : ''}
                         </span>
                       </p>
@@ -6657,6 +6701,33 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
             ))}
           </div>
 
+          <div className="flex gap-2 mt-2">
+            {[[false, '사진으로 올리기'], [true, '사진 없이 만들기']].map(([key, label]) => (
+              <button key={label} onClick={() => setFromText(key)}
+                className="flex-1 rounded-xl font-heading text-xs"
+                style={fromText === key
+                  ? { background: COLORS.ink, color: COLORS.card, minHeight: 40 }
+                  : { background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}`, minHeight: 40 }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {fromText && (
+            <div className="mt-2 rounded-xl p-3" style={{ background: COLORS.cardElev }}>
+              <p className="font-body text-[11px] leading-relaxed" style={{ color: COLORS.stone }}>
+                아래에 만들고 싶은 이미지를 적어 주세요. 디자인 담당이 필요하면 <strong>그림(일러스트, 배경)도 새로 그려서</strong> 한 장을 만들어요.
+                &quot;이런 느낌으로&quot; 보여줄 사진이 있으면 📎로 붙여 주세요.
+              </p>
+              <AttachPreview photos={refs} />
+              <div className="flex items-center gap-2 mt-2">
+                <AttachButton photos={refs} disabled={busy} />
+                <p className="font-body text-[11px]" style={{ color: COLORS.muted }}>참고 사진 (선택, 5장까지)</p>
+              </div>
+            </div>
+          )}
+
+          {!fromText && (<>
           <label className="block mt-2 rounded-xl p-4 text-center cursor-pointer"
             style={{ background: COLORS.cardElev, border: `1px dashed ${COLORS.light}` }}>
             {/* 윈도우 파일 창이 image/* 만 보면 아이폰 사진(HEIC)을 회색으로 감추는 일이 있다.
@@ -6749,6 +6820,7 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
                 </div>
               )}
             </div>
+          </>)}
 
           <div className="flex gap-2 mt-2">
             {[
@@ -6770,16 +6842,16 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
             <MicButton onText={setCaption} value={caption} />
           </div>
           <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={3}
-            placeholder="어떤 내용인지 말하거나 적어주세요 (캡션 쓸 때 참고합니다)"
+            placeholder={fromText ? "만들고 싶은 이미지를 적어주세요. 예: 가을 느낌 일러스트 배경에 '10월 정규반 모집', 주황 포인트" : "어떤 내용인지 말하거나 적어주세요 (캡션 쓸 때 참고합니다)"}
             className="w-full rounded-xl p-3 mt-2 font-body text-sm leading-relaxed"
             style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
 
-          <button onClick={submit} disabled={busy || !files.length}
+          <button onClick={submit} disabled={busy || (fromText ? !caption.trim() : !files.length)}
             className="w-full mt-2 rounded-xl font-heading text-sm disabled:opacity-40"
             style={{ background: COLORS.primary, color: COLORS.card, minHeight: 44 }}>
             {busy
               ? (files.length > 1 ? `올리는 중… ${progress}/${files.length}` : '올리는 중…')
-              : (urgency === 'now' ? '바로 작업 맡기기' : '대기열에 올리기')}
+              : fromText ? '디자인 맡기기' : (urgency === 'now' ? '바로 작업 맡기기' : '대기열에 올리기')}
           </button>
 
           {/* 여기서 올리면 바로 게시되는 줄 알기 쉬워서 버튼 밑에 붙여 둔다. */}
