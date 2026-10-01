@@ -6442,6 +6442,9 @@ function parseIdeas(body) {
   }).filter(i => i.title);
 }
 
+// 첫 "## " 앞은 박서준 팀장의 아침 인사.
+const ideasGreeting = (body) => (body || '').split(/^## /m)[0].trim();
+
 function IdeaCard({ idea, userId, onShoot }) {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -7533,7 +7536,7 @@ export function AdminAIOffice({ user }) {
                     오늘 아이디어 {parseIdeas(todayIdeas.body).length}개
                   </p>
                   <p className="font-body text-[11px] mt-1 line-clamp-2" style={{ color: COLORS.muted }}>
-                    {parseIdeas(todayIdeas.body).map(i => i.title).join(' / ')}
+                    {ideasGreeting(todayIdeas.body) || parseIdeas(todayIdeas.body).map(i => i.title).join(' / ')}
                   </p>
                 </div>
                 <ChevronRight size={15} style={{ color: COLORS.muted }} />
@@ -7661,9 +7664,18 @@ export function AdminAIOffice({ user }) {
 
         {sheet?.kind === 'ideas' && todayIdeas && (
           <Sheet title={todayIdeas.title} onClose={() => setSheet(null)}>
-            <p className="font-body text-xs mb-3 leading-relaxed" style={{ color: COLORS.muted }}>
-              사진 없이 되는 건 <strong style={{ color: COLORS.stone }}>이걸로 만들어줘</strong>를 누르면 바로 만들어요.
-              찍어야 하는 건 찍은 뒤 <strong style={{ color: COLORS.stone }}>찍어서 올리기</strong>로 올리세요.
+            {ideasGreeting(todayIdeas.body) && (
+              <div className="flex gap-2 mb-3">
+                <Avatar user={{ name: '박서준', avatar_color: 'orange' }} size="xs" />
+                <div className="rounded-2xl rounded-tl-md px-3.5 py-2.5 flex-1"
+                  style={{ background: COLORS.peach, color: COLORS.ink }}>
+                  <p className="font-heading text-[11px] mb-1" style={{ color: COLORS.primary }}>박서준 팀장</p>
+                  <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{ideasGreeting(todayIdeas.body)}</p>
+                </div>
+              </div>
+            )}
+            <p className="font-body text-[11px] mb-3 leading-relaxed" style={{ color: COLORS.muted }}>
+              사진 없이 되는 건 <strong style={{ color: COLORS.stone }}>이걸로 만들어줘</strong>, 찍어야 하는 건 <strong style={{ color: COLORS.stone }}>찍어서 올리기</strong>
             </p>
             <div className="space-y-3">
               {parseIdeas(todayIdeas.body).map((idea, i) => (
