@@ -6398,6 +6398,21 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
   const [progress, setProgress] = useState(0);
   const [queued, setQueued] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
+  // 저장한 디자인. 시안 대화에서 "앞으로 후기는 이걸로" 하면 자동화가 여기에 넣는다.
+  const [styles, setStyles] = useState([]);
+  const [styleId, setStyleId] = useState(null);   // null = 기본 틀
+
+  useEffect(() => {
+    (async () => {
+      // 표가 아직 없으면(SQL 실행 전) 조용히 빈 목록. 기본 틀로만 올라간다.
+      const { data } = await supabase.from('ai_styles')
+        .select('id,channel,name,preview_url').order('created_at', { ascending: true });
+      setStyles(data || []);
+    })();
+  }, [open, bare]);
+
+  const channelStyles = styles.filter(s => s.channel === channel);
+  const pickedStyle = channelStyles.find(s => s.id === styleId) || null;
 
   // 처리가 끝난 것도 잠깐은 남겨둔다. 올리자마자 목록에서 사라지면
   // 내가 뭘 올렸는지, 지금 어디까지 갔는지 알 길이 없다.
@@ -6488,6 +6503,8 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
           // 설명은 묶음의 첫 장에만 달면 자동화가 찾아 쓴다.
           user_caption: i === 0 ? (caption.trim() || null) : null,
           created_by: userId || null,
+          // 디자인을 골랐을 때만 넣는다. 기본 틀은 칸 자체를 건드리지 않는다(SQL 실행 전에도 올라가게).
+          ...(pickedStyle && !isVideo ? { style_id: pickedStyle.id } : {}),
         });
         setProgress(i + 1);
       }
@@ -6597,7 +6614,7 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
 
           <div className="flex gap-2 mt-3">
             {CHANNELS.map(([key, label]) => (
-              <button key={key} onClick={() => setChannel(key)}
+              <button key={key} onClick={() => { setChannel(key); setStyleId(null); }}
                 className="px-3 rounded-xl font-heading text-xs"
                 style={channel === key
                   ? { background: COLORS.ink, color: COLORS.card, minHeight: 44 }
@@ -6653,6 +6670,40 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
                 맨 앞이 표지입니다. 헤드라인은 표지에만 얹혀요.
               </p>
             </>
+          )}
+
+          {channelStyles.length > 0 && (
+            <div className="mt-2">
+              <p className="font-mono text-[10px] mb-1.5 tracking-wider" style={{ color: COLORS.muted }}>디자인</p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {[{ id: null, name: '기본' }, ...channelStyles].map(s => (
+                  <button key={s.id ?? 'base'} onClick={() => setStyleId(s.id)}
+                    className="px-3 rounded-xl font-heading text-xs shrink-0 flex items-center gap-1.5"
+                    style={styleId === s.id
+                      ? { background: COLORS.ink, color: COLORS.card, minHeight: 40 }
+                      : { background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}`, minHeight: 40 }}>
+                    {s.preview_url && <img src={s.preview_url} alt="" className="w-6 h-7 rounded object-cover" />}
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+              {pickedStyle && (
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="font-body text-[11px] flex-1" style={{ color: COLORS.muted }}>
+                    「{pickedStyle.name}」 디자인에 제목만 바꿔 얹어요. 영상에는 쓰이지 않아요.
+                  </p>
+                  <button onClick={async () => {
+                    if (!await confirmDialog(`「${pickedStyle.name}」 디자인을 지울까요?`)) return;
+                    const { error } = await supabase.from('ai_styles').delete().eq('id', pickedStyle.id);
+                    if (error) { toast('지우지 못했어요: ' + error.message); return; }
+                    setStyles(prev => prev.filter(x => x.id !== pickedStyle.id));
+                    setStyleId(null);
+                  }} className="font-body text-[11px] underline shrink-0" style={{ color: COLORS.muted }}>
+                    지우기
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="flex gap-2 mt-2">
