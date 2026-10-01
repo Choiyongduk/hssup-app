@@ -6417,7 +6417,158 @@ async function copyChatGptPrompt(channel) {
   }
 }
 
-function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
+// 소재 하나가 지금 어디까지 왔는지. 자동화(process_queue)가 ai_media_queue.status 에 적는다.
+const QUEUE_STATE = {
+  queued:  { ko: '대기 중',   tone: COLORS.muted,   hint: '정해진 시간(낮 12:30 / 저녁 8시)에 하나씩 만들어요. 기다리기 싫으면 바로 작업으로 바꾸세요.' },
+  soon:    { ko: '곧 시작',   tone: COLORS.primary, hint: '5분 안에 만들기 시작해요.' },
+  working: { ko: '만드는 중', tone: COLORS.primary, hint: '보통 2~3분, 새로 그리는 디자인은 5분쯤 걸려요. 다 되면 시안으로 올라와요.' },
+  failed:  { ko: '실패',     tone: COLORS.deep,    hint: '만들다 멈췄어요. 다시 맡기거나 빼 주세요.' },
+  shown:   { ko: '시안 나옴', tone: COLORS.primary, hint: '시안이 올라왔어요. 확인하고 게시를 누르시면 인스타에 올라가요.' },
+  done:    { ko: '처리됨',   tone: COLORS.muted,   hint: '시안으로 올라갔거나, 이미 게시 또는 건너뛰기 한 거예요.' },
+};
+
+// 같은 묶음(group_key)은 한 게시물이라 한 줄로. 승인 요청과 짝지어 "시안 나옴" 을 가린다.
+function groupQueue(rows, approvals) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = row.group_key || `id${row.id}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(row);
+  }
+  return [...map.entries()].map(([key, list]) => {
+    list.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
+    const ids = list.map(r => r.id);
+    const approval = approvals.find(a => {
+      const pl = a.payload || {};
+      if ((pl.app_queue_ids || []).some(id => ids.includes(id))) return true;
+      const paths = pl.storage_paths || (pl.storage_path ? [pl.storage_path] : []);
+      return paths.some(p => list.some(r => r.storage_path === p));
+    });
+    const has = (s) => list.some(r => r.status === s);
+    const state = has('failed') ? 'failed'
+      : has('working') ? 'working'
+      : has('queued') ? (list[0].urgency === 'now' ? 'soon' : 'queued')
+      : approval ? 'shown' : 'done';
+    return { key, rows: list, state, approval };
+  });
+}
+
+// 대기열 한 줄. 누르면 펼쳐서 무엇을 맡겼는지, 지금 어떤 상태인지, 할 수 있는 일을 보여준다.
+function QueueItem({ group, onRemove, onChanged, onOpenDraft }) {
+  const { rows, state, approval } = group;
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const head = rows[0];
+  const info = QUEUE_STATE[state];
+  const note = rows.find(r => r.user_caption)?.user_caption;
+  const error = rows.find(r => r.error)?.error;
+  const refs = Array.isArray(head.ref_urls) ? head.ref_urls : [];
+  const kind = head.media_type === 'design' ? '사진 없이 디자인'
+    : head.media_type === 'video' ? '영상' : (rows.length > 1 ? `사진 ${rows.length}장` : '사진');
+
+  const update = async (patch, done) => {
+    setBusy(true);
+    const { error: err } = await supabase.from('ai_media_queue').update(patch).in('id', rows.map(r => r.id));
+    setBusy(false);
+    if (err) { toast('바꾸지 못했어요: ' + err.message); return; }
+    toast(done);
+    onChanged();
+  };
+
+  return (
+    <div className="rounded-xl" style={{ background: COLORS.cardElev }}>
+      <button onClick={() => setOpen(v => !v)} className="w-full flex items-center gap-2 p-2 text-left">
+        <div className="relative shrink-0">
+          {head.media_type === 'design'
+            ? <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: COLORS.peach }}>
+                <Sparkles size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+              </div>
+            : head.media_type === 'video'
+            ? <video src={head.media_url} muted playsInline preload="metadata" className="w-12 h-12 rounded-lg object-cover" />
+            : <img src={head.media_url} alt="" className="w-12 h-12 rounded-lg object-cover" />}
+          {rows.length > 1 && (
+            <span className="absolute -top-1 -right-1 rounded-full px-1.5 font-mono text-[9px]"
+              style={{ background: COLORS.ink, color: COLORS.card }}>{rows.length}</span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-mono text-[10px] flex items-center gap-1" style={{ color: COLORS.muted }}>
+            <span className="rounded px-1 flex items-center gap-1" style={{ background: COLORS.peach, color: info.tone }}>
+              {(state === 'working' || state === 'soon') && <Loader2 size={9} className="animate-spin" />}
+              {info.ko}
+            </span>
+            <span className="truncate">
+              {head.channel === 'hssup-academy' ? '아카데미' : '아트메이크'} · {kind}
+              {head.urgency === 'now' ? ' · 바로' : ''}{head.as_is ? ' · 완성본' : ''}
+            </span>
+          </p>
+          <p className="font-body text-xs truncate" style={{ color: COLORS.stone }}>{note || '설명 없음'}</p>
+        </div>
+        <ChevronRight size={15} strokeWidth={1.8} className="shrink-0"
+          style={{ color: COLORS.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3">
+          <p className="font-body text-[11px] leading-relaxed" style={{ color: info.tone }}>{info.hint}</p>
+          {state === 'failed' && error && (
+            <p className="font-body text-[11px] mt-1 leading-relaxed" style={{ color: COLORS.stone }}>이유: {error}</p>
+          )}
+          <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.muted }}>
+            {new Date(head.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}에 맡김
+          </p>
+          {note && (
+            <p className="font-body text-xs mt-2 whitespace-pre-wrap leading-relaxed" style={{ color: COLORS.ink }}>{note}</p>
+          )}
+          {(rows.some(r => r.media_url) || refs.length > 0) && (
+            <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1">
+              {rows.filter(r => r.media_url && r.media_type !== 'video').map(r => (
+                <img key={r.id} src={r.media_url} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
+              ))}
+              {refs.map(u => (
+                <div key={u} className="relative shrink-0">
+                  <img src={u} alt="" className="w-14 h-14 rounded-lg object-cover" />
+                  <span className="absolute bottom-0 left-0 right-0 rounded-b-lg text-center font-mono text-[8px] py-0.5"
+                    style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>참고</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 mt-3">
+            {state === 'shown' && approval && (
+              <button onClick={() => onOpenDraft?.(approval.id)}
+                className="px-3 rounded-xl font-heading text-xs" style={{ background: COLORS.primary, color: COLORS.card, minHeight: 36 }}>
+                시안 보러 가기
+              </button>
+            )}
+            {state === 'queued' && (
+              <button disabled={busy} onClick={() => update({ urgency: 'now' }, '바로 작업으로 바꿨어요. 5분 안에 시작해요')}
+                className="px-3 rounded-xl font-heading text-xs disabled:opacity-50" style={{ background: COLORS.ink, color: COLORS.card, minHeight: 36 }}>
+                바로 작업으로 바꾸기
+              </button>
+            )}
+            {state === 'failed' && (
+              <button disabled={busy} onClick={() => update({ status: 'queued', error: null, urgency: 'now' }, '다시 맡겼어요. 5분 안에 시작해요')}
+                className="px-3 rounded-xl font-heading text-xs disabled:opacity-50" style={{ background: COLORS.ink, color: COLORS.card, minHeight: 36 }}>
+                다시 맡기기
+              </button>
+            )}
+            {['queued', 'soon', 'failed'].includes(state) && (
+              <button disabled={busy} onClick={() => onRemove(rows)}
+                className="px-3 rounded-xl font-heading text-xs disabled:opacity-50"
+                style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}`, minHeight: 36 }}>
+                빼기
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MediaUpload({ userId, approvals = [], row = false, bare = false, onOpenDraft, onRefreshApprovals }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState([]);
   const [caption, setCaption] = useState('');
@@ -6450,22 +6601,12 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
       const since = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from('ai_media_queue').select('*')
-        .in('status', ['queued', 'done'])
+        .in('status', ['queued', 'working', 'failed', 'done'])
         .gte('created_at', since)
         .order('created_at', { ascending: true });
       setQueued(data || []);
     })();
   }, [reloadKey]);
-
-  // 시안이 나온 소재는 승인 요청에 원본 경로가 적혀 있다. 그걸로 짝을 맞춘다.
-  const donePaths = React.useMemo(() => {
-    const set = new Set();
-    for (const a of approvals) {
-      const pl = a.payload || {};
-      for (const path of pl.storage_paths || (pl.storage_path ? [pl.storage_path] : [])) set.add(path);
-    }
-    return set;
-  }, [approvals]);
 
   const previews = React.useMemo(
     () => files.map(f => (f.type.startsWith('video/') ? null : URL.createObjectURL(f))),
@@ -6473,25 +6614,20 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
   );
   useEffect(() => () => previews.forEach(u => u && URL.revokeObjectURL(u)), [previews]);
 
-  // 같은 묶음은 한 줄로 보여준다. 대기 건수도 장수가 아니라 게시물 수로 센다.
-  const groups = React.useMemo(() => {
-    const map = new Map();
-    for (const row of queued) {
-      const key = row.group_key || `id${row.id}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(row);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
-    }
-    return [...map.entries()].map(([key, rows]) => {
-      const waiting = rows.some(r => r.status === 'queued');
-      const shown = rows.some(r => donePaths.has(r.storage_path));
-      return { key, rows, state: waiting ? 'queued' : shown ? 'shown' : 'working' };
-    });
-  }, [queued, donePaths]);
+  const groups = React.useMemo(() => groupQueue(queued, approvals), [queued, approvals]);
+  const activeCount = groups.filter(g => ['queued', 'soon', 'working'].includes(g.state)).length;
 
-  const waitingCount = groups.filter(g => g.state === 'queued').length;
+  // 만드는 중인 게 있으면 15초마다 다시 본다. 시안이 나오면 승인 목록도 새로 받아 "시안 나옴" 으로 짝을 맞춘다.
+  const busyQueue = groups.some(g => g.state === 'soon' || g.state === 'working'
+    || (g.state === 'done' && Date.now() - new Date(g.rows[0].done_at || 0).getTime() < 10 * 60 * 1000));
+  useEffect(() => {
+    if (!busyQueue) return;
+    const timer = setInterval(() => {
+      setReloadKey(k => k + 1);
+      onRefreshApprovals?.();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [busyQueue, onRefreshApprovals]);
 
   // 한 번에 고른 사진들은 같은 묶음 = 한 게시물(캐러셀)로 올라간다.
   // 영상은 인스타에서 사진과 같이 묶을 수 없어서 각자 따로 간다.
@@ -6627,7 +6763,7 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
           <div className="flex-1 min-w-0">
             <p className="font-heading text-sm" style={{ color: COLORS.ink }}>소재 올리기</p>
             <p className="font-body text-xs mt-1" style={{ color: queued.length ? COLORS.stone : COLORS.muted }}>
-              {waitingCount ? `대기 중 ${waitingCount}건` : '찍어둔 사진·영상을 게시물로'}
+              {activeCount ? `진행 중 ${activeCount}건` : '찍어둔 사진·영상을 게시물로'}
             </p>
           </div>
           <ChevronRight size={17} strokeWidth={1.8}
@@ -6638,54 +6774,16 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
       {(open || bare) && (
         <div className="px-4 pb-4" style={bare ? undefined : { borderTop: `1px solid ${COLORS.light}` }}>
           {groups.length > 0 && (
-            <div className="space-y-2 my-3">
-              {groups.map(({ key, rows, state }) => {
-                const head = rows[0];
-                const note = rows.find(r => r.user_caption)?.user_caption;
-                const STATE = {
-                  queued: { ko: '대기 중', tone: COLORS.muted },
-                  working: { ko: '만드는 중', tone: COLORS.primary },
-                  shown: { ko: '시안 나옴 ↑', tone: COLORS.primary },
-                }[state];
-                return (
-                  <div key={key} className="flex items-center gap-2 rounded-xl p-2" style={{ background: COLORS.cardElev }}>
-                    <div className="relative shrink-0">
-                      {head.media_type === 'design'
-                        ? <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: COLORS.peach }}>
-                            <Sparkles size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
-                          </div>
-                        : head.media_type === 'video'
-                        ? <video src={head.media_url} muted playsInline preload="metadata"
-                            className="w-12 h-12 rounded-lg object-cover" />
-                        : <img src={head.media_url} alt="" className="w-12 h-12 rounded-lg object-cover" />}
-                      {rows.length > 1 && (
-                        <span className="absolute -top-1 -right-1 rounded-full px-1.5 font-mono text-[9px]"
-                          style={{ background: COLORS.ink, color: COLORS.card }}>{rows.length}</span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-mono text-[10px] flex items-center gap-1" style={{ color: COLORS.muted }}>
-                        <span className="rounded px-1" style={{ background: COLORS.peach, color: STATE.tone }}>{STATE.ko}</span>
-                        <span className="truncate">
-                          {head.channel === 'hssup-academy' ? '아카데미' : '아트메이크'}
-                          {' · '}
-                          {head.media_type === 'design' ? '사진 없이 디자인'
-                            : head.media_type === 'video' ? '영상' : (rows.length > 1 ? `사진 ${rows.length}장` : '사진')}
-                          {head.urgency === 'now' ? ' · 바로' : ''}{head.as_is ? ' · 완성본' : ''}
-                        </span>
-                      </p>
-                      <p className="font-body text-xs truncate" style={{ color: COLORS.stone }}>
-                        {note || '설명 없음'}
-                      </p>
-                    </div>
-                    {state === 'queued' && (
-                      <button onClick={() => removeGroup(rows)} aria-label="빼기" className="shrink-0" style={{ color: COLORS.muted }}>
-                        <X size={15} />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="my-3">
+              <p className="font-mono text-[10px] mb-1.5 tracking-wider" style={{ color: COLORS.muted }}>
+                맡긴 것 · 눌러서 진행 상황 보기
+              </p>
+              <div className="space-y-2">
+                {groups.map(g => (
+                  <QueueItem key={g.key} group={g} onRemove={removeGroup}
+                    onChanged={() => setReloadKey(k => k + 1)} onOpenDraft={onOpenDraft} />
+                ))}
+              </div>
             </div>
           )}
 
@@ -6714,16 +6812,25 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
           </div>
 
           {fromText && (
-            <div className="mt-2 rounded-xl p-3" style={{ background: COLORS.cardElev }}>
-              <p className="font-body text-[11px] leading-relaxed" style={{ color: COLORS.stone }}>
-                아래에 만들고 싶은 이미지를 적어 주세요. 디자인 담당이 필요하면 <strong>그림(일러스트, 배경)도 새로 그려서</strong> 한 장을 만들어요.
-                &quot;이런 느낌으로&quot; 보여줄 사진이 있으면 📎로 붙여 주세요.
-              </p>
+            <div className="mt-3">
+              <div className="flex items-end justify-between gap-2">
+                <p className="font-heading text-xs" style={{ color: COLORS.ink }}>어떤 이미지를 만들까요?</p>
+                <MicButton onText={setCaption} value={caption} />
+              </div>
+              <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={4}
+                placeholder="예: 단풍 수채화 일러스트 배경에 '10월 정규반 모집' 크게, 주황 포인트"
+                className="w-full rounded-xl p-3 mt-2 font-body text-sm leading-relaxed"
+                style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
               <AttachPreview photos={refs} />
               <div className="flex items-center gap-2 mt-2">
                 <AttachButton photos={refs} disabled={busy} />
-                <p className="font-body text-[11px]" style={{ color: COLORS.muted }}>참고 사진 (선택, 5장까지)</p>
+                <p className="font-body text-[11px] leading-snug" style={{ color: COLORS.muted }}>
+                  &quot;이런 느낌으로&quot; 참고 사진 (선택)
+                </p>
               </div>
+              <p className="font-body text-[11px] mt-2 leading-relaxed" style={{ color: COLORS.muted }}>
+                필요하면 그림(일러스트, 배경)도 새로 그려서 한 장으로 만들어요.
+              </p>
             </div>
           )}
 
@@ -6820,6 +6927,15 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
                 </div>
               )}
             </div>
+
+          <div className="flex items-end justify-between gap-2 mt-3">
+            <p className="font-heading text-xs" style={{ color: COLORS.ink }}>어떤 내용인가요? <span style={{ color: COLORS.muted }}>(캡션 쓸 때 참고)</span></p>
+            <MicButton onText={setCaption} value={caption} />
+          </div>
+          <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={3}
+            placeholder="말하거나 적어주세요"
+            className="w-full rounded-xl p-3 mt-2 font-body text-sm leading-relaxed"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
           </>)}
 
           <div className="flex gap-2 mt-2">
@@ -6837,14 +6953,6 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false }) {
               </button>
             ))}
           </div>
-
-          <div className="flex justify-end mt-2">
-            <MicButton onText={setCaption} value={caption} />
-          </div>
-          <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={3}
-            placeholder={fromText ? "만들고 싶은 이미지를 적어주세요. 예: 가을 느낌 일러스트 배경에 '10월 정규반 모집', 주황 포인트" : "어떤 내용인지 말하거나 적어주세요 (캡션 쓸 때 참고합니다)"}
-            className="w-full rounded-xl p-3 mt-2 font-body text-sm leading-relaxed"
-            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
 
           <button onClick={submit} disabled={busy || (fromText ? !caption.trim() : !files.length)}
             className="w-full mt-2 rounded-xl font-heading text-sm disabled:opacity-40"
@@ -7420,7 +7528,9 @@ export function AdminAIOffice({ user }) {
 
         {sheet?.kind === 'upload' && (
           <Sheet title="소재 올리기" onClose={() => setSheet(null)}>
-            <MediaUpload userId={user?.id} approvals={approvals} bare />
+            <MediaUpload userId={user?.id} approvals={approvals} bare
+              onRefreshApprovals={refreshApprovals}
+              onOpenDraft={(id) => setSheet({ kind: 'draft', id })} />
           </Sheet>
         )}
 
