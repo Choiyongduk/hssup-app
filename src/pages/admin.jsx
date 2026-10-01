@@ -10,7 +10,7 @@ import { useDraft } from '../hooks';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
-import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck, Mic } from 'lucide-react';
+import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck, Mic, Paperclip } from 'lucide-react';
 
 export function AdminImprovements({ user }) {
   const [items, setItems] = useState([]);
@@ -5620,6 +5620,113 @@ const CHAT_STAFF = {
 };
 const staffOf = (key) => CHAT_STAFF[key] || CHAT_STAFF.editor;
 
+// 📎 대화에 붙이는 참고 사진. "이 사진처럼 해줘" 는 말로만 설명하기 어렵다.
+// 담당자(클로드)가 열 수 있는 형식만 받는다. 아이폰 HEIC 는 압축하면서 jpg 로 바뀐다.
+// 게시용 원본과 섞이지 않게 content-media 버킷의 chat/ 아래에 둔다.
+const CHAT_PHOTO_MAX = 5;
+const CHAT_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+async function uploadChatPhotos(files) {
+  const urls = [];
+  for (const picked of files) {
+    let file = picked;
+    try {
+      file = await compressImage(picked, 1440, 0.85);
+    } catch {
+      file = picked;
+    }
+    if (!CHAT_PHOTO_TYPES.includes(file.type)) {
+      throw new Error(`${picked.name} 은 담당자가 열 수 없는 형식이에요. 스크린샷이나 jpg 로 보내주세요`);
+    }
+    const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1];
+    const path = `chat/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from(UPLOAD_BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (error) throw error;
+    urls.push(supabase.storage.from(UPLOAD_BUCKET).getPublicUrl(path).data.publicUrl);
+  }
+  return urls;
+}
+
+// 사진이 있을 때만 attachments 를 넣는다. 글만 보내는 건 DB 설정 전에도 그대로 되게.
+async function insertWithPhotos(table, row, files) {
+  const attachments = files.length ? await uploadChatPhotos(files) : [];
+  const { error } = await supabase.from(table).insert(attachments.length ? { ...row, attachments } : row);
+  if (error) {
+    if (error.message.includes('attachments')) throw new Error('사진 보내기 준비(DB 설정)가 아직 안 됐어요');
+    throw error;
+  }
+}
+
+function useChatPhotos() {
+  const [files, setFiles] = useState([]);
+  const previews = React.useMemo(() => files.map(f => URL.createObjectURL(f)), [files]);
+  useEffect(() => () => previews.forEach(u => URL.revokeObjectURL(u)), [previews]);
+
+  const add = (picked) => {
+    const next = [...files, ...picked];
+    if (next.length > CHAT_PHOTO_MAX) toast(`사진은 한 번에 ${CHAT_PHOTO_MAX}장까지예요`);
+    setFiles(next.slice(0, CHAT_PHOTO_MAX));
+  };
+  const remove = (i) => setFiles(prev => prev.filter((_, j) => j !== i));
+  const clear = () => setFiles([]);
+  return { files, previews, add, remove, clear };
+}
+
+function AttachButton({ photos, disabled }) {
+  return (
+    <label aria-label="사진 붙이기"
+      className={`px-3 rounded-xl shrink-0 flex items-center justify-center cursor-pointer ${disabled ? 'opacity-40 pointer-events-none' : ''}`}
+      style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}`, minHeight: 44 }}>
+      <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" multiple className="hidden"
+        onChange={e => {
+          photos.add([...(e.target.files || [])]);
+          e.target.value = '';  // 같은 사진을 다시 골라도 반응하게
+        }} />
+      <Paperclip size={16} strokeWidth={1.8} />
+    </label>
+  );
+}
+
+// 보내기 전에 붙인 사진을 보여주고 뺄 수 있게 한다.
+function AttachPreview({ photos }) {
+  if (!photos.files.length) return null;
+  return (
+    <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1">
+      {photos.previews.map((src, i) => (
+        <div key={src} className="relative shrink-0">
+          <img src={src} alt="" className="w-14 h-14 rounded-lg object-cover" />
+          <button onClick={() => photos.remove(i)} aria-label={`${i + 1}번째 사진 빼기`}
+            className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
+            style={{ background: COLORS.ink, color: COLORS.card }}>
+            <X size={11} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// 말풍선 안의 사진. 누르면 크게 본다.
+function MessagePhotos({ urls }) {
+  const [viewing, setViewing] = useState(null);
+  if (!Array.isArray(urls) || !urls.length) return null;
+  return (
+    <>
+      <div className="flex flex-wrap gap-1 justify-end">
+        {urls.map((url, i) => (
+          <button key={url} onClick={() => setViewing(i)}
+            className={`${urls.length === 1 ? 'w-44 h-44' : 'w-20 h-20'} rounded-xl overflow-hidden`}
+            style={{ background: COLORS.cardElev }}>
+            <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />
+          </button>
+        ))}
+      </div>
+      {viewing !== null && <MediaViewer urls={urls} index={viewing} onClose={() => setViewing(null)} />}
+    </>
+  );
+}
+
 // 승인 대기 게시물에 대고 "이렇게 바꿔줘" 라고 말하는 자리.
 // 캡션만 고치는 요청은 금방 오고, 그림까지 다시 만드는 요청은 조금 더 걸린다.
 function ApprovalThread({ approvalId, onRevised }) {
@@ -5652,18 +5759,22 @@ function ApprovalThread({ approvalId, onRevised }) {
     return () => clearInterval(timer);
   }, [waiting]);
 
+  const photos = useChatPhotos();
+
   const send = async () => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body && !photos.files.length) return;
     setSending(true);
-    const { error } = await supabase.from('ai_approval_messages')
-      .insert({ approval_id: approvalId, role: 'owner', body });
-    setSending(false);
-    if (error) {
-      toast('보내지 못했어요: ' + error.message);
+    try {
+      await insertWithPhotos('ai_approval_messages', { approval_id: approvalId, role: 'owner', body }, photos.files);
+    } catch (e) {
+      toast('보내지 못했어요: ' + (e.message || e));
+      setSending(false);
       return;
     }
+    setSending(false);
     setDraft('');
+    photos.clear();
     setReloadKey(k => k + 1);
     toast('전달했어요. 잠시 후 반영됩니다');
   };
@@ -5685,9 +5796,14 @@ function ApprovalThread({ approvalId, onRevised }) {
             <div key={m.id} className={`flex justify-end ${samePerson ? 'mt-1' : 'mt-4'}`}>
               <div className="flex items-end gap-1.5 max-w-[88%]">
                 <span className="font-mono text-[9px] pb-1 shrink-0" style={{ color: COLORS.muted }}>{time}</span>
-                <div className="rounded-2xl rounded-br-md px-3.5 py-2.5"
-                  style={{ background: COLORS.primary, color: COLORS.card }}>
-                  <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>
+                <div className="flex flex-col items-end gap-1 min-w-0">
+                  <MessagePhotos urls={m.attachments} />
+                  {m.body && (
+                    <div className="rounded-2xl rounded-br-md px-3.5 py-2.5"
+                      style={{ background: COLORS.primary, color: COLORS.card }}>
+                      <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -5732,17 +5848,19 @@ function ApprovalThread({ approvalId, onRevised }) {
         </div>
       )}
 
+      <AttachPreview photos={photos} />
       <div className="flex gap-2 mt-2">
+        <AttachButton photos={photos} disabled={sending} />
         <input value={draft} onChange={e => setDraft(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="말로 하시거나 적어주세요"
+          placeholder={photos.files.length ? '사진에 대해 말씀해 주세요' : '말로 하시거나 적어주세요'}
           className="flex-1 min-w-0 rounded-xl px-3 font-body text-sm"
           style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minHeight: 44 }} />
         <MicButton onText={setDraft} value={draft} />
-        <button onClick={send} disabled={sending || !draft.trim()}
+        <button onClick={send} disabled={sending || (!draft.trim() && !photos.files.length)}
           className="px-4 rounded-xl font-heading text-xs disabled:opacity-40 shrink-0"
           style={{ background: COLORS.ink, color: COLORS.card, minHeight: 44 }}>
-          보내기
+          {sending ? <Loader2 size={14} className="animate-spin" /> : '보내기'}
         </button>
       </div>
     </div>
@@ -5925,17 +6043,22 @@ function ReportThread({ reportId, reportBody, onStaffReplied, onCollapse }) {
     return () => clearInterval(timer);
   }, [messages]);
 
+  const photos = useChatPhotos();
+
   const send = async () => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body && !photos.files.length) return;
     setSending(true);
-    const { error } = await supabase.from('ai_messages').insert({ report_id: reportId, role: 'owner', body });
-    setSending(false);
-    if (error) {
-      toast('보내지 못했어요: ' + error.message);
+    try {
+      await insertWithPhotos('ai_messages', { report_id: reportId, role: 'owner', body }, photos.files);
+    } catch (e) {
+      toast('보내지 못했어요: ' + (e.message || e));
+      setSending(false);
       return;
     }
+    setSending(false);
     setDraft('');
+    photos.clear();
     toast('전달했어요. 잠시 후 답이 옵니다');
     setReloadKey(k => k + 1);
   };
@@ -5955,7 +6078,8 @@ function ReportThread({ reportId, reportBody, onStaffReplied, onCollapse }) {
 
       {!loading && messages.map(m => (
         <div key={m.id} className={`mb-3 flex flex-col ${m.role === 'owner' ? 'items-end' : 'items-start'}`}>
-          <div className="max-w-[85%] rounded-2xl px-3 py-2"
+          {m.role === 'owner' && <div className="mb-1 max-w-[85%]"><MessagePhotos urls={m.attachments} /></div>}
+          {(m.body || m.role === 'staff') && <div className="max-w-[85%] rounded-2xl px-3 py-2"
             style={m.role === 'owner'
               ? { background: COLORS.primary, color: COLORS.card }
               : { background: COLORS.cardElev, color: COLORS.ink }}>
@@ -5963,7 +6087,7 @@ function ReportThread({ reportId, reportBody, onStaffReplied, onCollapse }) {
             {m.role === 'staff'
               ? <ReportBody text={m.body} />
               : <p className="font-body text-sm leading-relaxed whitespace-pre-wrap">{m.body}</p>}
-          </div>
+          </div>}
           <p className="font-mono text-[9px] mt-1 px-1" style={{ color: COLORS.muted }}>
             {m.role === 'owner' ? '' : '담당 직원 · '}
             {new Date(m.created_at).toLocaleString('ko-KR', {
@@ -5977,23 +6101,26 @@ function ReportThread({ reportId, reportBody, onStaffReplied, onCollapse }) {
         <p className="font-body text-xs mb-2" style={{ color: COLORS.muted }}>답변을 준비하고 있어요…</p>
       )}
 
-      <div className="flex gap-2 pt-3 pb-1"
-        style={{ position: 'sticky', bottom: 0, background: COLORS.card, zIndex: 5 }}>
-        <button onClick={onCollapse} aria-label="접기"
-          className="px-3 rounded-xl font-heading text-xs shrink-0"
-          style={{ background: COLORS.cardElev, color: COLORS.stone, minHeight: 44 }}>
-          접기
-        </button>
-        <input value={draft} onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="고쳤으면 하는 점을 알려주세요"
-          className="flex-1 rounded-xl px-3 font-body text-sm"
-          style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minHeight: 44 }} />
-        <button onClick={send} disabled={sending || !draft.trim()}
-          className="px-4 rounded-xl font-heading text-xs disabled:opacity-40 shrink-0"
-          style={{ background: COLORS.ink, color: COLORS.card, minHeight: 44 }}>
-          보내기
-        </button>
+      <div className="pb-1" style={{ position: 'sticky', bottom: 0, background: COLORS.card, zIndex: 5 }}>
+        <AttachPreview photos={photos} />
+        <div className="flex gap-2 pt-3">
+          <button onClick={onCollapse} aria-label="접기"
+            className="px-3 rounded-xl font-heading text-xs shrink-0"
+            style={{ background: COLORS.cardElev, color: COLORS.stone, minHeight: 44 }}>
+            접기
+          </button>
+          <AttachButton photos={photos} disabled={sending} />
+          <input value={draft} onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder={photos.files.length ? '사진에 대해 말씀해 주세요' : '고쳤으면 하는 점을 알려주세요'}
+            className="flex-1 min-w-0 rounded-xl px-3 font-body text-sm"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minHeight: 44 }} />
+          <button onClick={send} disabled={sending || (!draft.trim() && !photos.files.length)}
+            className="px-4 rounded-xl font-heading text-xs disabled:opacity-40 shrink-0"
+            style={{ background: COLORS.ink, color: COLORS.card, minHeight: 44 }}>
+            {sending ? <Loader2 size={14} className="animate-spin" /> : '보내기'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -6597,18 +6724,22 @@ function ContentRequest({ userId, row = false, bare = false }) {
     })();
   }, [reloadKey]);
 
+  const photos = useChatPhotos();
+
   const submit = async () => {
     const text = body.trim();
     if (!text) return;
     setBusy(true);
-    const { error } = await supabase.from('ai_requests')
-      .insert({ body: text, urgency, created_by: userId || null });
-    setBusy(false);
-    if (error) {
-      toast('보내지 못했어요: ' + error.message);
+    try {
+      await insertWithPhotos('ai_requests', { body: text, urgency, created_by: userId || null }, photos.files);
+    } catch (e) {
+      toast('보내지 못했어요: ' + (e.message || e));
+      setBusy(false);
       return;
     }
+    setBusy(false);
     setBody('');
+    photos.clear();
     setReloadKey(k => k + 1);
     toast(urgency === 'now' ? '곧 기획안이 올라옵니다' : '월요일 기획에 반영됩니다');
   };
@@ -6654,7 +6785,16 @@ function ContentRequest({ userId, row = false, bare = false }) {
                       : { background: COLORS.card, color: COLORS.stone }}>
                     {it.urgency === 'now' ? '지금' : '주간'}
                   </span>
-                  <p className="font-body text-sm flex-1" style={{ color: COLORS.ink }}>{it.body}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-body text-sm" style={{ color: COLORS.ink }}>{it.body}</p>
+                    {Array.isArray(it.attachments) && it.attachments.length > 0 && (
+                      <div className="flex gap-1 mt-2">
+                        {it.attachments.map(url => (
+                          <img key={url} src={url} alt="" loading="lazy" className="w-10 h-10 rounded-md object-cover" />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <button onClick={() => remove(it.id)} aria-label="요청 취소"
                     className="shrink-0" style={{ color: COLORS.muted }}>
                     <X size={15} />
@@ -6669,7 +6809,9 @@ function ContentRequest({ userId, row = false, bare = false }) {
             className="w-full rounded-xl p-3 mt-3 font-body text-sm leading-relaxed"
             style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, resize: 'vertical' }} />
 
+          <AttachPreview photos={photos} />
           <div className="flex gap-2 mt-2">
+            <AttachButton photos={photos} disabled={busy} />
             {[['now', '지금 만들기'], ['weekly', '월요일 기획에']].map(([key, label]) => (
               <button key={key} onClick={() => setUrgency(key)}
                 className="px-3 rounded-xl font-heading text-xs"
@@ -6688,6 +6830,7 @@ function ContentRequest({ userId, row = false, bare = false }) {
 
           <p className="font-body text-[11px] mt-3" style={{ color: COLORS.muted }}>
             지금 만들기는 몇 분 안에 기획안이 올라옵니다. 월요일 기획에는 주간 기획안에 함께 반영됩니다.
+            📎 로 "이런 느낌으로" 참고 사진을 붙일 수 있어요.
           </p>
         </div>
       )}

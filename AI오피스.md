@@ -45,6 +45,12 @@
 그때 `sessionStorage` 도 지워집니다. 그래서 마지막 페이지를 `localStorage` 에도 남기고
 (6시간), AI 오피스에서 열어둔 창도 기억합니다.
 
+**사진 붙이기** — 시안 대화, 리포트 대화, 콘텐츠 요청에 📎 로 참고 사진을 5장까지 붙입니다.
+`content-media` 버킷의 `chat/` 아래에 올라가고 주소가 `attachments` 칸에 들어갑니다.
+담당자(클로드)가 열 수 있는 jpg, png, webp, gif 만 받습니다. 아이폰 HEIC 는 압축하면서 jpg 로 바뀝니다.
+영상은 클로드가 볼 수 없어서 받지 않습니다. 게시용 원본과 달리 자동으로 지워지지 않습니다.
+시안 대화에서는 담당자가 **지금 시안 그림도 같이 봅니다.** 예전에는 캡션 글만 읽었습니다.
+
 **시안 보기** — 카드뉴스는 6장이라 하나씩 눌러 열면 번거롭습니다.
 크게 보는 창에서 좌우키, 화면 좌우 절반 터치, 옆으로 쓸기로 넘깁니다.
 
@@ -63,10 +69,10 @@
 |---|---|
 | `ai_media_queue` | 올린 사진·영상 대기열. `group_key` 가 같으면 한 게시물 |
 | `ai_approvals` | 시안. `payload.media_type` 이 `carousel` 이면 카드뉴스 |
-| `ai_approval_messages` | 시안에 달린 대화. `staff` 가 누가 답했는지 |
+| `ai_approval_messages` | 시안에 달린 대화. `staff` 가 누가 답했는지, `attachments` 는 붙인 사진 |
 | `ai_reports` | 분석, 기획, 아침 보고, 회의록 |
-| `ai_messages` | 리포트에 달린 대화 |
-| `ai_requests` | 콘텐츠 요청 |
+| `ai_messages` | 리포트에 달린 대화. `attachments` 는 붙인 사진 |
+| `ai_requests` | 콘텐츠 요청. `attachments` 는 참고 사진 |
 | `ai_notes` | 사업 상황 메모 (여러 장) |
 | `ai_context` | 예전 방식의 메모 한 칸 |
 
