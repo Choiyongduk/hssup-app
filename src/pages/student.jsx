@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { COLORS, AVATAR_COLORS, maskAuthor, isOperatorRole, operatorLabel } from '../lib/colors';
 import { uploadCaseImage, deleteCaseImage, isYouTubeUrl, getRowImages, uploadImageToBucket, deleteImageFromBucket, persistFormImages, uploadPostVideo, deletePostVideo } from '../lib/images';
 import { toast } from '../lib/toast';
+import { updatePassword } from '../lib/password';
 import { confirmDialog } from '../lib/dialog';
 import { subscribeToNotifications, unsubscribeFromNotifications, checkNotificationStatus, notifyEveryone } from '../lib/notifications';
 import { LEGAL_TERMS, LEGAL_PRIVACY, LEGAL_REFUND } from '../lib/legal';
@@ -4360,7 +4361,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
           </div>
           <div className="flex-1 text-left">
             <p className="font-heading text-sm" style={{ color: COLORS.ink }}>내 정보 수정</p>
-            <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>이름 · 전화번호 변경</p>
+            <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>이름 · 전화번호 · 비밀번호 변경</p>
           </div>
           <ChevronRight size={16} style={{ color: COLORS.stone }} />
         </button>
@@ -4477,6 +4478,20 @@ export function MyProfileEditPage({ user, setCurrentPage, refreshUser }) {
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [saving, setSaving] = useState(false);
+  const [newPw, setNewPw] = useState('');
+  const [newPwConfirm, setNewPwConfirm] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState('');
+
+  const handleChangePassword = async () => {
+    setPwError('');
+    setPwSaving(true);
+    const err = await updatePassword(newPw, newPwConfirm);
+    setPwSaving(false);
+    if (err) return setPwError(err);
+    setNewPw(''); setNewPwConfirm('');
+    toast('비밀번호가 변경되었어요');
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -4540,6 +4555,28 @@ export function MyProfileEditPage({ user, setCurrentPage, refreshUser }) {
             저장
           </button>
         </div>
+
+        {/* 비밀번호 변경 — 로그인 상태라 메일 없이 바로 바꿀 수 있음 */}
+        <section className="rounded-2xl p-4 mt-6" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Password</p>
+          <h3 className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>비밀번호 변경</h3>
+          <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)}
+            placeholder="새 비밀번호 (6자 이상)" autoComplete="new-password"
+            className="w-full font-body text-sm p-3 mt-3 outline-none rounded"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          <input type="password" value={newPwConfirm} onChange={(e) => setNewPwConfirm(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleChangePassword()}
+            placeholder="새 비밀번호 확인" autoComplete="new-password"
+            className="w-full font-body text-sm p-3 mt-2 outline-none rounded"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          {pwError && <p className="font-body text-xs mt-2" style={{ color: COLORS.deep }}>{pwError}</p>}
+          <button onClick={handleChangePassword} disabled={pwSaving}
+            className="w-full rounded-full py-3 mt-3 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+            style={{ background: COLORS.ink, color: COLORS.white }}>
+            {pwSaving && <Loader2 size={14} className="animate-spin" />}
+            비밀번호 변경
+          </button>
+        </section>
       </div>
     </>
   );

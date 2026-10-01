@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
+import { updatePassword, authErrorKo } from './lib/password';
+import { toast } from './lib/toast';
 
 // 🔗 currentPage(문자열) ↔ URL 경로 매핑 (점진적 react-router 전환용 어댑터)
 // 상세 페이지: currentPage ↔ URL prefix (딥링크 /prefix/:id)
@@ -104,6 +106,8 @@ export default function HSSUPApp() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  // 🔑 비밀번호 찾기로 들어온 상태 (메일 링크 ?reset=true 또는 인증번호 확인) → 새 비밀번호 화면을 먼저 띄움
+  const [recovering, setRecovering] = useState(() => new URLSearchParams(window.location.search).get('reset') === 'true');
   // 🔗 페이지 상태를 URL과 연결 (뒤로가기·새로고침·딥링크는 react-router가 처리)
   const navigate = useNavigate();
   const location = useLocation();
@@ -216,10 +220,12 @@ export default function HSSUPApp() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadProfile(session.user.id);
-      else setLoading(false);
+      else { setRecovering(false); setLoading(false); }  // 링크가 만료됐으면 평소 로그인 화면으로
     });
- 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true);
+      if (event === 'SIGNED_OUT') setRecovering(false);
       setSession(session);
       if (session) loadProfile(session.user.id);
       else { setProfile(null); setLoading(false); }
@@ -506,6 +512,13 @@ export default function HSSUPApp() {
     setLoading(false);
   };
  
+  // 🔑 새 비밀번호 화면 종료 — 주소창의 ?reset=true 도 지워서 새로고침해도 다시 안 뜨게
+  const finishRecovery = async ({ signOut } = {}) => {
+    if (window.location.search.includes('reset=')) navigate(location.pathname, { replace: true });
+    if (signOut) await handleLogout();
+    setRecovering(false);
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setProfile(null); setSession(null); setDrawerOpen(false);
@@ -765,6 +778,7 @@ export default function HSSUPApp() {
 <div className="app-container relative w-full overflow-hidden flex flex-col" style={{ background: COLORS.cream, height: '100%' }}>
  
           {loading ? <LoadingScreen /> :
+           recovering && session ? <ResetPasswordScreen onFinish={finishRecovery} /> :
            !session || !profile ? <AuthScreen /> :
            profile.status === 'pending' && profile.role !== 'admin' ? <PendingApprovalScreen user={profile} handleLogout={handleLogout} /> :
            profile.status === 'rejected' && profile.role !== 'admin' ? <RejectedScreen user={profile} handleLogout={handleLogout} /> :
@@ -1136,6 +1150,63 @@ function LoadingScreen() {
   );
 }
  
+// 🔑 비밀번호 찾기(인증번호/메일 링크)로 임시 로그인된 상태에서 새 비밀번호를 정하는 화면
+function ResetPasswordScreen({ onFinish }) {
+  const [pw, setPw] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    setError('');
+    setSaving(true);
+    const err = await updatePassword(pw, pwConfirm);
+    setSaving(false);
+    if (err) return setError(err);
+    toast('비밀번호가 변경되었어요');
+    onFinish();
+  };
+
+  return (
+    <div className="flex-1 flex flex-col justify-center px-7 py-10 overflow-y-auto scrollbar-hide" style={{ background: COLORS.cream }}>
+      <p className="font-mono text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: COLORS.primary }}>New Password</p>
+      <h2 className="font-heading text-xl mt-2" style={{ color: COLORS.ink }}>새 비밀번호 설정</h2>
+      <p className="font-body text-xs mt-2 leading-relaxed" style={{ color: COLORS.stone }}>
+        앞으로 로그인할 때 쓸 새 비밀번호를 입력해주세요
+      </p>
+      <div className="space-y-4 mt-8">
+        <div>
+          <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>새 비밀번호</label>
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)}
+            placeholder="6자 이상" autoComplete="new-password" autoFocus
+            className="w-full font-body text-base font-medium border-b py-2 mt-1 bg-transparent outline-none"
+            style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+        </div>
+        <div>
+          <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>새 비밀번호 확인</label>
+          <input type="password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSave()}
+            placeholder="한 번 더 입력" autoComplete="new-password"
+            className="w-full font-body text-base font-medium border-b py-2 mt-1 bg-transparent outline-none"
+            style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+        </div>
+        {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
+        <button onClick={handleSave} disabled={saving}
+          className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
+          style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5)' }}>
+          <span className="flex items-center gap-2">{saving && <Loader2 size={14} className="animate-spin" />}비밀번호 변경하기</span>
+          <Lock size={18} />
+        </button>
+        <button onClick={() => onFinish({ signOut: true })} disabled={saving}
+          className="w-full mt-2 font-mono text-[11px] text-center"
+          style={{ color: COLORS.stone, textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+          취소하고 로그인 화면으로
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AuthScreen() {
   const [mode, setMode] = useState('login');
   const [loading, setLoading] = useState(false);
@@ -1143,6 +1214,8 @@ function AuthScreen() {
   const [info, setInfo] = useState('');
   const [showFindPw, setShowFindPw] = useState(false);
   const [findPwEmail, setFindPwEmail] = useState('');
+  const [codeSentTo, setCodeSentTo] = useState('');  // 인증번호를 보낸 이메일 (있으면 번호 입력 단계)
+  const [resetCode, setResetCode] = useState('');
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [signupForm, setSignupForm] = useState({
     name: '', username: '', email: '', password: '', passwordConfirm: '',
@@ -1279,16 +1352,36 @@ function AuthScreen() {
       return setError('올바른 이메일 형식이 아닙니다');
     }
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(findPwEmail.trim(), {
+    const email = findPwEmail.trim().toLowerCase();
+    // 메일에는 인증번호와 링크가 같이 들어감 — 링크로 들어와도 ?reset=true 로 새 비밀번호 화면이 뜸
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}?reset=true`
     });
     if (error) {
-      setError(error.message);
+      setError(authErrorKo(error.message));
     } else {
-      setInfo(`${findPwEmail}로 비밀번호 재설정 메일을 보냈어요!\n메일을 확인해주세요.`);
-      setFindPwEmail('');
+      setCodeSentTo(email);
+      setResetCode('');
+      setInfo(`${email}로 인증번호를 보냈어요.\n메일에 적힌 숫자를 입력해주세요.`);
     }
     setLoading(false);
+  };
+
+  // 인증번호 확인 → 성공하면 PASSWORD_RECOVERY 이벤트로 새 비밀번호 화면이 자동으로 뜸
+  const handleVerifyCode = async () => {
+    setError('');
+    const token = resetCode.replace(/\s/g, '');
+    if (!/^\d{6,10}$/.test(token)) return setError('메일로 받은 숫자 인증번호를 입력해주세요');
+    setLoading(true);
+    const { error } = await supabase.auth.verifyOtp({ email: codeSentTo, token, type: 'recovery' });
+    if (error) {
+      setError(authErrorKo(error.message));
+      setLoading(false);
+    }
+  };
+
+  const closeFindPw = () => {
+    setShowFindPw(false); setCodeSentTo(''); setResetCode(''); setError(''); setInfo('');
   };
  
   return (
@@ -1321,31 +1414,70 @@ function AuthScreen() {
         {showFindPw ? (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <button onClick={() => { setShowFindPw(false); setError(''); setInfo(''); }}>
+              <button onClick={closeFindPw}>
                 <ChevronLeft size={20} style={{ color: COLORS.ink }} />
               </button>
               <h2 className="font-heading text-base" style={{ color: COLORS.ink }}>비밀번호 찾기</h2>
             </div>
-            <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.stone }}>
-              가입 시 사용한 이메일을 입력하면<br/>비밀번호 재설정 링크를 보내드려요 
-            </p>
-            <div>
-              <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>EMAIL</label>
-              <input type="email" value={findPwEmail} 
-                onChange={e => setFindPwEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleFindPassword()}
-                placeholder="가입 시 사용한 이메일"
-                className="w-full font-body text-base font-medium border-b py-2 mt-1 bg-transparent outline-none"
-                style={{ borderColor: COLORS.light, color: COLORS.ink }} />
-            </div>
-            {info && <p className="font-body text-xs leading-relaxed whitespace-pre-line" style={{ color: COLORS.primary }}>{info}</p>}
-            {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
-            <button onClick={handleFindPassword} disabled={loading} 
-              className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-              style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5)' }}>
-              <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}재설정 메일 보내기</span>
-              <Mail size={18} />
-            </button>
+            {!codeSentTo ? (
+              <>
+                <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.stone }}>
+                  가입 시 사용한 이메일을 입력하면<br/>인증번호를 보내드려요
+                </p>
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>EMAIL</label>
+                  <input type="email" value={findPwEmail}
+                    onChange={e => setFindPwEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleFindPassword()}
+                    placeholder="가입 시 사용한 이메일"
+                    className="w-full font-body text-base font-medium border-b py-2 mt-1 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                </div>
+                {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
+                <button onClick={handleFindPassword} disabled={loading}
+                  className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
+                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5)' }}>
+                  <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}인증번호 받기</span>
+                  <Mail size={18} />
+                </button>
+              </>
+            ) : (
+              <>
+                {info && <p className="font-body text-xs leading-relaxed whitespace-pre-line" style={{ color: COLORS.primary }}>{info}</p>}
+                <div>
+                  <label className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase" style={{ color: COLORS.stone }}>인증번호</label>
+                  <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={10}
+                    value={resetCode}
+                    onChange={e => setResetCode(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={e => e.key === 'Enter' && handleVerifyCode()}
+                    placeholder="메일로 받은 숫자"
+                    className="w-full font-body text-xl font-semibold tracking-[0.4em] border-b py-2 mt-1 bg-transparent outline-none"
+                    style={{ borderColor: COLORS.light, color: COLORS.ink }} />
+                </div>
+                {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
+                <button onClick={handleVerifyCode} disabled={loading}
+                  className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
+                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5)' }}>
+                  <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}확인</span>
+                  <Check size={18} />
+                </button>
+                <div className="flex justify-center gap-5 mt-2">
+                  <button onClick={handleFindPassword} disabled={loading}
+                    className="font-mono text-[11px]"
+                    style={{ color: COLORS.stone, textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+                    인증번호 다시 받기
+                  </button>
+                  <button onClick={() => { setCodeSentTo(''); setResetCode(''); setError(''); setInfo(''); }}
+                    className="font-mono text-[11px]"
+                    style={{ color: COLORS.stone, textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+                    이메일 다시 입력
+                  </button>
+                </div>
+                <p className="font-body text-[11px] leading-relaxed" style={{ color: COLORS.stone }}>
+                  메일이 안 보이면 스팸함도 확인해주세요
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <>
