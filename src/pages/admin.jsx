@@ -5369,6 +5369,7 @@ const REPORT_KINDS = {
   meeting: { ko: '회의록', icon: FileText },
   request: { ko: '요청 기획', icon: Sparkles },
   plan: { ko: '콘텐츠 기획', icon: Sparkles },
+  ideas: { ko: '오늘 아이디어', icon: Sparkles },
   feed: { ko: '피드 분석', icon: BarChart3 },
   staff: { ko: '직원 계정', icon: Users },
 };
@@ -6417,6 +6418,87 @@ async function copyChatGptPrompt(channel) {
   }
 }
 
+// 💡 오늘의 콘텐츠 아이디어. 자동화(daily_ideas.py)가 매일 아침 정해진 모양의 마크다운으로 쓴다.
+//   ## 1. 제목
+//   - **계정**: 아카데미 / - **형식**: … / - **왜 지금**: … / - **사진**: … / - **요청문**: …
+function parseIdeas(body) {
+  return (body || '').split(/^## /m).slice(1).map(chunk => {
+    const [first, ...rest] = chunk.split('\n');
+    const field = (name) => {
+      const line = rest.find(l => l.startsWith(`- **${name}**:`));
+      return line ? line.slice(`- **${name}**:`.length).trim() : '';
+    };
+    const photo = field('사진');
+    return {
+      title: first.replace(/^\d+\.\s*/, '').trim(),
+      channel: field('계정') === '아트메이크' ? 'hssup-artmake' : 'hssup-academy',
+      channelKo: field('계정') || '아카데미',
+      format: field('형식'),
+      why: field('왜 지금'),
+      needsPhoto: photo.startsWith('찍어야'),
+      shoot: photo.replace(/^찍어야 함\s*—\s*/, ''),
+      request: field('요청문'),
+    };
+  }).filter(i => i.title);
+}
+
+function IdeaCard({ idea, userId, onShoot }) {
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // 사진 없이 만들 수 있는 건 바로 "사진 없이 만들기" 로 맡긴다(바로 작업).
+  const make = async () => {
+    setBusy(true);
+    const { error } = await supabase.from('ai_media_queue').insert({
+      channel: idea.channel,
+      media_type: 'design',
+      group_key: `i${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      urgency: 'now',
+      user_caption: `${idea.title}\n\n${idea.request}`,
+      ref_urls: [],
+      created_by: userId || null,
+    });
+    setBusy(false);
+    if (error) { toast('맡기지 못했어요: ' + error.message); return; }
+    setSent(true);
+    toast('맡겼어요. 소재 올리기에서 진행 상황을 볼 수 있어요');
+  };
+
+  return (
+    <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+      <p className="font-mono text-[10px] tracking-wider" style={{ color: COLORS.muted }}>
+        {idea.channelKo} · {idea.format}
+      </p>
+      <h3 className="font-heading text-sm mt-1 leading-snug" style={{ color: COLORS.ink }}>{idea.title}</h3>
+      <p className="font-body text-xs mt-2 leading-relaxed" style={{ color: COLORS.stone }}>{idea.why}</p>
+      {idea.needsPhoto && (
+        <p className="font-body text-xs mt-2 leading-relaxed rounded-lg p-2" style={{ background: COLORS.cardElev, color: COLORS.ink }}>
+          📷 {idea.shoot}
+        </p>
+      )}
+      <details className="mt-2">
+        <summary className="font-body text-[11px] cursor-pointer" style={{ color: COLORS.muted }}>디자인 요청문 보기</summary>
+        <p className="font-body text-[11px] mt-1 leading-relaxed" style={{ color: COLORS.stone }}>{idea.request}</p>
+      </details>
+      <div className="mt-3">
+        {idea.needsPhoto ? (
+          <button onClick={() => onShoot(idea)}
+            className="w-full rounded-xl font-heading text-xs" style={{ background: COLORS.ink, color: COLORS.card, minHeight: 40 }}>
+            찍어서 올리기
+          </button>
+        ) : (
+          <button onClick={make} disabled={busy || sent}
+            className="w-full rounded-xl font-heading text-xs disabled:opacity-60 flex items-center justify-center gap-1.5"
+            style={{ background: sent ? COLORS.cardElev : COLORS.primary, color: sent ? COLORS.stone : COLORS.card, minHeight: 40 }}>
+            {busy && <Loader2 size={13} className="animate-spin" />}
+            {sent ? '맡겼어요 ✓' : '이걸로 만들어줘'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // 소재 하나가 지금 어디까지 왔는지. 자동화(process_queue)가 ai_media_queue.status 에 적는다.
 const QUEUE_STATE = {
   queued:  { ko: '대기 중',   tone: COLORS.muted,   hint: '정해진 시간(낮 12:30 / 저녁 8시)에 하나씩 만들어요. 기다리기 싫으면 바로 작업으로 바꾸세요.' },
@@ -6568,11 +6650,12 @@ function QueueItem({ group, onRemove, onChanged, onOpenDraft }) {
   );
 }
 
-function MediaUpload({ userId, approvals = [], row = false, bare = false, onOpenDraft, onRefreshApprovals }) {
+function MediaUpload({ userId, approvals = [], row = false, bare = false, onOpenDraft, onRefreshApprovals, prefill }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState([]);
-  const [caption, setCaption] = useState('');
-  const [channel, setChannel] = useState('hssup-academy');
+  // 오늘 아이디어에서 "찍어서 올리기" 로 오면 계정과 설명이 채워진 채 열린다.
+  const [caption, setCaption] = useState(prefill?.caption || '');
+  const [channel, setChannel] = useState(prefill?.channel || 'hssup-academy');
   const [urgency, setUrgency] = useState('scheduled');
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -7373,6 +7456,10 @@ export function AdminAIOffice({ user }) {
     const today = new Date().toDateString();
     return reports.find(r => r.kind === 'brief' && new Date(r.created_at).toDateString() === today);
   })();
+  const todayIdeas = (() => {
+    const today = new Date().toDateString();
+    return reports.find(r => r.kind === 'ideas' && new Date(r.created_at).toDateString() === today);
+  })();
   const briefSummary = (() => {
     if (!todayBrief) return '';
     const line = (todayBrief.body || '').split('\n')
@@ -7433,6 +7520,23 @@ export function AdminAIOffice({ user }) {
                   </p>
                 </div>
                 <ChevronRight size={15} style={{ color: 'rgba(255,255,255,0.5)' }} />
+              </button>
+            )}
+
+            {todayIdeas && (
+              <button onClick={() => setSheet({ kind: 'ideas' })}
+                className="w-full rounded-2xl p-4 mb-4 text-left flex items-start gap-3"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <Sparkles size={16} strokeWidth={1.8} className="shrink-0 mt-0.5" style={{ color: COLORS.primary }} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-heading text-xs" style={{ color: COLORS.ink }}>
+                    오늘 아이디어 {parseIdeas(todayIdeas.body).length}개
+                  </p>
+                  <p className="font-body text-[11px] mt-1 line-clamp-2" style={{ color: COLORS.muted }}>
+                    {parseIdeas(todayIdeas.body).map(i => i.title).join(' / ')}
+                  </p>
+                </div>
+                <ChevronRight size={15} style={{ color: COLORS.muted }} />
               </button>
             )}
 
@@ -7528,7 +7632,7 @@ export function AdminAIOffice({ user }) {
 
         {sheet?.kind === 'upload' && (
           <Sheet title="소재 올리기" onClose={() => setSheet(null)}>
-            <MediaUpload userId={user?.id} approvals={approvals} bare
+            <MediaUpload userId={user?.id} approvals={approvals} bare prefill={sheet.prefill}
               onRefreshApprovals={refreshApprovals}
               onOpenDraft={(id) => setSheet({ kind: 'draft', id })} />
           </Sheet>
@@ -7550,6 +7654,21 @@ export function AdminAIOffice({ user }) {
               {awaiting.map(r => (
                 <ApprovalCard key={`s${r.id}`} row={r} onDecide={decide} onSaveBody={saveBody}
                   onRevised={refreshApprovals} defaultOpen={r.id === sheet.id} />
+              ))}
+            </div>
+          </Sheet>
+        )}
+
+        {sheet?.kind === 'ideas' && todayIdeas && (
+          <Sheet title={todayIdeas.title} onClose={() => setSheet(null)}>
+            <p className="font-body text-xs mb-3 leading-relaxed" style={{ color: COLORS.muted }}>
+              사진 없이 되는 건 <strong style={{ color: COLORS.stone }}>이걸로 만들어줘</strong>를 누르면 바로 만들어요.
+              찍어야 하는 건 찍은 뒤 <strong style={{ color: COLORS.stone }}>찍어서 올리기</strong>로 올리세요.
+            </p>
+            <div className="space-y-3">
+              {parseIdeas(todayIdeas.body).map((idea, i) => (
+                <IdeaCard key={i} idea={idea} userId={user?.id}
+                  onShoot={(it) => setSheet({ kind: 'upload', prefill: { channel: it.channel, caption: `${it.title}\n\n${it.request}` } })} />
               ))}
             </div>
           </Sheet>
