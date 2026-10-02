@@ -7,6 +7,7 @@ import { confirmDialog } from '../lib/dialog';
 import { compressImage, isYouTubeUrl, uploadPostVideo, deletePostVideo, deleteImageFromBucket, persistFormImages, getRowImages } from '../lib/images';
 import { notifyAdminsOfStaffActivity, notifyEveryone, notifyUsers } from '../lib/notifications';
 import { useDraft } from '../hooks';
+import { PROMPT_GROUPS } from '../lib/chatgptPrompts';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
@@ -6446,6 +6447,57 @@ async function copyChatGptPrompt(channel) {
   }
 }
 
+// ChatGPT 사진 보정 요청문 모음. 누르면 복사, 제목을 누르면 전문을 펼친다.
+function ChatGptPrompts() {
+  const [open, setOpen] = useState(null);
+  const copy = async (it) => {
+    try {
+      await navigator.clipboard.writeText(it.text);
+      toast(it.text.includes('[') ? '복사했어요. [대괄호] 칸만 바꿔서 쓰세요' : '복사했어요. ChatGPT에 사진과 함께 붙여넣으세요');
+    } catch {
+      toast('복사하지 못했어요. 브라우저가 막았을 수 있어요');
+    }
+  };
+  return (
+    <div>
+      <p className="font-body text-xs mb-4 leading-relaxed" style={{ color: COLORS.muted }}>
+        ChatGPT에 사진을 올리고 요청문을 붙여넣으세요. 시술 부위는 바꾸지 말라는 말이 모두 들어 있어요.
+      </p>
+      {PROMPT_GROUPS.map(g => (
+        <div key={g.title} className="mb-5">
+          <p className="font-heading text-sm mb-2" style={{ color: COLORS.ink }}>
+            {g.title} <span className="font-body text-[11px]" style={{ color: COLORS.muted }}>{g.hint}</span>
+          </p>
+          <div className="space-y-2">
+            {g.items.map(it => {
+              const key = `${g.title}/${it.name}`;
+              return (
+                <div key={key} className="rounded-xl" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                  <div className="flex items-center gap-2 p-3">
+                    <button onClick={() => setOpen(open === key ? null : key)} className="flex-1 text-left min-w-0">
+                      <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{it.name}</p>
+                      <p className="font-body text-[11px] mt-0.5" style={{ color: COLORS.muted }}>{it.use}</p>
+                    </button>
+                    <button onClick={() => copy(it)}
+                      className="shrink-0 rounded-lg px-3 font-heading text-[11px] flex items-center gap-1"
+                      style={{ background: COLORS.primary, color: COLORS.white, minHeight: 36 }}>
+                      <Copy size={12} /> 복사
+                    </button>
+                  </div>
+                  {open === key && (
+                    <p className="font-body text-[11px] leading-relaxed whitespace-pre-wrap px-3 pb-3"
+                      style={{ color: COLORS.stone }}>{it.text}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // 💡 오늘의 콘텐츠 아이디어. 자동화(daily_ideas.py)가 매일 아침 정해진 모양의 마크다운으로 쓴다.
 //   ## 1. 제목
 //   - **계정**: 아카데미 / - **형식**: … / - **왜 지금**: … / - **사진**: … / - **요청문**: …
@@ -7652,14 +7704,20 @@ export function AdminAIOffice({ user }) {
                 <span className="font-heading text-xs" style={{ color: COLORS.ink }}>사업 메모</span>
                 <Edit3 size={13} style={{ color: COLORS.primary }} />
               </button>
+              <button onClick={() => setSheet({ kind: 'prompts' })}
+                className="flex-1 rounded-xl px-3 py-3 flex items-center justify-between"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <span className="font-heading text-xs" style={{ color: COLORS.ink }}>사진 보정</span>
+                <Copy size={13} style={{ color: COLORS.primary }} />
+              </button>
               <button onClick={() => setSheet({ kind: 'log' })}
-                className="flex-1 rounded-xl px-4 py-3 flex items-center justify-between"
+                className="flex-1 rounded-xl px-3 py-3 flex items-center justify-between"
                 style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
                 <span className="font-heading text-xs" style={{ color: COLORS.ink }}>기록</span>
                 <span className="font-mono text-[10px]" style={{ color: COLORS.muted }}>{reports.length + decided.length}</span>
               </button>
               <button onClick={() => setSheet({ kind: 'ref' })}
-                className="flex-1 rounded-xl px-4 py-3 flex items-center justify-between"
+                className="flex-1 rounded-xl px-3 py-3 flex items-center justify-between"
                 style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
                 <span className="font-heading text-xs" style={{ color: COLORS.ink }}>참고</span>
                 <ChevronRight size={14} style={{ color: COLORS.muted }} />
@@ -7727,6 +7785,12 @@ export function AdminAIOffice({ user }) {
               style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
               <ReportBody text={todayBrief.body} />
             </div>
+          </Sheet>
+        )}
+
+        {sheet?.kind === 'prompts' && (
+          <Sheet title="ChatGPT 사진 보정 요청문" onClose={() => setSheet(null)}>
+            <ChatGptPrompts />
           </Sheet>
         )}
 
