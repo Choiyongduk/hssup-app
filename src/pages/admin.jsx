@@ -5713,17 +5713,27 @@ function AttachPreview({ photos }) {
 }
 
 // 말풍선 안의 사진. 누르면 크게 본다.
-function MessagePhotos({ urls }) {
+// 담당자가 시안을 고치면 [고치기 전, 고친 후] 두 장이 붙어 온다(revise_post._before_after).
+function MessagePhotos({ urls, staff = false }) {
   const [viewing, setViewing] = useState(null);
   if (!Array.isArray(urls) || !urls.length) return null;
+  const compare = staff && urls.length === 2;
+  const labels = compare ? ['고치기 전', '고친 후'] : [];
   return (
     <>
-      <div className="flex flex-wrap gap-1 justify-end">
+      <div className={`flex flex-wrap gap-1.5 ${staff ? 'justify-start' : 'justify-end'}`}>
         {urls.map((url, i) => (
           <button key={url} onClick={() => setViewing(i)}
-            className={`${urls.length === 1 ? 'w-44 h-44' : 'w-20 h-20'} rounded-xl overflow-hidden`}
-            style={{ background: COLORS.cardElev }}>
-            <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />
+            className={`${compare ? 'w-32 h-40' : urls.length === 1 ? 'w-44 h-44' : 'w-20 h-20'} rounded-xl overflow-hidden relative`}
+            style={{ background: COLORS.cardElev, opacity: compare && i === 0 ? 0.75 : 1,
+              border: compare && i === 1 ? `2px solid ${COLORS.primary}` : 'none' }}>
+            {isVideoUrl(url)
+              ? <video src={thumbSrc(url)} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+              : <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />}
+            {labels[i] && (
+              <span className="absolute top-1 left-1 rounded px-1.5 font-mono text-[9px]"
+                style={{ background: i === 1 ? COLORS.primary : 'rgba(0,0,0,0.6)', color: '#fff' }}>{labels[i]}</span>
+            )}
           </button>
         ))}
       </div>
@@ -5826,6 +5836,9 @@ function ApprovalThread({ approvalId, onRevised }) {
                   {who.name} 팀장
                   <span className="font-mono text-[9px] ml-1.5" style={{ color: COLORS.muted }}>{who.role}</span>
                 </p>
+              )}
+              {Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                <div className="mb-1"><MessagePhotos urls={m.attachments} staff /></div>
               )}
               <div className="flex items-end gap-1.5">
                 <div className="rounded-2xl rounded-bl-md px-3.5 py-2.5"
