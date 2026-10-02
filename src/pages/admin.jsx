@@ -5436,8 +5436,10 @@ const isVideoUrl = (url) => /\.(mp4|mov|webm)(\?|$)/i.test(url || '');
 // 시안을 크게 보는 창. 카드뉴스는 여러 장이라 좌우로 넘길 수 있어야 한다.
 // 키보드 좌우키, 화면 좌우 절반 터치, 옆으로 쓸기 셋 다 받는다.
 // 아이폰 사파리는 영상을 재생하기 전엔 첫 장면을 그리지 않아 썸네일이 비어 보인다.
-// 주소 끝에 #t=0.1 을 붙이면 그 순간의 장면을 미리 그린다(컴퓨터 브라우저에도 해가 없다).
-const thumbSrc = (url) => (url && !url.includes('#') ? `${url}#t=0.1` : url);
+// 주소 끝에 #t=초 를 붙이면 그 순간의 장면을 미리 그린다(컴퓨터 브라우저에도 해가 없다).
+// 3초로 둔다. 카드뉴스 릴스는 첫 장면이 비어 있다가 글이 떠올라, 0.1초면 하얗게만 보였다
+// (인스타 표지도 같은 3초 장면, 히썹인스타자동 engine/reel.py COVER_FRAME). 3초보다 짧은 영상은 마지막 장면.
+const thumbSrc = (url) => (url && !url.includes('#') ? `${url}#t=3` : url);
 
 function MediaViewer({ urls, index = 0, onClose }) {
   const list = Array.isArray(urls) ? urls : [urls];
