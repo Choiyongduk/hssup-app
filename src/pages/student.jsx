@@ -5938,6 +5938,67 @@ export function TipsPage({ user, setCurrentPage, setSelectedTip }) {
   );
 }
 
+// 복습 카드. 자동화(히썹인스타자동 make_study_cards.py)가 원장님 글 내용만으로 만든다.
+// 원장님이 "공개" 를 눌러야 수강생에게 보인다. 원장님에게는 검수 전에도 보인다.
+function StudyCards({ tip, isAdmin }) {
+  const cards = tip?.study_cards?.cards || [];
+  const [ok, setOk] = useState(!!tip?.study_cards_ok);
+  const [shown, setShown] = useState({});
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setOk(!!tip?.study_cards_ok); setShown({}); }, [tip?.id, tip?.study_cards_ok]);
+  if (!cards.length || (!ok && !isAdmin)) return null;
+
+  const toggle = async () => {
+    setSaving(true);
+    const { error } = await supabase.from('tips').update({ study_cards_ok: !ok }).eq('id', tip.id);
+    setSaving(false);
+    if (error) { toast('바꾸지 못했어요: ' + error.message); return; }
+    setOk(!ok);
+    toast(ok ? '복습 카드를 숨겼어요' : '수강생에게 복습 카드를 공개했어요');
+  };
+
+  return (
+    <div className="px-5 mt-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 복습 카드</p>
+        <p className="font-body text-[11px]" style={{ color: COLORS.muted }}>눌러서 답 보기</p>
+      </div>
+      {isAdmin && (
+        <div className="rounded-xl p-3 mb-2 flex items-center gap-2"
+          style={{ background: ok ? COLORS.cardElev : COLORS.peach }}>
+          <p className="font-body text-[11px] flex-1 leading-relaxed" style={{ color: COLORS.ink }}>
+            {ok ? '수강생에게 보이는 중이에요.' : '글 내용으로 만든 카드예요. 확인하고 공개하면 수강생에게 보여요.'}
+          </p>
+          <button onClick={toggle} disabled={saving}
+            className="shrink-0 rounded-lg px-3 font-heading text-[11px]"
+            style={{ background: ok ? COLORS.card : COLORS.primary, color: ok ? COLORS.ink : COLORS.white,
+              border: ok ? `1px solid ${COLORS.light}` : 'none', minHeight: 36, opacity: saving ? 0.6 : 1 }}>
+            {ok ? '숨기기' : '공개'}
+          </button>
+        </div>
+      )}
+      <div className="space-y-2">
+        {cards.map((c, i) => (
+          <button key={i} onClick={() => setShown(prev => ({ ...prev, [i]: !prev[i] }))}
+            className="w-full text-left rounded-2xl p-4 transition-transform active:scale-[0.99]"
+            style={{ background: COLORS.card, border: `1px solid ${shown[i] ? COLORS.primary : COLORS.light}` }}>
+            <p className="font-heading text-sm leading-snug" style={{ color: COLORS.ink }}>
+              <span style={{ color: COLORS.primary }}>Q{i + 1}. </span>{c.q}
+            </p>
+            {shown[i] ? (
+              <p className="font-body text-sm leading-relaxed mt-2 pt-2" style={{ color: COLORS.stone, borderTop: `1px dashed ${COLORS.light}` }}>
+                {c.a}
+              </p>
+            ) : (
+              <p className="font-body text-[11px] mt-1.5" style={{ color: COLORS.muted }}>먼저 떠올려 보고 눌러 보세요</p>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function TipDetailPage({ tip: propTip, user, routeId }) {
   const { item: tip, fetching } = useDetailItem(propTip, routeId, 'tips');
   useViewCount('tips', tip?.id);
@@ -6045,6 +6106,8 @@ export function TipDetailPage({ tip: propTip, user, routeId }) {
           </a>
         </div>
       )}
+
+      <StudyCards tip={tip} isAdmin={isAdmin} />
 
       <div className="px-5 mt-3">
         <div className="rounded-2xl p-5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
