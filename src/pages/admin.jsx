@@ -5372,6 +5372,7 @@ const REPORT_KINDS = {
   plan: { ko: '콘텐츠 기획', icon: Sparkles },
   ideas: { ko: '오늘 아이디어', icon: Sparkles },
   feed: { ko: '피드 분석', icon: BarChart3 },
+  timing: { ko: '올리기 좋은 시간', icon: Clock },
   staff: { ko: '직원 계정', icon: Users },
 };
 
