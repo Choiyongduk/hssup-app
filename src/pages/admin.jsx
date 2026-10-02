@@ -5433,6 +5433,10 @@ const isVideoUrl = (url) => /\.(mp4|mov|webm)(\?|$)/i.test(url || '');
 // 미디어 전체보기. 사진은 크게, 영상은 재생할 수 있게 띄운다.
 // 시안을 크게 보는 창. 카드뉴스는 여러 장이라 좌우로 넘길 수 있어야 한다.
 // 키보드 좌우키, 화면 좌우 절반 터치, 옆으로 쓸기 셋 다 받는다.
+// 아이폰 사파리는 영상을 재생하기 전엔 첫 장면을 그리지 않아 썸네일이 비어 보인다.
+// 주소 끝에 #t=0.1 을 붙이면 그 순간의 장면을 미리 그린다(컴퓨터 브라우저에도 해가 없다).
+const thumbSrc = (url) => (url && !url.includes('#') ? `${url}#t=0.1` : url);
+
 function MediaViewer({ urls, index = 0, onClose }) {
   const list = Array.isArray(urls) ? urls : [urls];
   const [at, setAt] = useState(Math.min(Math.max(index, 0), list.length - 1));
@@ -5904,7 +5908,7 @@ function ApprovalCard({ row, onDecide, onSaveBody, onRevised, defaultOpen = fals
             <Camera size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
           ) : isVideoUrl(media[0]) ? (
             <>
-              <video src={media[0]} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+              <video src={thumbSrc(media[0])} muted playsInline preload="metadata" className="w-full h-full object-cover" />
               <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
                 <Play size={16} style={{ color: '#fff' }} />
               </span>
@@ -5940,7 +5944,7 @@ function ApprovalCard({ row, onDecide, onSaveBody, onRevised, defaultOpen = fals
                     style={{ border: `1px solid ${COLORS.light}`, background: COLORS.cardElev }}>
                     {isVideoUrl(url) ? (
                       <>
-                        <video src={url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                        <video src={thumbSrc(url)} muted playsInline preload="metadata" className="w-full h-full object-cover" />
                         <span className="absolute inset-0 flex items-center justify-center"
                           style={{ background: 'rgba(0,0,0,0.3)' }}>
                           <Play size={20} style={{ color: '#fff' }} />
@@ -6569,7 +6573,7 @@ function QueueItem({ group, onRemove, onChanged, onOpenDraft }) {
                 <Sparkles size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
               </div>
             : head.media_type === 'video'
-            ? <video src={head.media_url} muted playsInline preload="metadata" className="w-12 h-12 rounded-lg object-cover" />
+            ? <video src={thumbSrc(head.media_url)} muted playsInline preload="metadata" className="w-12 h-12 rounded-lg object-cover" />
             : <img src={head.media_url} alt="" className="w-12 h-12 rounded-lg object-cover" />}
           {rows.length > 1 && (
             <span className="absolute -top-1 -right-1 rounded-full px-1.5 font-mono text-[9px]"
@@ -7562,7 +7566,7 @@ export function AdminAIOffice({ user }) {
                         style={{ width: 168, background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
                         <div style={{ width: '100%', aspectRatio: '4 / 5', background: COLORS.cardElev, position: 'relative' }}>
                           {cover && (isVideoUrl(cover)
-                            ? <video src={cover} muted playsInline preload="metadata"
+                            ? <video src={thumbSrc(cover)} muted playsInline preload="metadata"
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             : <img src={cover} alt="" loading="lazy"
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} />)}
