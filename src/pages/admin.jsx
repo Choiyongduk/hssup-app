@@ -10,7 +10,7 @@ import { useDraft } from '../hooks';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
-import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck, Mic, Paperclip, Copy } from 'lucide-react';
+import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck, Mic, Paperclip, Copy, Palette } from 'lucide-react';
 
 export function AdminImprovements({ user }) {
   const [items, setItems] = useState([]);
@@ -5620,7 +5620,7 @@ function MicButton({ onText, value }) {
 // 대화에 나오는 담당자들. 자동화 쪽 engine/staff.py 와 같은 사람들이다.
 const CHAT_STAFF = {
   editor:   { name: '김주훈', role: '콘텐츠 편집', color: 'mocha' },
-  designer: { name: '차은우', role: '카드 디자인', color: 'charcoal' },
+  designer: { name: '차은우', role: '디자인', color: 'nude' },
   planner:  { name: '박서준', role: '콘텐츠 기획', color: 'orange' },
 };
 const staffOf = (key) => CHAT_STAFF[key] || CHAT_STAFF.editor;
@@ -6140,10 +6140,21 @@ const AI_STAFF = [
     title: '팀장',
     role: '콘텐츠 기획',
     color: 'orange',
-    job: '성과를 읽고 다음에 만들 콘텐츠를 제안',
+    job: '매일 아침 아이디어 5개, 월요일 주간 기획, 콘텐츠 요청 기획안',
     icon: Sparkles,
     filter: 'plan',
-    lastOf: (d) => d.reports.find(r => r.kind === 'plan'),
+    lastOf: (d) => d.reports.find(r => ['ideas', 'plan', 'request', 'brief'].includes(r.kind)),
+  },
+  {
+    id: 'designer',
+    person: '차은우',
+    title: '디자인',
+    role: '디자인',
+    color: 'nude',
+    job: '틀 없이 새로 그리기, 일러스트 그리기, 저장 디자인, 카드뉴스 디자인',
+    icon: Palette,
+    filter: 'awaiting',
+    lastOf: (d) => d.approvals.find(a => ['design', 'carousel'].includes(a.payload?.media_type)),
   },
   {
     id: 'feed',
@@ -6173,7 +6184,7 @@ const AI_STAFF = [
     title: '편집',
     role: '콘텐츠 편집',
     color: 'mocha',
-    job: '사진과 영상에 브랜드를 입히고 캡션을 작성',
+    job: '사진과 영상에 로고와 제목을 입히고 캡션 작성, 캡션 수정',
     icon: Edit3,
     filter: 'awaiting',
     lastOf: (d) => d.approvals[0],
@@ -7621,6 +7632,13 @@ export function AdminAIOffice({ user }) {
 
             {/* 나머지는 한 줄로 접어 둔다 */}
             <div className="flex gap-2">
+              {/* 사업 상황 메모는 기획 담당이 매일 읽는다. 참고 안에 묻혀 있으면 적으러 가기 번거로워서 밖으로 꺼냈다. */}
+              <button onClick={() => setSheet({ kind: 'memo' })}
+                className="flex-1 rounded-xl px-3 py-3 flex items-center justify-between"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <span className="font-heading text-xs" style={{ color: COLORS.ink }}>사업 메모</span>
+                <Edit3 size={13} style={{ color: COLORS.primary }} />
+              </button>
               <button onClick={() => setSheet({ kind: 'log' })}
                 className="flex-1 rounded-xl px-4 py-3 flex items-center justify-between"
                 style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -7699,12 +7717,23 @@ export function AdminAIOffice({ user }) {
           </Sheet>
         )}
 
+        {sheet?.kind === 'memo' && (
+          <Sheet title="사업 상황 메모" onClose={() => setSheet(null)}>
+            <p className="font-body text-xs mb-3 leading-relaxed" style={{ color: COLORS.muted }}>
+              모집 시기, 이벤트, 이번 달 목표처럼 숫자로는 알 수 없는 사정을 적어 두세요.
+              기획 담당이 매일 아침 아이디어와 주간 기획을 낼 때 읽어요.
+            </p>
+            <div className="rounded-2xl overflow-hidden"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <BusinessContext userId={user?.id} row bare />
+            </div>
+          </Sheet>
+        )}
+
         {sheet?.kind === 'ref' && (
           <Sheet title="참고" onClose={() => setSheet(null)}>
             <div className="rounded-2xl overflow-hidden"
               style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-              <BusinessContext userId={user?.id} row />
-              <div style={{ height: 1, background: COLORS.light }} />
               <StaffRoster data={{ reports, approvals }} onPick={() => {}} now={loadedAt} />
               <div style={{ height: 1, background: COLORS.light }} />
               <OfficeGuide row />
