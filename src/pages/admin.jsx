@@ -1546,15 +1546,10 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                   <input type="checkbox" checked={form.sendPush}
                     onChange={e => setForm({...form, sendPush: e.target.checked})}
                     className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
-                  <div>
-                    <p className="font-heading text-xs flex items-center gap-1.5" style={{ color: COLORS.ink }}>
-                      <Bell size={11} strokeWidth={2.5} />
-                      푸시 알림 전송
-                    </p>
-                    <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
-                      {subscriberCount > 0 ? `알림을 켠 기기 ${subscriberCount}대에 발송 (알림을 안 켠 회원은 받을 수 없어요)` : '아직 알림을 켠 회원이 없습니다'}
-                    </p>
-                  </div>
+                  <p className="font-heading text-xs flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                    <Bell size={11} strokeWidth={2.5} />
+                    푸시 알림 전송
+                  </p>
                 </label>
               </div>
             )}
