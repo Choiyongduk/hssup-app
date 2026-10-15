@@ -66,7 +66,7 @@ self.addEventListener('fetch', (event) => {
           cache.put(request, responseClone);
         });
         return response;
-      }).catch(() => cached);
+      }).catch(() => cached || Response.error());
     })
   );
 });

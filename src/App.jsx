@@ -216,6 +216,38 @@ export default function HSSUPApp() {
     localStorage.setItem('hssup_install_dismissed', Date.now().toString());
   };
 
+  // 🔔 푸시 알림 켜기 유도 — 알림을 켠 기기에만 공지가 가므로, 안 켠 회원에게 로그인 후 안내 카드를 띄운다.
+  //    이미 허용한 기기는 조용히 다시 구독(DB에 구독 정보가 빠졌거나 새로 로그인한 경우 복구).
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+  const [notifPromptLoading, setNotifPromptLoading] = useState(false);
+  const notifReady = !!profile && (profile.status === 'approved' || profile.role === 'admin' || profile.role === 'staff');
+  useEffect(() => {
+    if (!notifReady || !('Notification' in window) || !('serviceWorker' in navigator)) return;
+    if (Notification.permission === 'granted') {
+      subscribeToNotifications(profile.id);
+      return;
+    }
+    if (Notification.permission === 'denied') return;
+    let dismissedAt = 0;
+    try { dismissedAt = parseInt(localStorage.getItem('hssup_notif_prompt_dismissed') || '0'); } catch (e) {}
+    if (Date.now() - dismissedAt > 3 * 24 * 60 * 60 * 1000) setShowNotifPrompt(true);
+  }, [notifReady, profile?.id]);
+
+  const enableNotifFromPrompt = async () => {
+    setNotifPromptLoading(true);
+    const result = await subscribeToNotifications(profile.id);
+    setNotifPromptLoading(false);
+    setShowNotifPrompt(false);
+    if (result.success) toast('알림이 켜졌어요!\n공지와 답변을 바로 받아보실 수 있어요.');
+    else if (Notification.permission === 'denied') toast('알림이 차단되어 있어요.\n휴대폰/브라우저 설정에서 HSSUP 알림을 허용해주세요.');
+    else toast('알림 설정에 실패했어요.\n마이페이지에서 다시 켤 수 있어요.');
+  };
+
+  const dismissNotifPrompt = () => {
+    setShowNotifPrompt(false);
+    try { localStorage.setItem('hssup_notif_prompt_dismissed', Date.now().toString()); } catch (e) {}
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -849,6 +881,11 @@ export default function HSSUPApp() {
         <UpdateBanner onUpdate={applyUpdate} onDismiss={() => setUpdateAvailable(false)} />
       )}
 
+      {/* 푸시 알림 켜기 안내 (설치 배너가 떠 있으면 그 다음에) */}
+      {showNotifPrompt && !showInstallBanner && session && profile && (
+        <NotificationPrompt loading={notifPromptLoading} onEnable={enableNotifFromPrompt} onClose={dismissNotifPrompt} />
+      )}
+
       {/* PWA 설치 배너 */}
       {showInstallBanner && (
         <InstallBanner
@@ -1023,6 +1060,39 @@ function RejectedScreen({ user, handleLogout }) {
         style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
         <LogOut size={14} />로그아웃
       </button>
+    </div>
+  );
+}
+
+function NotificationPrompt({ loading, onEnable, onClose }) {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-[100] p-4 animate-slide-up">
+      <div className="w-full max-w-[480px] mx-auto rounded-2xl p-4 shadow-2xl relative overflow-hidden" style={{ background: COLORS.cardElev }}>
+        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none"
+          style={{ background: `radial-gradient(circle, ${COLORS.primary}50, transparent 70%)` }}></div>
+        <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center z-10"
+          style={{ background: 'rgba(10,10,10,0.06)' }}>
+          <X size={14} style={{ color: COLORS.ink }} />
+        </button>
+        <div className="relative flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: COLORS.primary }}>
+            <Bell size={22} style={{ color: COLORS.white }} />
+          </div>
+          <div className="flex-1 min-w-0 pr-7">
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Notification</p>
+            <h3 className="font-heading text-sm mt-1" style={{ color: COLORS.ink }}>학원 공지 알림 켜기</h3>
+            <p className="font-body text-[11px] mt-1 leading-relaxed" style={{ color: COLORS.ink, opacity: 0.75 }}>
+              알림을 켜야 공지·Q&A 답변을 바로 받아볼 수 있어요
+            </p>
+          </div>
+        </div>
+        <button onClick={onEnable} disabled={loading}
+          className="relative w-full mt-3 py-3 rounded-xl font-heading text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+          style={{ background: COLORS.primary, color: COLORS.white, opacity: loading ? 0.7 : 1 }}>
+          {loading ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} />}
+          알림 켜기
+        </button>
+      </div>
     </div>
   );
 }

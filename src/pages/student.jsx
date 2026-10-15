@@ -4205,7 +4205,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
 
   const handleEnableNotifications = async () => {
     setNotifLoading(true);
-    const result = await subscribeToNotifications(user.id);
+    const result = await subscribeToNotifications(user.id, { unmute: true });
     if (result.success) {
       setNotifStatus('subscribed');
       toast('알림이 설정되었습니다!\n공지, Q&A 답변 등을 실시간으로 받아보세요.');
@@ -4216,7 +4216,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
   };
 
   const handleDisableNotifications = async () => {
-    if (!await confirmDialog('알림을 끄시겠습니까?')) return;
+    if (!await confirmDialog('알림을 끄시겠습니까?\n(원장님 공지 알림은 계속 받아요)')) return;
     setNotifLoading(true);
     const result = await unsubscribeFromNotifications(user.id);
     if (result.success) {

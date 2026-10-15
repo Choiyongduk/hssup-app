@@ -1390,6 +1390,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
             body: form.content.substring(0, 100) || '새 공지가 등록되었습니다',
             url: noticeUrl,
             excludeUserId: user.id,
+            force: true,  // 원장님 공지는 마이페이지에서 알림을 꺼둔 회원에게도 발송
           });
           toast('공지 등록 완료!\n전원에게 알림을 보냈어요.');
         } else if (form.sendPush && subscriberCount > 0) {
@@ -1551,7 +1552,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                       푸시 알림 전송
                     </p>
                     <p className="font-mono text-[10px] mt-0.5" style={{ color: COLORS.stone }}>
-                      {subscriberCount > 0 ? `${subscriberCount}명의 구독자에게 알림 발송` : '아직 구독자가 없습니다'}
+                      {subscriberCount > 0 ? `알림을 켠 기기 ${subscriberCount}대에 발송 (알림을 안 켠 회원은 받을 수 없어요)` : '아직 알림을 켠 회원이 없습니다'}
                     </p>
                   </div>
                 </label>

@@ -10,7 +10,9 @@ const urlBase64ToUint8Array = (base64String) => {
 };
 
 // 알림 구독
-export const subscribeToNotifications = async (userId) => {
+//   unmute: 마이페이지에서 직접 '켜기'를 누른 경우 → 꺼둔(muted) 상태도 함께 해제.
+//   앱 실행 시 조용히 재등록할 때는 넘기지 않아서, 꺼둔 설정을 그대로 둔다.
+export const subscribeToNotifications = async (userId, { unmute = false } = {}) => {
   try {
     // 1. 권한 요청
     const permission = await Notification.requestPermission();
@@ -36,6 +38,7 @@ export const subscribeToNotifications = async (userId) => {
       p256dh_key: subscriptionJSON.keys.p256dh,
       auth_key: subscriptionJSON.keys.auth,
       user_agent: navigator.userAgent,
+      ...(unmute ? { muted: false } : {}),
     }, { onConflict: 'user_id,endpoint' });
 
     if (error) throw error;
@@ -46,19 +49,19 @@ export const subscribeToNotifications = async (userId) => {
   }
 };
 
-// 알림 구독 해제
+// 알림 끄기 — 기기 등록은 남겨두고 muted만 켠다.
+//   일반 알림(Q&A 답변·댓글 등)은 끊기고, 원장님 공지(force)는 계속 받는다.
 export const unsubscribeFromNotifications = async (userId) => {
   try {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
-      await subscription.unsubscribe();
-      // DB에서도 제거
-      await supabase.from('push_subscriptions')
-        .delete()
+      const { error } = await supabase.from('push_subscriptions')
+        .update({ muted: true })
         .eq('user_id', userId)
         .eq('endpoint', subscription.endpoint);
+      if (error) throw error;
     }
     return { success: true };
   } catch (err) {
@@ -102,7 +105,8 @@ export const notifyAdminsOfStaffActivity = async (user, title, body) => {
 // 📢 원장님(admin) 글 → 전원(수강생 + 운영진) 강제 알림. 작성자 본인은 제외.
 //    send-push에 'student'(수강생)와 'admin'(=admin+staff 포함) 두 그룹으로 각각 발송한다.
 //    체크박스와 무관하게 항상 호출하는 용도.
-export const notifyEveryone = async ({ title, body, url = '/', excludeUserId }) => {
+//    force: true → 마이페이지에서 알림을 꺼둔(muted) 회원에게도 보낸다 (원장님 공지 전용).
+export const notifyEveryone = async ({ title, body, url = '/', excludeUserId, force = false }) => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = {
@@ -114,7 +118,7 @@ export const notifyEveryone = async ({ title, body, url = '/', excludeUserId }) 
       fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ title, body, url, targetRole, excludeUserId }),
+        body: JSON.stringify({ title, body, url, targetRole, excludeUserId, force }),
       }).catch(e => console.error('전체 알림 실패:', e))
     ));
   } catch (e) {
@@ -154,7 +158,11 @@ export const checkNotificationStatus = async () => {
   try {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
-    return subscription ? 'subscribed' : 'unsubscribed';
+    if (!subscription) return 'unsubscribed';
+    // 마이페이지에서 꺼둔 기기는 '꺼짐'으로 표시 (기기 등록은 원장님 공지용으로 남아 있음)
+    const { data } = await supabase.from('push_subscriptions')
+      .select('muted').eq('endpoint', subscription.endpoint).maybeSingle();
+    return data?.muted ? 'unsubscribed' : 'subscribed';
   } catch {
     return 'error';
   }
