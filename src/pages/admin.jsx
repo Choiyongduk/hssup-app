@@ -1434,6 +1434,20 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
     setUploading(false);
   };
 
+  // 🔔 이미 올린 공지 알림 다시 보내기 (원장님 전용 — 알림 꺼둔 회원 포함 전원)
+  const resendPush = async (n, e) => {
+    e?.stopPropagation();
+    if (!await confirmDialog(`'${n.title}'\n이 공지 알림을 전원에게 다시 보낼까요?`)) return;
+    await notifyEveryone({
+      title: `[${n.tag}] ${n.title}`,
+      body: (n.content || '').substring(0, 100) || '새 공지가 등록되었습니다',
+      url: `/notice/${n.id}`,
+      excludeUserId: user.id,
+      force: true,
+    });
+    toast('전원에게 알림을 다시 보냈어요.');
+  };
+
   const remove = async (id, e) => {
     e?.stopPropagation();
     if (!await confirmDialog('정말 삭제하시겠습니까?')) return;
@@ -1576,6 +1590,11 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
                   color: n.urgent ? COLORS.white : COLORS.deep
                 }}>{n.tag}</span>
                 <div onClick={e => e.stopPropagation()} className="flex gap-1">
+                  {user.role === 'admin' && (
+                    <button onClick={(e) => resendPush(n, e)} title="알림 다시 보내기" className="flex items-center gap-1 px-2 py-1.5 rounded-full font-heading text-[10px]" style={{ background: COLORS.peach, color: COLORS.deep }}>
+                      <Bell size={11} /> 알림 다시 보내기
+                    </button>
+                  )}
                   <button onClick={() => startEdit(n)} className="p-1.5 rounded-full" style={{ background: COLORS.cardElev }}>
                     <Edit3 size={11} style={{ color: COLORS.ink }} />
                   </button>
