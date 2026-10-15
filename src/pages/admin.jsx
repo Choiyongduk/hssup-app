@@ -331,13 +331,13 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
       ]);
       const catType = { '자유': '자유', '인사': '가입인사', '후기': '수강후기' };
       const all = [
-        ...(notices.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '공지', page: 'admin-notice' })),
-        ...(trends.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '트렌드', page: 'admin-trends' })),
-        ...(tips.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '꿀팁', page: 'admin-tips' })),
-        ...(lectures.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '강의', page: 'admin-lectures' })),
-        ...(library.data || []).map(x => ({ id: x.id, title: x.name, created_at: x.created_at, type: '자료', page: 'admin-library' })),
+        ...(notices.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '공지', page: 'notice-detail' })),
+        ...(trends.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '트렌드', page: 'trend-detail' })),
+        ...(tips.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '꿀팁', page: 'tip-detail' })),
+        ...(lectures.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: '강의', page: 'lecture-detail' })),
+        ...(library.data || []).map(x => ({ id: x.id, title: x.name, created_at: x.created_at, type: '자료', page: 'library-detail' })),
         ...(posts.data || []).map(x => ({ id: x.id, title: (x.content || '').trim().slice(0, 40) || '(사진)', created_at: x.created_at, type: catType[x.category] || '게시글', page: 'post-detail' })),
-        ...(questions.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: 'Q&A', page: 'admin-qna' })),
+        ...(questions.data || []).map(x => ({ id: x.id, title: x.title, created_at: x.created_at, type: 'Q&A', page: 'qna-detail' })),
       ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setRecentUpdates(all);
     };
@@ -358,17 +358,18 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
   const quickActions = [
     ...(canViewRevenue ? [{ id: 'admin-ai', label: 'AI OFFICE', ko: 'AI 오피스', icon: BarChart3 }] : []),
     { id: 'admin-approvals',    label: 'APPROVE',  ko: '가입 승인',     icon: UserPlus },
-    { id: 'admin-notice',       label: 'NOTICE',   ko: '학원공지',      icon: Bell },
-    { id: 'admin-trends',       label: 'TRENDS',   ko: '트렌드',     icon: Sparkles },
-    { id: 'admin-tips',         label: 'TIPS',     ko: '수업 꿀팁',     icon: Sparkles },
+    // 게시판은 게시판(읽기) 화면으로 — 관리는 각 게시판 위 '관리' 버튼으로 들어간다
+    { id: 'notice',             label: 'NOTICE',   ko: '학원공지',      icon: Bell },
+    { id: 'trends',             label: 'TRENDS',   ko: '트렌드',     icon: Sparkles },
+    { id: 'tips',               label: 'TIPS',     ko: '수업 꿀팁',     icon: Sparkles },
     { id: 'admin-students',     label: 'STUDENTS', ko: '수강생',        icon: UserCheck },
-    { id: 'admin-qna',          label: 'Q&A',      ko: 'Q&A 답변',      icon: MessageCircle },
-    { id: 'admin-improvements', label: 'FEEDBACK', ko: '어플개선제안',   icon: Edit3 },
+    { id: 'qna',                label: 'Q&A',      ko: 'Q&A',      icon: MessageCircle },
+    { id: 'improvements',       label: 'FEEDBACK', ko: '어플개선제안',   icon: Edit3 },
     { id: 'admin-cases',        label: 'CASES',    ko: '1:1 피드백',    icon: Camera },
-    { id: 'admin-lectures',     label: 'LECTURES', ko: '강의 관리',     icon: PlayCircle },
-    { id: 'admin-products',     label: 'PRODUCTS', ko: '재료샵',        icon: ShoppingBag },
-    { id: 'admin-library',      label: 'LIBRARY',  ko: '자료실',        icon: FolderOpen },
-    { id: 'admin-courses',      label: 'COURSES',  ko: '클래스',        icon: BookOpen },
+    { id: 'online',             label: 'LECTURES', ko: '온라인 강의',     icon: PlayCircle },
+    { id: 'market',             label: 'PRODUCTS', ko: '재료샵',        icon: ShoppingBag },
+    { id: 'library',            label: 'LIBRARY',  ko: '자료실',        icon: FolderOpen },
+    { id: 'course',             label: 'COURSES',  ko: '클래스',        icon: BookOpen },
   ];
 
   return (

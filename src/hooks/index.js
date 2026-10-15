@@ -7,7 +7,9 @@ import { supabase } from '../lib/supabase';
 //   앱 내 이동 시엔 propItem(state)을 그대로, URL 직접 진입/새로고침 시엔
 //   routeId로 DB에서 단건 조회. { item, fetching } 반환.
 // =============================================================
-export function useDetailItem(propItem, routeId, table) {
+export function useDetailItem(rawPropItem, routeId, table) {
+  // 전에 열었던 다른 글이 propItem으로 남아 있으면 무시하고 주소(routeId)의 글을 불러온다
+  const propItem = rawPropItem && (!routeId || String(rawPropItem.id) === String(routeId)) ? rawPropItem : null;
   const [loaded, setLoaded] = useState(null);
   const [fetching, setFetching] = useState(!!routeId && !propItem);
   useEffect(() => {
