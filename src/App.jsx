@@ -581,7 +581,7 @@ export default function HSSUPApp() {
 
   // 🔝 탑 레벨 페이지 (뒤로가기 버튼 안 보임, 햄버거만)
   const TOP_LEVEL_PAGES = isAdmin
-    ? ['dashboard', 'admin-students', 'admin-qna', 'admin-notice', 'mypage']
+    ? ['dashboard', 'admin-students', 'qna', 'notice', 'mypage']
     : ['home', 'course', 'market', 'community', 'mypage'];
   const isSubPage = profile && !TOP_LEVEL_PAGES.includes(currentPage);
 
@@ -2009,7 +2009,7 @@ function PageContent({ currentPage, setCurrentPage, selectedNotice, setSelectedN
     if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
   }
 
-  if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} routeId={routeId} />;
+  if (currentPage === 'notice-detail') return <NoticeDetailPage notice={selectedNotice} user={user} routeId={routeId} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'qna-detail') return <QnaDetailPage qna={selectedQna} user={user} setCurrentPage={setCurrentPage} routeId={routeId} />;
   if (currentPage === 'post-detail') return <PostDetailPage post={selectedPost} user={user} setCurrentPage={setCurrentPage} routeId={routeId} />;
   if (currentPage === 'lecture-detail') return <LectureDetailPage lecture={selectedLecture} user={user} routeId={routeId} />;

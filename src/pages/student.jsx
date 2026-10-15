@@ -303,7 +303,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice, setSelectedP
   );
 }
 
-export function NoticeDetailPage({ notice: propNotice, user, routeId }) {
+export function NoticeDetailPage({ notice: propNotice, user, routeId, setCurrentPage }) {
   const { item: notice, fetching } = useDetailItem(propNotice, routeId, 'notices');
   useViewCount('notices', notice?.id);
   if (!notice) {
@@ -337,6 +337,14 @@ export function NoticeDetailPage({ notice: propNotice, user, routeId }) {
           <span className="font-mono text-[10px] flex items-center gap-0.5" style={{ color: COLORS.stone }}><Eye size={10} />{notice.view_count || 0}</span>
         </div>
         <h1 className="font-display text-2xl mt-3 tracking-tight leading-tight" style={{ color: COLORS.ink }}>{notice.title}</h1>
+        {/* ✏️ 운영진: 읽다가 바로 수정 (공지 관리 화면의 수정 폼으로 이동) */}
+        {(user?.role === 'admin' || user?.role === 'staff') && setCurrentPage && (
+          <button onClick={() => { sessionStorage.setItem('hssup_edit_notice', String(notice.id)); setCurrentPage('admin-notice'); }}
+            className="mt-3 flex items-center gap-1 px-3 py-1.5 rounded-full font-heading text-[11px] active:scale-95 transition-transform"
+            style={{ background: COLORS.ink, color: COLORS.white }}>
+            <Edit3 size={12} /> 수정하기
+          </button>
+        )}
       </div>
 
       {(() => {

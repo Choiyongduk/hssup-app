@@ -1244,6 +1244,13 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
     const { data, error } = await supabase.from('notices').select('*').order('created_at', { ascending: false });
     if (error) { console.error('공지 로드 에러:', error); toast('공지 목록을 불러오지 못했어요: ' + error.message); }
     setNotices(data || []);
+    // 공지 읽기 화면의 '수정하기'로 들어온 경우 → 그 공지 수정 폼을 바로 연다
+    const editId = sessionStorage.getItem('hssup_edit_notice');
+    if (editId) {
+      sessionStorage.removeItem('hssup_edit_notice');
+      const target = (data || []).find(n => String(n.id) === editId);
+      if (target) startEdit(target);
+    }
   };
 
   const loadSubscriberCount = async () => {
@@ -1575,7 +1582,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
           </div>
         )}
         {notices.map(n => (
-          <div key={n.id} onClick={() => { setSelectedNotice?.(n); setCurrentPage?.('notice-detail', n.id); }}
+          <div key={n.id} onClick={() => startEdit(n)}
             className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             {n.image_url && (
@@ -1607,7 +1614,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
               <div className="flex items-center justify-between mt-1">
                 <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(n.created_at).toLocaleDateString('ko-KR')}</p>
                 <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.primary }}>
-                  탭해서 보기 <ChevronRight size={10} />
+                  탭해서 수정 <Edit3 size={10} />
                 </div>
               </div>
             </div>
