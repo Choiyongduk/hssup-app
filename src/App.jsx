@@ -47,7 +47,7 @@ import {
   Palette, BarChart3, Trash2, ChevronLeft, ShoppingCart,
   Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, Image as ImageIcon,
   ArrowRight, ArrowUpRight, Loader2,
-  User, LogOut, Menu, X, Search, FileText, Package, Truck, Calendar
+  User, LogOut, Menu, X, Search, FileText, Package, Truck, Calendar, ChevronDown, Settings
 } from 'lucide-react';
 import { AVATAR_COLORS, getInitial, COLORS } from './lib/colors';
 import { LEGAL_TERMS, LEGAL_PRIVACY, LEGAL_REFUND } from './lib/legal';
@@ -663,8 +663,8 @@ export default function HSSUPApp() {
     { id: 'MENU', label: '메뉴', icon: Menu, isMenu: true },
     { id: 'dashboard', label: '대시보드', icon: BarChart3 },
     { id: 'admin-students', label: '수강생', icon: UserCheck },
-    { id: 'admin-qna', label: 'Q&A', icon: MessageCircle },
-    { id: 'admin-notice', label: '공지', icon: Bell },
+    { id: 'qna', label: 'Q&A', icon: MessageCircle },
+    { id: 'notice', label: '공지', icon: Bell },
     { id: 'mypage', label: 'MY', icon: User },
   ];
   const tabs = isAdmin ? adminTabs : studentTabs;
@@ -710,9 +710,12 @@ export default function HSSUPApp() {
       ...(canViewRevenue ? [{ id: 'admin-orders', label: '결제 내역', icon: ShoppingBag }] : []),
       { id: 'admin-shipments', label: '주문 관리', icon: Package },
       { id: 'admin-students', label: '수강생', icon: UserCheck },
+      ...(canViewRevenue ? [{ id: 'admin-ai', label: 'AI 오피스', icon: BarChart3 }] : []),
+    ]},
+    // 🗂 게시판별 관리 화면 — 평소엔 접어두고, 각 게시판 위 '관리' 버튼으로 들어가는 게 기본
+    { section: '게시판 관리', collapsible: true, items: [
       { id: 'admin-qna', label: 'Q&A 답변', icon: MessageCircle },
       { id: 'admin-notice', label: '학원공지 관리', icon: Bell },
-      ...(canViewRevenue ? [{ id: 'admin-ai', label: 'AI 오피스', icon: BarChart3 }] : []),
       { id: 'admin-trends', label: '트렌드 속보 관리', icon: Sparkles },
       { id: 'admin-tips', label: '수업 꿀팁 관리', icon: Sparkles },
       { id: 'admin-cases', label: '1:1 피드백 관리', icon: Camera },
@@ -1866,6 +1869,10 @@ function BottomTabBar({ tabs, currentPage, setCurrentPage, setDrawerOpen }) {
 function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose, handleLogout }) {
   const newPages = useNewPages();
   const activeRef = useRef(null);
+  // 접히는 섹션(게시판 관리)은 지금 그 안의 화면을 보고 있을 때만 펼친 채로 시작
+  const [openSections, setOpenSections] = useState(() =>
+    fullMenu.filter(sec => sec.collapsible && sec.items.some(it => it.id === currentPage)).map(sec => sec.section));
+  const toggleSection = (name) => setOpenSections(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
 
   // 🍊 열릴 때마다 지금 보고 있는 카테고리가 화면 중간쯤 오도록 스크롤 (항상 맨 위로 뜨는 게 불편하다는 피드백)
   useEffect(() => {
@@ -1901,8 +1908,15 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
         <nav className="p-4">
           {fullMenu.map((section, si) => (
             <div key={si} className="mb-5">
-              <p className="font-mono text-[10px] font-bold tracking-[0.2em] mb-2 px-3" style={{ color: COLORS.primary }}>{section.section}</p>
-              {section.items.map(item => {
+              {section.collapsible ? (
+                <button onClick={() => toggleSection(section.section)} className="w-full flex items-center justify-between mb-2 px-3">
+                  <span className="font-mono text-[10px] font-bold tracking-[0.2em]" style={{ color: COLORS.primary }}>{section.section}</span>
+                  <ChevronDown size={14} style={{ color: COLORS.primary, transform: openSections.includes(section.section) ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                </button>
+              ) : (
+                <p className="font-mono text-[10px] font-bold tracking-[0.2em] mb-2 px-3" style={{ color: COLORS.primary }}>{section.section}</p>
+              )}
+              {(!section.collapsible || openSections.includes(section.section)) && section.items.map(item => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id;
                 return (
@@ -1928,7 +1942,40 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
   );
 }
  
-function PageRouter({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser, routeId }) {
+// 🗂 게시판 ↔ 관리 화면 짝. 운영진은 게시판을 평소처럼 보다가 '관리' 버튼으로 들어간다.
+const BOARD_TO_ADMIN = {
+  notice: 'admin-notice', qna: 'admin-qna', trends: 'admin-trends', tips: 'admin-tips',
+  library: 'admin-library', market: 'admin-products', online: 'admin-lectures', course: 'admin-courses',
+  mycase: 'admin-cases', 'practice-booking': 'practice-admin', improvements: 'admin-improvements',
+};
+const ADMIN_TO_BOARD = Object.fromEntries(Object.entries(BOARD_TO_ADMIN).map(([b, a]) => [a, b]));
+
+function PageRouter(props) {
+  const { currentPage, setCurrentPage, isAdmin } = props;
+  const adminPage = isAdmin && BOARD_TO_ADMIN[currentPage];
+  const boardPage = isAdmin && ADMIN_TO_BOARD[currentPage];
+  if (!adminPage && !boardPage) return <PageContent {...props} />;
+  return (
+    <>
+      <div className="flex justify-end px-5 pt-3 -mb-1">
+        {adminPage ? (
+          <button onClick={() => setCurrentPage(adminPage)} className="flex items-center gap-1 px-3 py-1.5 rounded-full font-heading text-[11px] transition-transform active:scale-95"
+            style={{ background: COLORS.ink, color: COLORS.white }}>
+            <Settings size={12} /> 관리
+          </button>
+        ) : (
+          <button onClick={() => setCurrentPage(boardPage)} className="flex items-center gap-1 px-3 py-1.5 rounded-full font-heading text-[11px] transition-transform active:scale-95"
+            style={{ background: COLORS.cardElev, color: COLORS.ink }}>
+            <ChevronLeft size={12} /> 게시판으로
+          </button>
+        )}
+      </div>
+      <PageContent {...props} />
+    </>
+  );
+}
+
+function PageContent({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser, routeId }) {
   // Debug route removed
   // 🍊 온보딩 체크 - 가입 인사만 작성하면 전체 오픈 (신입생/졸업생 동일)
   const needsOnboarding = !isAdmin && user && !user.onb_greeting;

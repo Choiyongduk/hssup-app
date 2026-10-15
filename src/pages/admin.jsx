@@ -1575,7 +1575,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
           </div>
         )}
         {notices.map(n => (
-          <div key={n.id} onClick={() => startEdit(n)}
+          <div key={n.id} onClick={() => { setSelectedNotice?.(n); setCurrentPage?.('notice-detail', n.id); }}
             className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             {n.image_url && (
@@ -1607,7 +1607,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
               <div className="flex items-center justify-between mt-1">
                 <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{new Date(n.created_at).toLocaleDateString('ko-KR')}</p>
                 <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: COLORS.primary }}>
-                  탭해서 수정 <Edit3 size={10} />
+                  탭해서 보기 <ChevronRight size={10} />
                 </div>
               </div>
             </div>
