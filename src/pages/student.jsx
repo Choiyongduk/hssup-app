@@ -12,7 +12,7 @@ import { useDraft, useLatestLecture, useRecentUpdates, useDetailItem, useViewCou
 import {
   ImageCarousel, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, MultiImageField, CategoryMover, Pagination,
 } from '../components/common';
-import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar, Gift, ExternalLink, Eye } from 'lucide-react';
+import { Bell, BellOff, BookOpen, Award, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, Heart, ChevronRight, Clock, Check, Plus, Send, Edit3, Download, Play, Upload, Palette, Trash2, ChevronLeft, ShoppingCart, Shield, Camera, Image as ImageIcon, ArrowRight, ArrowUpRight, Loader2, LogOut, X, Search, Package, Truck, Calendar, Gift, ExternalLink, Eye, Biohazard } from 'lucide-react';
 
 // 홈 검색바 입력값 → 결과(게시물/Q&A/공지/트렌드/꿀팁/강의/상품)를 그 자리에서 보여주는 훅
 function useHomeSearch(query) {
@@ -240,6 +240,24 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice, setSelectedP
             );
           })}
         </div>
+      </section>
+
+      {/* ♻️ 의료폐기물 수거 신청 (제휴: 메디환경산업) */}
+      <section className="px-5 mb-6">
+        <button onClick={() => setCurrentPage('medical-waste')}
+          className="w-full rounded-2xl p-4 text-left relative overflow-hidden flex items-center gap-3 transition-transform active:scale-[0.98]"
+          style={{ background: c.ink }}>
+          <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full" style={{ background: 'rgba(255, 92, 31, 0.35)', filter: 'blur(18px)' }}></div>
+          <div className="relative w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}>
+            <Biohazard size={20} strokeWidth={1.8} style={{ color: c.primary }} />
+          </div>
+          <div className="relative flex-1 min-w-0" style={{ color: COLORS.white }}>
+            <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.deep }}>Partner 메디환경산업</p>
+            <h3 className="font-heading text-sm mt-0.5">의료폐기물 수거 신청</h3>
+            <p className="font-body text-[11px] mt-0.5 opacity-75 truncate">내년부터 반영구 폐기물도 의료폐기물이에요</p>
+          </div>
+          <ChevronRight size={18} className="relative shrink-0" style={{ color: COLORS.white, opacity: 0.7 }} />
+        </button>
       </section>
 
       {/* 공지사항 */}

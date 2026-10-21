@@ -47,7 +47,7 @@ import {
   Palette, BarChart3, Trash2, ChevronLeft, ShoppingCart,
   Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, Image as ImageIcon,
   ArrowRight, ArrowUpRight, Loader2,
-  User, LogOut, Menu, X, Search, FileText, Package, Truck, Calendar, ChevronDown, Settings
+  User, LogOut, Menu, X, Search, FileText, Package, Truck, Calendar, ChevronDown, Settings, Biohazard
 } from 'lucide-react';
 import { AVATAR_COLORS, getInitial, COLORS } from './lib/colors';
 import { LEGAL_TERMS, LEGAL_PRIVACY, LEGAL_REFUND } from './lib/legal';
@@ -68,6 +68,7 @@ import { useLevel } from './lib/level';
 import {
   HomePage, NoticeDetailPage, NoticePage, CoursePage, CourseDetailPage, BestCasePage, MyCasePage, QnaDetailPage, TrendsPage, TrendDetailPage, QnaPage, LibraryPage, LibraryDetailPage, MarketPage, OnlineLecturePage, LectureDetailPage, PostDetailPage, ProductDetailPage, PaymentPage, PaymentSuccessPage, PaymentFailPage, CommunityPage, MyActivityPage, MyPage, MyProfileEditPage, MyOrdersPage, MyPracticeBookingsPage, CartPage, CartCheckoutPage, OnboardingScreen, ImprovementsPage, TipsPage, TipDetailPage, PracticeBookingPage,
 } from './pages/student';
+import { MedicalWastePage, AdminWasteShops } from './pages/medicalWaste';
 // 🚀 admin 페이지는 코드 스플리팅 — 운영진이 admin 화면에 진입할 때만 별도 청크를 로드합니다.
 //    (학생 사용자는 admin 코드를 다운로드하지 않음 → 초기 로딩 가벼워짐)
 const lazyAdmin = (name) => lazy(() => import('./pages/admin').then(m => ({ default: m[name] })));
@@ -599,7 +600,7 @@ export default function HSSUPApp() {
       'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
       'admin-library', 'admin-courses', 'admin-improvements', 'admin-trends', 'admin-ai',
-      'trends', 'tips', 'admin-tips'
+      'trends', 'tips', 'admin-tips', 'medical-waste', 'admin-waste'
     ];
     if (SAVABLE_PAGES.includes(currentPage)) {
       sessionStorage.setItem('hssup_last_page', currentPage);
@@ -693,6 +694,7 @@ export default function HSSUPApp() {
     { section: 'RESOURCE', items: [
       { id: 'library', label: '자료실', icon: FolderOpen },
       { id: 'market', label: '재료샵', icon: ShoppingBag },
+      { id: 'medical-waste', label: '의료폐기물', icon: Biohazard },
     ]},
     { section: 'LEGAL', items: [
       { id: 'terms', label: '이용약관', icon: FileText },
@@ -725,6 +727,7 @@ export default function HSSUPApp() {
       { id: 'admin-courses', label: '클래스 관리', icon: BookOpen },
       { id: 'practice-admin', label: '연습 베드 관리', icon: Calendar },
       { id: 'admin-improvements', label: '어플개선제안 답변', icon: Edit3 },
+      { id: 'admin-waste', label: '의료폐기물 신청 관리', icon: Biohazard },
     ]},
     { section: 'LEARN', items: [
       { id: 'home', label: '홈', icon: Home },
@@ -748,6 +751,7 @@ export default function HSSUPApp() {
     { section: 'RESOURCE', items: [
       { id: 'library', label: '자료실', icon: FolderOpen },
       { id: 'market', label: '재료샵', icon: ShoppingBag },
+      { id: 'medical-waste', label: '의료폐기물', icon: Biohazard },
     ]},
     { section: 'LEGAL', items: [
       { id: 'terms', label: '이용약관', icon: FileText },
@@ -814,6 +818,11 @@ export default function HSSUPApp() {
  
           {loading ? <LoadingScreen /> :
            recovering && session ? <ResetPasswordScreen onFinish={finishRecovery} /> :
+           !session && currentPage === 'medical-waste' ? (
+             <main className="flex-1 overflow-y-auto scrollbar-hide" style={{ background: COLORS.cream }}>
+               <MedicalWastePage guest onLogin={() => setCurrentPage('home')} />
+             </main>
+           ) :
            !session || !profile ? <AuthScreen /> :
            profile.status === 'pending' && profile.role !== 'admin' ? <PendingApprovalScreen user={profile} handleLogout={handleLogout} /> :
            profile.status === 'rejected' && profile.role !== 'admin' ? <RejectedScreen user={profile} handleLogout={handleLogout} /> :
@@ -1947,6 +1956,7 @@ const BOARD_TO_ADMIN = {
   notice: 'admin-notice', qna: 'admin-qna', trends: 'admin-trends', tips: 'admin-tips',
   library: 'admin-library', market: 'admin-products', online: 'admin-lectures', course: 'admin-courses',
   mycase: 'admin-cases', 'practice-booking': 'practice-admin', improvements: 'admin-improvements',
+  'medical-waste': 'admin-waste',
 };
 const ADMIN_TO_BOARD = Object.fromEntries(Object.entries(BOARD_TO_ADMIN).map(([b, a]) => [a, b]));
 
@@ -2052,6 +2062,8 @@ function PageContent({ currentPage, setCurrentPage, selectedNotice, setSelectedN
   if (currentPage === 'my-bookings') return <MyPracticeBookingsPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'improvements') return <ImprovementsPage user={user} />;
   if (currentPage === 'admin-improvements') return <AdminImprovements user={user} />;
+  if (currentPage === 'medical-waste') return <MedicalWastePage user={user} />;
+  if (isAdmin && currentPage === 'admin-waste') return <AdminWasteShops />;
   return <HomePage user={user} setCurrentPage={setCurrentPage} setSelectedNotice={setSelectedNotice} setSelectedPost={setSelectedPost} setSelectedQna={setSelectedQna} setSelectedTrend={setSelectedTrend} setSelectedTip={setSelectedTip} setSelectedProduct={setSelectedProduct} setSelectedLecture={setSelectedLecture} />;
 }
  
