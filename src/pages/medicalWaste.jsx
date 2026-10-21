@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { COLORS } from '../lib/colors';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
-import { MEDIACE, MEDIACE_LINKS, MEDIACE_STEPS, WASTE_GUIDE, WASTE_AMOUNTS, WASTE_STATUS } from '../lib/mediace';
+import { MEDIACE, MEDIACE_LINKS, MEDIACE_STEPS, WASTE_GUIDE, WASTE_AMOUNTS, WASTE_STATUS, WASTE_COPY } from '../lib/mediace';
 import { PageIntro } from '../components/common';
 import { Check, X, AlertCircle, Loader2, ExternalLink, ArrowUpRight, Phone } from 'lucide-react';
 
@@ -15,7 +15,7 @@ import { Check, X, AlertCircle, Loader2, ExternalLink, ArrowUpRight, Phone } fro
 const EMPTY_WASTE_FORM = { shop_name: '', owner_name: '', phone: '', address: '', biz_no: '', waste_amount: '', note: '', agree_share: false };
 
 // 회원 신청 + 운영진 직접 추가에서 같이 쓰는 폼 (운영진은 requireAgree=false: 전화로 동의받고 넣는다)
-export function WasteShopForm({ initial, submitting, onSubmit, onCancel, submitLabel = '신청하기', requireAgree = true }) {
+export function WasteShopForm({ initial, submitting, onSubmit, onCancel, submitLabel = '신청하기', requireAgree = true, agreeMissing = '정보 전달 동의에 체크해주세요' }) {
   const [form, setForm] = useState({ ...EMPTY_WASTE_FORM, ...(initial || {}) });
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
   const inputStyle = { background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` };
@@ -32,7 +32,7 @@ export function WasteShopForm({ initial, submitting, onSubmit, onCancel, submitL
     if (!form.owner_name.trim()) return toast('대표자 이름을 입력해주세요');
     if (!form.phone.trim()) return toast('연락처를 입력해주세요');
     if (!form.address.trim()) return toast('샵 주소를 입력해주세요');
-    if (requireAgree && !form.agree_share) return toast('메디환경산업 정보 제공에 동의해주세요');
+    if (requireAgree && !form.agree_share) return toast(agreeMissing);
     onSubmit({
       shop_name: form.shop_name.trim(), owner_name: form.owner_name.trim(), phone: form.phone.trim(),
       address: form.address.trim(), biz_no: (form.biz_no || '').trim() || null, waste_amount: form.waste_amount || null,
@@ -65,7 +65,7 @@ export function WasteShopForm({ initial, submitting, onSubmit, onCancel, submitL
       <label className="block mb-3">
         <span className="font-body text-xs font-bold" style={{ color: COLORS.stone }}>요청사항</span>
         <textarea value={form.note || ''} onChange={set('note')} rows={3}
-          placeholder="연락받기 편한 시간, 이미 다른 업체와 계약 중인지 등"
+          placeholder="연락받기 편한 시간, 이미 다른 업체랑 계약 중인지 등 편하게 적어주세요"
           className="w-full mt-1 rounded-xl p-3 font-body text-sm focus:outline-none" style={inputStyle} />
       </label>
 
@@ -78,8 +78,8 @@ export function WasteShopForm({ initial, submitting, onSubmit, onCancel, submitL
             {form.agree_share && <Check size={12} style={{ color: COLORS.white }} />}
           </div>
           <span className="font-body text-xs leading-relaxed" style={{ color: COLORS.ink }}>
-            <b>(필수)</b> 수거 계약 상담을 위해 위 정보(샵 이름, 대표자, 연락처, 주소, 사업자번호)를
-            {' '}<b>{MEDIACE.name}</b>에 제공하는 것에 동의해요. 언제든 삭제를 요청할 수 있어요.
+            <b>(필수)</b> 수거 계약 상담을 위해 적어주신 정보(샵 이름, 대표자, 연락처, 주소, 사업자번호)를
+            {' '}<b>{MEDIACE.name}</b>에 전달하는 데 동의해요. 언제든 삭제 요청하실 수 있어요.
           </span>
         </button>
       )}
@@ -98,6 +98,8 @@ export function WasteShopForm({ initial, submitting, onSubmit, onCancel, submitL
   );
 }
 
+const withBold = (text) => text.split('**').map((t, i) => (i % 2 ? <b key={i}>{t}</b> : t));
+
 function SectionLabel({ en, ko }) {
   return (
     <div className="mt-8 mb-3">
@@ -108,6 +110,7 @@ function SectionLabel({ en, ko }) {
 }
 
 export function MedicalWastePage({ user, guest = false, onLogin }) {
+  const copy = WASTE_COPY;
   const [mine, setMine] = useState(null);
   const [loading, setLoading] = useState(!guest);
   const [editing, setEditing] = useState(false);
@@ -133,24 +136,24 @@ export function MedicalWastePage({ user, guest = false, onLogin }) {
     if (error) return toast('신청 실패: ' + error.message);
     setMine(data);
     setEditing(false);
-    toast(mine ? '신청 내용을 고쳤어요' : '신청됐어요! 원장님이 메디환경산업에 전달할게요');
+    toast(mine ? copy.edited : copy.submitted);
   };
 
   const handleCancel = async () => {
-    if (!(await confirmDialog('수거 신청을 취소할까요?'))) return;
+    if (!(await confirmDialog(copy.cancelAsk))) return;
     const { error } = await supabase.from('waste_shops').delete().eq('id', mine.id);
     if (error) return toast('취소 실패: ' + error.message);
     setMine(null);
-    toast('신청을 취소했어요');
+    toast(copy.cancelled);
   };
 
-  const status = mine && (WASTE_STATUS[mine.status] || WASTE_STATUS.pending);
+  const statusKey = mine && (WASTE_STATUS[mine.status] ? mine.status : 'pending');
 
   return (
     <>
       <PageIntro ko="의료폐기물" en="Medical Waste" />
 
-      <div className="px-5">
+      <div className="px-5" style={{ wordBreak: 'keep-all' }}>
         {/* 제휴 배너 */}
         <div className="rounded-3xl p-5 relative overflow-hidden" style={{ background: COLORS.ink, color: COLORS.white }}>
           <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full" style={{ background: COLORS.primaryGlow, filter: 'blur(20px)' }} />
@@ -160,26 +163,18 @@ export function MedicalWastePage({ user, guest = false, onLogin }) {
             <X size={14} style={{ opacity: 0.6 }} />
             <span className="font-display text-xl">{MEDIACE.name}</span>
           </div>
-          <p className="font-body text-sm mt-3 leading-relaxed relative" style={{ opacity: 0.85 }}>
-            히썹은 의료폐기물 수집 운반 전문업체 <b>{MEDIACE.name}</b>와 제휴했어요.
-            반영구 샵의 의료폐기물 처리를 계약부터 수거까지 연결해 드려요.
+          <p className="font-body text-sm mt-3 leading-relaxed relative whitespace-pre-line" style={{ opacity: 0.9 }}>
+            {copy.bannerBody}
           </p>
-          <div className="flex flex-wrap gap-1.5 mt-4 relative">
-            {['계약 대행', '올바로 등록 대행', '전용 용기 안내', `${MEDIACE.area} 수거`].map(t => (
-              <span key={t} className="font-body text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}>{t}</span>
-            ))}
-          </div>
         </div>
 
         {/* 왜 해야 하나 */}
         <div className="rounded-2xl p-4 mt-4 flex gap-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
           <AlertCircle size={20} className="shrink-0 mt-0.5" style={{ color: COLORS.primary }} />
           <div>
-            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>반영구 폐기물도 이제 의료폐기물이에요</p>
-            <p className="font-body text-xs mt-1 leading-relaxed" style={{ color: COLORS.stone }}>
-              내년부터 반영구 시술에서 나온 니들, 솜, 거즈 등은 일반 쓰레기로 버리면 안 되고,
-              의료폐기물 기준에 따라 전용 용기에 보관해 허가받은 업체에 맡겨야 해요.
-              미리 계약해 두면 시행 직전에 몰려서 늦어지는 걸 피할 수 있어요.
+            <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{copy.alertTitle}</p>
+            <p className="font-body text-xs mt-1.5 leading-relaxed whitespace-pre-line" style={{ color: COLORS.stone }}>
+              {copy.alertBody}
             </p>
           </div>
         </div>
@@ -188,9 +183,7 @@ export function MedicalWastePage({ user, guest = false, onLogin }) {
         <SectionLabel en="Apply" ko="우리 샵 수거 신청" />
         {guest ? (
           <div className="rounded-2xl p-5 text-center" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink }}>
-              히썹 회원은 앱에서 샵 정보만 남기면<br />원장님이 {MEDIACE.name}에 한 번에 전달해요.
-            </p>
+            <p className="font-body text-sm leading-relaxed whitespace-pre-line" style={{ color: COLORS.ink }}>{copy.guest}</p>
             <button onClick={onLogin} className="mt-4 rounded-full px-6 py-3 font-heading text-sm transition-transform active:scale-95"
               style={{ background: COLORS.primary, color: COLORS.white }}>
               히썹 로그인하고 신청하기
@@ -203,14 +196,14 @@ export function MedicalWastePage({ user, guest = false, onLogin }) {
             <div className="flex items-center justify-between">
               <span className="font-mono text-[10px] font-bold tracking-widest px-2 py-1 rounded"
                 style={{ background: mine.status === 'hold' ? COLORS.cardElev : COLORS.peach, color: mine.status === 'hold' ? COLORS.stone : COLORS.primary }}>
-                {mine.status === 'contracted' ? '✓ ' : ''}{status.label}
+                {mine.status === 'contracted' ? '✓ ' : ''}{WASTE_STATUS[statusKey].label}
               </span>
               <span className="font-mono text-[10px]" style={{ color: COLORS.muted }}>{new Date(mine.created_at).toLocaleDateString('ko-KR')} 신청</span>
             </div>
             <p className="font-heading text-base mt-3" style={{ color: COLORS.ink }}>{mine.shop_name}</p>
             <p className="font-body text-xs mt-1" style={{ color: COLORS.stone }}>{mine.owner_name} / {mine.phone}</p>
             <p className="font-body text-xs mt-0.5" style={{ color: COLORS.stone }}>{mine.address}</p>
-            <p className="font-body text-xs mt-3 p-3 rounded-xl" style={{ background: COLORS.cardElev, color: COLORS.ink }}>{status.desc}</p>
+            <p className="font-body text-xs mt-3 p-3 rounded-xl" style={{ background: COLORS.cardElev, color: COLORS.ink }}>{copy.status[statusKey]}</p>
             {mine.status === 'pending' && (
               <div className="flex gap-2 mt-3">
                 <button onClick={handleCancel} className="flex-1 rounded-xl py-2.5 font-heading text-xs" style={{ background: COLORS.cardElev, color: COLORS.stone }}>신청 취소</button>
@@ -221,11 +214,11 @@ export function MedicalWastePage({ user, guest = false, onLogin }) {
         ) : (
           <WasteShopForm initial={mine || { owner_name: user?.name || '', phone: user?.phone || '' }}
             submitting={submitting} onSubmit={handleSubmit} submitLabel={mine ? '고친 내용 저장' : '신청하기'}
-            onCancel={editing ? () => setEditing(false) : null} />
+            onCancel={editing ? () => setEditing(false) : null} agreeMissing={copy.agreeMissing} />
         )}
 
         {/* 분리 기준 */}
-        <SectionLabel en="How to sort" ko="반영구 샵 폐기물, 이렇게 나눠요" />
+        <SectionLabel en="How to sort" ko={copy.sortTitle} />
         <div className="space-y-2">
           {WASTE_GUIDE.map(g => (
             <div key={g.kind} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -241,14 +234,11 @@ export function MedicalWastePage({ user, guest = false, onLogin }) {
           ))}
         </div>
         <ul className="mt-3 rounded-2xl p-4 space-y-1.5 font-body text-xs" style={{ background: COLORS.cardElev, color: COLORS.ink }}>
-          <li>시술이 끝난 그때부터 종류별로 전용 용기에 바로 넣어요</li>
-          <li>용기에 <b>사용 시작한 날짜</b>를 꼭 적어요 (안 적으면 위반이에요)</li>
-          <li>다 쓴 용기는 안쪽 주머니를 묶고 뚜껑을 닫아요. <b>재사용 금지</b></li>
-          <li>정확한 분류는 {MEDIACE.name} 담당자 안내를 따라주세요</li>
+          {copy.tips.map(t => <li key={t}>{withBold(t)}</li>)}
         </ul>
 
         {/* 계약 절차 */}
-        <SectionLabel en="Process" ko="신청하면 이렇게 진행돼요" />
+        <SectionLabel en="Process" ko={copy.processTitle} />
         <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
           {MEDIACE_STEPS.map((s, i) => (
             <div key={s.title} className="flex gap-3 py-2">
@@ -287,7 +277,7 @@ export function MedicalWastePage({ user, guest = false, onLogin }) {
             <p>Tel {MEDIACE.tel} ({MEDIACE.telHours}) / Fax {MEDIACE.fax}</p>
             <p>{MEDIACE.email}</p>
             <p>{MEDIACE.address} / 대표 {MEDIACE.ceo}</p>
-            <p>담당 지역: {MEDIACE.area} (다른 지역도 신청하면 확인 후 안내드려요)</p>
+            <p>담당 지역: {MEDIACE.area} ({copy.areaNote})</p>
           </div>
         </div>
       </div>

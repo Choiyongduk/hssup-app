@@ -254,7 +254,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice, setSelectedP
           <div className="relative flex-1 min-w-0" style={{ color: COLORS.white }}>
             <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.deep }}>Partner 메디환경산업</p>
             <h3 className="font-heading text-sm mt-0.5">의료폐기물 수거 신청</h3>
-            <p className="font-body text-[11px] mt-0.5 opacity-75 truncate">내년부터 반영구 폐기물도 의료폐기물이에요</p>
+            <p className="font-body text-[11px] mt-0.5 opacity-75 truncate">내년부터 반영구 폐기물도 의료폐기물로 처리해야 합니다</p>
           </div>
           <ChevronRight size={18} className="relative shrink-0" style={{ color: COLORS.white, opacity: 0.7 }} />
         </button>
