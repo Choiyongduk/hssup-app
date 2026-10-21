@@ -558,6 +558,8 @@ export default function HSSUPApp() {
     // 🍊 로그아웃 시점 페이지(대부분 마이페이지)가 복원돼 다음 로그인이 거기서 시작되는 것 방지
     try { sessionStorage.removeItem('hssup_last_page'); } catch (e) { /* 무시 */ }
     try { localStorage.removeItem('hssup_last_page_backup'); } catch (e) { /* 무시 */ }
+    // 주소창도 / 로 — /mypage 가 남아 있으면 다음 로그인이 그 주소를 그대로 열어버린다
+    navigate('/', { replace: true });
   };
 
   // 🍊 로고/홈 탭처럼 "새로 홈으로" 의도의 이동은 홈에 남아있던 검색 상태도 같이 초기화
