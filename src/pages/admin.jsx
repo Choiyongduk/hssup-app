@@ -7,6 +7,7 @@ import { confirmDialog } from '../lib/dialog';
 import { compressImage, isYouTubeUrl, uploadPostVideo, deletePostVideo, deleteImageFromBucket, persistFormImages, getRowImages } from '../lib/images';
 import { notifyAdminsOfStaffActivity, notifyEveryone, notifyUsers } from '../lib/notifications';
 import { useDraft } from '../hooks';
+import { PRACTICE_PRESETS, DEFAULT_PRACTICE_SETTINGS, isClosedDay, loadPracticeCalendar } from '../lib/practice';
 import { PROMPT_GROUPS } from '../lib/chatgptPrompts';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
@@ -2320,15 +2321,28 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
 }
 
 // 2시간 단위 프리셋 시간대 (10~20시, 5타임)
-const PRACTICE_PRESETS = [
-  { start: '10:00', end: '12:00' },
-  { start: '12:00', end: '14:00' },
-  { start: '14:00', end: '16:00' },
-  { start: '16:00', end: '18:00' },
-  { start: '18:00', end: '20:00' },
-];
-
 export function PracticeAdminPage({ user, setCurrentPage }) {
+  const [mode, setMode] = useState('teaching');
+  return (
+    <>
+      <PageIntro ko="연습 베드 관리" en="Practice Admin" desc="연습 가능 시간을 열고 예약자를 관리하세요" />
+      <div className="px-5 pb-3">
+        <div className="rounded-full p-1 grid grid-cols-2 gap-1" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          {[['teaching', '티칭 연습'], ['personal', '개인 연습']].map(([key, label]) => (
+            <button key={key} onClick={() => setMode(key)}
+              className="rounded-full py-2.5 font-heading text-sm"
+              style={{ background: mode === key ? COLORS.primary : 'transparent', color: mode === key ? COLORS.white : COLORS.stone }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {mode === 'teaching' ? <TeachingPracticeAdmin user={user} /> : <PersonalPracticeAdmin user={user} />}
+    </>
+  );
+}
+
+function TeachingPracticeAdmin({ user }) {
   const [viewMonth, setViewMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -2347,6 +2361,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
 
   const [bookersModal, setBookersModal] = useState(null);  // { slot, bookers }
   const [bookerCounts, setBookerCounts] = useState({});  // slot_id → count
+  const [bookerNames, setBookerNames] = useState({});  // slot_id → [이름]
 
   const pad2 = (n) => String(n).padStart(2, '0');
   const fmtDate = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
@@ -2365,12 +2380,18 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
     const slotIds = (s || []).map(x => x.id);
     if (slotIds.length) {
       const { data: bk } = await supabase.from('practice_bookings')
-        .select('slot_id').eq('status', 'booked').in('slot_id', slotIds);
+        .select('slot_id, profile:user_id(name)').eq('status', 'booked').in('slot_id', slotIds).order('created_at');
       const counts = {};
-      (bk || []).forEach(b => { counts[b.slot_id] = (counts[b.slot_id] || 0) + 1; });
+      const names = {};
+      (bk || []).forEach(b => {
+        counts[b.slot_id] = (counts[b.slot_id] || 0) + 1;
+        (names[b.slot_id] = names[b.slot_id] || []).push(b.profile?.name || '이름 없음');
+      });
       setBookerCounts(counts);
+      setBookerNames(names);
     } else {
       setBookerCounts({});
+      setBookerNames({});
     }
     setLoading(false);
   };
@@ -2502,8 +2523,6 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
 
   return (
     <>
-      <PageIntro ko="연습 베드 관리" en="Practice Admin" desc="연습 가능 시간을 열고 예약자를 관리하세요" />
-
       <div className="px-5 space-y-3 pb-6">
         {/* 월 네비게이션 */}
         <div className="rounded-2xl p-3 flex items-center justify-between" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
@@ -2561,7 +2580,7 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
 
         {/* 이번 달 예약 현황 (한눈에 보기) */}
         <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>━━ 이번 달 예약 현황</p>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>━━ 이번 달 예약 현황 (티칭)</p>
           {Object.keys(slotsByDate).length === 0 ? (
             <p className="font-body text-xs text-center py-4" style={{ color: COLORS.stone }}>등록된 슬롯이 없어요</p>
           ) : (
@@ -2588,6 +2607,9 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
                             <span className="font-body text-xs inline-flex items-center gap-1.5" style={{ color: COLORS.ink }}>
                               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusColor }}></span>
                               {(s.start_time || '').substring(0, 5)}~{(s.end_time || '').substring(0, 5)}
+                            </span>
+                            <span className="font-body text-[11px] truncate flex-1 text-left" style={{ color: COLORS.stone }}>
+                              {(bookerNames[s.id] || []).join(', ')}
                             </span>
                             <span className="font-mono text-[10px] flex-shrink-0" style={{ color: statusColor }}>
                               {count}/{s.capacity}{full && ' · 마감'}
@@ -2805,6 +2827,325 @@ export function PracticeAdminPage({ user, setCurrentPage }) {
         document.body
       )}
     </>
+  );
+}
+
+// 개인 연습 — 휴무(매주 요일 + 지정 날짜)와 시간대별 정원 설정, 예약자 확인
+function PersonalPracticeAdmin({ user }) {
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const [settings, setSettings] = useState(DEFAULT_PRACTICE_SETTINGS);
+  const [capacityInput, setCapacityInput] = useState('2');
+  const [closedDays, setClosedDays] = useState([]);  // [{ closed_date, memo }]
+  const [bookings, setBookings] = useState([]);  // 이 달 booked + profile
+  const [teachingBookings, setTeachingBookings] = useState([]);  // 명단용 티칭 예약
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const fmtDate = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
+
+  const loadMonth = async () => {
+    setLoading(true);
+    const { year: y, month: m } = viewMonth;
+    const first = fmtDate(y, m, 1);
+    const last = fmtDate(y, m, new Date(y, m + 1, 0).getDate());
+    const [{ settings: st, closedDays: cd }, { data: bk, error }, { data: tb }] = await Promise.all([
+      loadPracticeCalendar(first, last),
+      supabase.from('practice_personal_bookings')
+        .select('id, user_id, practice_date, start_time, end_time, profile:user_id(name, phone, avatar_color, avatar_url)')
+        .eq('status', 'booked').gte('practice_date', first).lte('practice_date', last)
+        .order('created_at'),
+      // 명단에 같이 보여 줄 티칭 예약
+      supabase.from('practice_bookings')
+        .select('id, slot:slot_id!inner(slot_date, start_time, end_time), profile:user_id(name, phone)')
+        .eq('status', 'booked').gte('slot.slot_date', first).lte('slot.slot_date', last),
+    ]);
+    setTeachingBookings((tb || []).map(b => ({
+      id: `t-${b.id}`, kind: 'teaching', practice_date: b.slot.slot_date,
+      start_time: b.slot.start_time, end_time: b.slot.end_time, profile: b.profile,
+    })));
+    if (error) toast('개인 연습 예약을 불러오지 못했어요. db/2026-10-26_personal_practice.sql 실행 여부를 확인해주세요.');
+    setSettings(st);
+    setCapacityInput(String(st.personal_capacity || 2));
+    setClosedDays(cd);
+    setBookings(bk || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadMonth(); }, [viewMonth.year, viewMonth.month]);
+
+  const moveMonth = (delta) => {
+    setSelectedDate(null);
+    setViewMonth(prev => {
+      let m = prev.month + delta, y = prev.year;
+      if (m < 0) { m = 11; y -= 1; }
+      if (m > 11) { m = 0; y += 1; }
+      return { year: y, month: m };
+    });
+  };
+
+  const saveSettings = async (patch) => {
+    setSaving(true);
+    const { data, error } = await supabase.from('practice_settings')
+      .update({ ...patch, updated_at: new Date().toISOString(), updated_by: user.id })
+      .eq('id', 1).select('closed_weekdays, personal_capacity');
+    setSaving(false);
+    if (error) { toast('저장 실패: ' + error.message); return false; }
+    if (!data || data.length === 0) { toast('저장이 적용되지 않았어요. SQL 실행 여부를 확인해주세요.'); return false; }
+    setSettings(data[0]);
+    return true;
+  };
+
+  const toggleWeekday = (wd) => {
+    const cur = settings.closed_weekdays || [];
+    const next = cur.includes(wd) ? cur.filter(x => x !== wd) : [...cur, wd].sort();
+    saveSettings({ closed_weekdays: next });
+  };
+
+  const saveCapacity = async () => {
+    const cap = Number(capacityInput);
+    if (!cap || cap < 1 || cap > 20) { toast('정원은 1~20명 사이로 입력해주세요'); return; }
+    if (await saveSettings({ personal_capacity: cap })) toast('저장했습니다');
+  };
+
+  // 지정 휴무 켜기/끄기 — 켤 때 그날 예약이 있으면 함께 취소하고 본인에게 알림
+  const toggleClosedDate = async () => {
+    const existing = closedDays.find(c => c.closed_date === selectedDate);
+    if (existing) {
+      const { error } = await supabase.from('practice_closed_days').delete().eq('closed_date', selectedDate);
+      if (error) { toast('해제 실패: ' + error.message); return; }
+      await loadMonth();
+      return;
+    }
+    const dayBookings = bookings.filter(b => b.practice_date === selectedDate);
+    const msg = dayBookings.length > 0
+      ? `이 날 개인 연습 예약이 ${dayBookings.length}건 있습니다.\n휴무로 지정하면 예약이 모두 취소되고 예약자에게 알림이 갑니다.\n진행할까요?`
+      : `${selectedDate}을 휴무로 지정할까요?`;
+    if (!await confirmDialog(msg)) return;
+    const { error } = await supabase.from('practice_closed_days').insert({ closed_date: selectedDate, created_by: user.id });
+    if (error) { toast('지정 실패: ' + error.message); return; }
+    if (dayBookings.length > 0) {
+      const { error: e2 } = await supabase.from('practice_personal_bookings')
+        .update({ status: 'cancelled' }).in('id', dayBookings.map(b => b.id));
+      if (e2) toast('예약 취소 실패: ' + e2.message);
+      else notifyUsers({
+        title: '개인 연습 예약 취소 안내',
+        body: `${selectedDate}은 학원 휴무일이 되어 개인 연습 예약이 취소되었습니다.`,
+        url: '/?page=practice-booking',
+        userIds: [...new Set(dayBookings.map(b => b.user_id))],
+      });
+    }
+    await loadMonth();
+  };
+
+  const cancelBooking = async (b) => {
+    if (!await confirmDialog(`${b.profile?.name || '수강생'}님의 예약을 취소할까요?\n예약자에게 알림이 갑니다.`)) return;
+    const { error } = await supabase.from('practice_personal_bookings').update({ status: 'cancelled' }).eq('id', b.id);
+    if (error) { toast('취소 실패: ' + error.message); return; }
+    notifyUsers({
+      title: '개인 연습 예약 취소 안내',
+      body: `${b.practice_date} ${(b.start_time || '').slice(0, 5)}~${(b.end_time || '').slice(0, 5)} 개인 연습 예약이 학원 사정으로 취소되었습니다.`,
+      url: '/?page=practice-booking',
+      userIds: b.user_id,
+    });
+    await loadMonth();
+  };
+
+  const { year: y, month: m } = viewMonth;
+  const firstDayWeek = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+  const closedSet = new Set(closedDays.map(c => c.closed_date));
+  const cap = settings.personal_capacity || 2;
+  const countByDate = {};
+  bookings.forEach(b => { countByDate[b.practice_date] = (countByDate[b.practice_date] || 0) + 1; });
+  const roster = [...bookings, ...teachingBookings];
+  const selectedWeeklyClosed = selectedDate && (settings.closed_weekdays || []).includes(new Date(selectedDate + 'T00:00:00').getDay());
+  const selectedDateClosed = selectedDate && closedSet.has(selectedDate);
+
+  return (
+    <div className="px-5 space-y-3 pb-6">
+      {/* 설정 */}
+      <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 매주 휴무 요일</p>
+        <div className="grid grid-cols-7 gap-1 mt-2">
+          {dayLabels.map((d, i) => {
+            const on = (settings.closed_weekdays || []).includes(i);
+            return (
+              <button key={d} onClick={() => toggleWeekday(i)} disabled={saving}
+                className="rounded-lg py-2 font-heading text-sm"
+                style={{ background: on ? COLORS.primary : COLORS.cardElev, color: on ? COLORS.white : COLORS.ink, border: `1px solid ${on ? COLORS.primary : COLORS.light}` }}>
+                {d}
+              </button>
+            );
+          })}
+        </div>
+        <p className="font-body text-[11px] mt-2" style={{ color: COLORS.stone }}>선택한 요일은 매주 개인 연습 신청을 받지 않습니다. 특정 날짜는 아래 달력에서 지정합니다.</p>
+
+        <p className="font-mono text-[10px] font-bold tracking-widest uppercase mt-4" style={{ color: COLORS.primary }}>━━ 시간대별 정원</p>
+        <div className="flex gap-2 mt-2">
+          <input type="number" min="1" max="20" inputMode="numeric" value={capacityInput} onChange={(e) => setCapacityInput(e.target.value)}
+            className="flex-1 font-body text-sm p-3 outline-none rounded"
+            style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}`, minWidth: 0 }} />
+          <button onClick={saveCapacity} disabled={saving || Number(capacityInput) === cap}
+            className="font-heading text-xs px-4 rounded-full disabled:opacity-40"
+            style={{ background: COLORS.primary, color: COLORS.white }}>
+            저장
+          </button>
+        </div>
+        <p className="font-body text-[11px] mt-2" style={{ color: COLORS.stone }}>2시간 단위 시간대({PRACTICE_PRESETS[0].start}~{PRACTICE_PRESETS[PRACTICE_PRESETS.length - 1].end}) 하나에 받을 수 있는 인원입니다.</p>
+      </div>
+
+      {/* 월 네비게이션 */}
+      <div className="rounded-2xl p-3 flex items-center justify-between" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        <button onClick={() => moveMonth(-1)} className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90" style={{ background: COLORS.cardElev }}>
+          <ChevronLeft size={16} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+        </button>
+        <div className="text-center">
+          <p className="font-mono text-[9px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ {y}</p>
+          <p className="font-display text-lg mt-0.5 tracking-tight" style={{ color: COLORS.ink }}>{m + 1}월</p>
+        </div>
+        <button onClick={() => moveMonth(1)} className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90" style={{ background: COLORS.cardElev }}>
+          <ChevronRight size={16} style={{ color: COLORS.ink }} strokeWidth={2.5} />
+        </button>
+      </div>
+
+      {/* 달력 */}
+      <div className="rounded-2xl p-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        {loading && <div className="text-center py-4"><Loader2 size={16} className="animate-spin mx-auto" style={{ color: COLORS.primary }} /></div>}
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {dayLabels.map((d, i) => (
+            <div key={d} className="text-center font-mono text-[10px] font-bold py-1.5" style={{ color: i === 0 ? COLORS.primary : i === 6 ? COLORS.stone : COLORS.muted }}>{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {Array.from({ length: firstDayWeek }).map((_, i) => <div key={`b-${i}`} />)}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const d = i + 1;
+            const dateStr = fmtDate(y, m, d);
+            const closed = isClosedDay(dateStr, settings, closedSet);
+            const count = countByDate[dateStr] || 0;
+            const isSelected = selectedDate === dateStr;
+            return (
+              <button key={d} onClick={() => setSelectedDate(dateStr)}
+                className="aspect-square rounded-xl flex flex-col items-center justify-center transition-transform active:scale-95"
+                style={{
+                  background: isSelected ? COLORS.primary : closed ? 'transparent' : COLORS.cardElev,
+                  border: isSelected ? `1px solid ${COLORS.primary}` : `1px solid ${COLORS.light}`,
+                }}>
+                <span className="font-body text-sm" style={{ color: isSelected ? COLORS.white : closed ? COLORS.muted : COLORS.ink, fontWeight: count > 0 ? 700 : 400 }}>{d}</span>
+                {closed ? (
+                  <span className="font-mono text-[8px] leading-none mt-0.5" style={{ color: isSelected ? COLORS.white : COLORS.muted }}>휴무</span>
+                ) : count > 0 ? (
+                  <span className="font-mono text-[9px] leading-none mt-0.5" style={{ color: isSelected ? COLORS.white : COLORS.primary }}>{count}명</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 이번 달 예약자 명단 (날짜, 시간순) */}
+      <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+        <p className="font-mono text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: COLORS.primary }}>
+          ━━ {m + 1}월 예약자 명단{roster.length > 0 && ` (${roster.length}건)`}
+        </p>
+        {roster.length === 0 ? (
+          <p className="font-body text-xs text-center py-4" style={{ color: COLORS.stone }}>이번 달 연습 예약이 없습니다</p>
+        ) : (
+          <div className="space-y-3">
+            {[...new Set(roster.map(b => b.practice_date))].sort().map(dateStr => {
+              const list = roster
+                .filter(b => b.practice_date === dateStr)
+                .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+              return (
+                <div key={dateStr}>
+                  <button onClick={() => setSelectedDate(dateStr)}
+                    className="font-heading text-xs mb-1.5"
+                    style={{ color: selectedDate === dateStr ? COLORS.primary : COLORS.ink }}>
+                    {Number(dateStr.slice(5, 7))}/{Number(dateStr.slice(8, 10))} ({dayLabels[new Date(dateStr + 'T00:00:00').getDay()]}) {list.length}명
+                  </button>
+                  <div className="space-y-1">
+                    {list.map(b => (
+                      <div key={b.id} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: COLORS.cardElev }}>
+                        <span className="font-mono text-[11px] shrink-0" style={{ color: COLORS.stone }}>
+                          {(b.start_time || '').slice(0, 5)}~{(b.end_time || '').slice(0, 5)}
+                        </span>
+                        <span className="font-heading text-xs truncate flex-1" style={{ color: COLORS.ink }}>{b.profile?.name || '이름 없음'}</span>
+                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
+                          style={{ background: b.kind === 'teaching' ? COLORS.primary : COLORS.card, color: b.kind === 'teaching' ? COLORS.white : COLORS.stone }}>
+                          {b.kind === 'teaching' ? '티칭' : '개인'}
+                        </span>
+                        {b.profile?.phone && <span className="font-mono text-[10px] shrink-0" style={{ color: COLORS.muted }}>{b.profile.phone}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 선택 날짜 */}
+      {selectedDate && (
+        <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div>
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Selected</p>
+              <p className="font-heading text-base mt-1" style={{ color: COLORS.ink }}>{selectedDate}</p>
+            </div>
+            {selectedWeeklyClosed ? (
+              <span className="font-body text-[11px]" style={{ color: COLORS.stone }}>매주 휴무 요일</span>
+            ) : (
+              <button onClick={toggleClosedDate}
+                className="font-heading text-xs px-4 py-2 rounded-full shrink-0"
+                style={selectedDateClosed
+                  ? { background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }
+                  : { background: COLORS.primary, color: COLORS.white }}>
+                {selectedDateClosed ? '휴무 해제' : '이 날 휴무로 지정'}
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {PRACTICE_PRESETS.map(p => {
+              const list = bookings.filter(b => b.practice_date === selectedDate && (b.start_time || '').slice(0, 5) === p.start);
+              return (
+                <div key={p.start} className="rounded-lg p-3" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+                  <div className="flex items-center justify-between">
+                    <p className="font-heading text-sm inline-flex items-center gap-1.5" style={{ color: COLORS.ink }}>
+                      <Clock size={12} style={{ color: COLORS.primary }} />{p.start} ~ {p.end}
+                    </p>
+                    <span className="font-mono text-[10px]" style={{ color: list.length >= cap ? COLORS.primary : COLORS.stone }}>{list.length}/{cap}</span>
+                  </div>
+                  {list.length > 0 && (
+                    <div className="space-y-1.5 mt-2">
+                      {list.map(b => (
+                        <div key={b.id} className="flex items-center gap-2 rounded-lg p-2" style={{ background: COLORS.card }}>
+                          <Avatar user={b.profile || { name: '?' }} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-heading text-xs truncate" style={{ color: COLORS.ink }}>{b.profile?.name || '이름 없음'}</p>
+                            {b.profile?.phone && <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{b.profile.phone}</p>}
+                          </div>
+                          <button onClick={() => cancelBooking(b)} className="p-1.5" aria-label="예약 취소">
+                            <X size={14} style={{ color: COLORS.stone }} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
