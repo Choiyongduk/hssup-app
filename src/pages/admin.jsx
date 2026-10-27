@@ -1893,7 +1893,9 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
       .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
 
     if (filter === 'product-pending') {
-      query = query.eq('item_type', 'product').eq('shipping_status', 'pending');
+      query = query.eq('item_type', 'product').eq('fulfillment', 'delivery').eq('shipping_status', 'pending');
+    } else if (filter === 'pickup-pending') {
+      query = query.eq('item_type', 'product').eq('fulfillment', 'pickup').eq('shipping_status', 'pending');
     } else if (filter === 'product-shipped') {
       query = query.eq('item_type', 'product').eq('shipping_status', 'shipped');
     } else if (filter === 'course') {
@@ -2013,11 +2015,27 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
     toast('발송 처리 완료');
   };
 
+  // 샵 수령 주문은 발송 단계 없이 바로 수령 완료 (shipping_status: pending → delivered)
+  const handlePickedUp = async (order) => {
+    if (!await confirmDialog(`${order.shipping_recipient_name || order.buyer_name || '구매자'}님이 상품을 받아 가셨나요?
+수령 완료로 처리합니다.`)) return;
+    const { data, error } = await supabase.from('orders').update({
+      shipping_status: 'delivered',
+      shipped_at: new Date().toISOString(),
+      shipped_by: user.id,
+    }).eq('order_id', order.order_id).select();
+    if (error) { toast('수령 처리 실패: ' + error.message); return; }
+    if (!data || data.length === 0) { toast('수령 처리가 적용되지 않았어요. orders 테이블 권한을 확인해 주세요.'); return; }
+    await loadOrders();
+    toast('수령 완료로 처리했습니다');
+  };
+
   const formatPrice = (n) => '₩' + Number(n || 0).toLocaleString('ko-KR');
   const formatDate = (iso) => iso ? new Date(iso).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
 
   const filters = [
     { id: 'product-pending', label: '배송 대기' },
+    { id: 'pickup-pending', label: '샵 수령 대기' },
     { id: 'product-shipped', label: '발송 완료' },
     ...(isRealAdmin ? [{ id: 'course', label: '클래스' }] : []),
     ...(isRealAdmin ? [{ id: 'cancel-requested', label: '취소 요청' }] : []),
@@ -2065,6 +2083,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
           const isProduct = o.item_type === 'product';
           const isShipped = o.shipping_status === 'shipped';
           const isDelivered = o.shipping_status === 'delivered';
+          const isPickup = o.fulfillment === 'pickup';
           return (
             <div key={o.id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
               {/* 헤더: 타입 + 발송 상태 */}
@@ -2079,7 +2098,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                       background: isShipped || isDelivered ? COLORS.primary : COLORS.cardElev,
                       color: isShipped || isDelivered ? COLORS.white : COLORS.stone,
                     }}>
-                    {isDelivered ? '배송 완료' : isShipped ? '발송 완료' : '배송 대기'}
+                    {isPickup ? (isDelivered ? '수령 완료' : '샵 수령 대기') : isDelivered ? '배송 완료' : isShipped ? '발송 완료' : '배송 대기'}
                   </span>
                 )}
               </div>
@@ -2140,8 +2159,11 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
               {isProduct && (
                 <div className="rounded-lg p-3 mt-2 space-y-1.5" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
                   <p className="font-mono text-[10px] font-bold tracking-widest uppercase inline-flex items-center gap-1" style={{ color: COLORS.primary }}>
-                    <Package size={10} />━━ 배송 정보
+                    <Package size={10} />━━ {isPickup ? '샵 수령' : '배송 정보'}
                   </p>
+                  {isPickup && (
+                    <p className="font-body text-xs font-semibold" style={{ color: COLORS.primary }}>학원(샵)에서 받아가기로 선택한 주문입니다</p>
+                  )}
                   <div className="flex justify-between">
                     <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>받는분</span>
                     <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{o.shipping_recipient_name || '-'}</span>
@@ -2150,7 +2172,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                     <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>연락처</span>
                     <span className="font-body text-xs font-semibold" style={{ color: COLORS.ink }}>{o.shipping_recipient_phone || '-'}</span>
                   </div>
-                  <div>
+                  {!isPickup && <div>
                     <p className="font-mono text-[10px] mb-0.5" style={{ color: COLORS.stone }}>주소</p>
                     <p className="font-body text-xs" style={{ color: COLORS.ink }}>
                       {o.shipping_postal_code ? `(${o.shipping_postal_code}) ` : ''}{o.shipping_address || '-'}
@@ -2158,7 +2180,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                     {o.shipping_address_detail && (
                       <p className="font-body text-xs" style={{ color: COLORS.ink }}>{o.shipping_address_detail}</p>
                     )}
-                  </div>
+                  </div>}
                   {o.shipping_memo && (
                     <div>
                       <p className="font-mono text-[10px] mb-0.5" style={{ color: COLORS.stone }}>배송 메모</p>
@@ -2166,8 +2188,16 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                     </div>
                   )}
 
+                  {/* 수령 완료 표시 (샵 수령) */}
+                  {isPickup && isDelivered && (
+                    <div className="flex justify-between pt-2 mt-2" style={{ borderTop: `1px solid ${COLORS.light}` }}>
+                      <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>수령일</span>
+                      <span className="font-mono text-[10px]" style={{ color: COLORS.ink }}>{formatDate(o.shipped_at)}</span>
+                    </div>
+                  )}
+
                   {/* 발송 정보 표시 (shipped/delivered) */}
-                  {(isShipped || isDelivered) && (
+                  {!isPickup && (isShipped || isDelivered) && (
                     <div className="pt-2 mt-2 space-y-1" style={{ borderTop: `1px solid ${COLORS.light}` }}>
                       <p className="font-mono text-[10px] font-bold tracking-widest uppercase inline-flex items-center gap-1" style={{ color: COLORS.primary }}>
                         <Truck size={10} />━━ 발송 정보
@@ -2192,7 +2222,14 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                   )}
 
                   {/* 발송 처리 버튼 (pending) */}
-                  {o.shipping_status === 'pending' && (
+                  {isPickup && o.shipping_status === 'pending' && (
+                    <button onClick={() => handlePickedUp(o)}
+                      className="w-full mt-2 rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
+                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+                      <Check size={14} strokeWidth={2.5} />수령 완료 처리
+                    </button>
+                  )}
+                  {!isPickup && o.shipping_status === 'pending' && (
                     <button onClick={() => openShippingModal(o)}
                       className="w-full mt-2 rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
                       style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>

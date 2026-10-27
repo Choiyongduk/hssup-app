@@ -2938,6 +2938,26 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
   );
 }
 
+// 재료 받는 방법 — delivery: 배송 / pickup: 샵에서 받아가기 (orders.fulfillment)
+function FulfillmentPicker({ value, onChange }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {[['delivery', '배송으로 받기', Truck], ['pickup', '샵에서 받아가기', ShoppingBag]].map(([key, label, Icon]) => {
+        const on = value === key;
+        return (
+          <button key={key} type="button" onClick={() => onChange(key)}
+            className="rounded-lg py-3 font-heading text-sm flex items-center justify-center gap-1.5"
+            style={{ background: on ? COLORS.primary : COLORS.cardElev, color: on ? COLORS.white : COLORS.ink, border: `1px solid ${on ? COLORS.primary : COLORS.light}` }}>
+            {on ? <Check size={14} strokeWidth={2.5} /> : <Icon size={14} />}{label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const PICKUP_NOTE = '결제 후 학원(샵)에 방문하셔서 받아 가시면 됩니다. 상품이 준비되면 위 연락처로 안내드립니다.';
+
 export function PaymentPage({ course, product, user, setCurrentPage }) {
   const [loading, setLoading] = useState(false);
   const [agreedPurchase, setAgreedPurchase] = useState(false);
@@ -2953,6 +2973,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
   const [shippingAddressDetail, setShippingAddressDetail] = useState(user?.ship_addr_detail || '');
   const [shippingMemo, setShippingMemo] = useState(user?.ship_memo || '');
   const [saveDefaultShip, setSaveDefaultShip] = useState(true);
+  const [fulfillment, setFulfillment] = useState('delivery');
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const postcodeContainerRef = useRef(null);
 
@@ -3027,6 +3048,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
   const itemDesc = item.description;
   const itemPrice = item.price;
   const itemOriginalPrice = item.original_price;
+  const isPickup = fulfillment === 'pickup';
 
   const handlePayment = async () => {
     if (!allAgreed) {
@@ -3044,16 +3066,16 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
         toast('받는 사람 연락처를 입력해주세요.');
         return;
       }
-      if (!shippingPostalCode || !shippingAddress) {
+      if (fulfillment === 'delivery' && (!shippingPostalCode || !shippingAddress)) {
         toast('"주소 검색" 버튼을 눌러 주소를 입력해주세요.');
         return;
       }
-      if (!shippingAddressDetail?.trim()) {
+      if (fulfillment === 'delivery' && !shippingAddressDetail?.trim()) {
         toast('상세 주소를 입력해주세요. (동/호수 등)');
         return;
       }
       // 기본 배송지 저장 (선택)
-      if (saveDefaultShip) {
+      if (fulfillment === 'delivery' && saveDefaultShip) {
         supabase.from('profiles').update({
           ship_name: shippingRecipientName.trim(),
           ship_phone: shippingRecipientPhone.trim(),
@@ -3082,12 +3104,13 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
         buyer_name: user.name,
         buyer_phone: user.phone,
         buyer_email: user.email,
-        // 배송 정보 (재료일 때만)
+        // 배송 정보 (재료일 때만, 샵 수령이면 주소 없이 이름과 연락처만)
+        fulfillment: isProduct ? fulfillment : 'delivery',
         shipping_recipient_name: isProduct ? shippingRecipientName.trim() : null,
         shipping_recipient_phone: isProduct ? shippingRecipientPhone.trim() : null,
-        shipping_postal_code: isProduct ? shippingPostalCode : null,
-        shipping_address: isProduct ? shippingAddress : null,
-        shipping_address_detail: isProduct ? shippingAddressDetail.trim() : null,
+        shipping_postal_code: isProduct && !isPickup ? shippingPostalCode : null,
+        shipping_address: isProduct && !isPickup ? shippingAddress : null,
+        shipping_address_detail: isProduct && !isPickup ? shippingAddressDetail.trim() : null,
         shipping_memo: isProduct ? (shippingMemo?.trim() || null) : null,
         shipping_status: isProduct ? 'pending' : null,
       };
@@ -3184,9 +3207,11 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
         {isProduct && (
           <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="flex items-center justify-between">
-              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 배송 정보</p>
+              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 받는 방법</p>
               <span className="font-body text-[10px]" style={{ color: COLORS.muted }}>필수 입력</span>
             </div>
+
+            <FulfillmentPicker value={fulfillment} onChange={setFulfillment} />
 
             {/* 받는 사람 이름 */}
             <input
@@ -3201,13 +3226,16 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
             {/* 받는 사람 연락처 */}
             <input
               type="tel"
-              placeholder="받는 사람 연락처 (배송 알림용)"
+              placeholder={isPickup ? '받는 사람 연락처 (준비 안내용)' : '받는 사람 연락처 (배송 알림용)'}
               value={shippingRecipientPhone}
               onChange={e => setShippingRecipientPhone(e.target.value)}
               className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
               style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}
             />
 
+            {isPickup ? (
+              <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.stone }}>{PICKUP_NOTE}</p>
+            ) : (<>
             {/* 우편번호 + 검색 버튼 */}
             <div className="flex gap-2">
               <input
@@ -3268,6 +3296,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
             <p className="font-body text-[10px] mt-1" style={{ color: COLORS.muted }}>
               결제 완료 시 1~3 영업일 내 발송됩니다
             </p>
+            </>)}
           </div>
         )}
 
@@ -4694,6 +4723,7 @@ export function MyOrdersPage({ user }) {
             const isCancelled = o.status === 'cancelled';
             const isShipped = o.shipping_status === 'shipped';
             const isDelivered = o.shipping_status === 'delivered';
+            const isPickup = o.fulfillment === 'pickup';
             const cancelRequested = o.cancel_status === 'requested';
             const cancelRejected = o.cancel_status === 'rejected';
 
@@ -4756,9 +4786,18 @@ export function MyOrdersPage({ user }) {
                 {isProduct && !isCancelled && (
                   <div className="rounded-lg p-3 mt-2" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
                     <p className="font-mono text-[10px] font-bold tracking-widest uppercase inline-flex items-center gap-1 mb-2" style={{ color: COLORS.primary }}>
-                      <Truck size={10} />━━ 배송 상태
+                      {isPickup ? <ShoppingBag size={10} /> : <Truck size={10} />}━━ {isPickup ? '샵 수령' : '배송 상태'}
                     </p>
-                    {isShipped || isDelivered ? (
+                    {isPickup ? (
+                      isDelivered ? (
+                        <div className="flex justify-between">
+                          <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>상태</span>
+                          <span className="font-body text-xs font-semibold" style={{ color: COLORS.primary }}>수령 완료{o.shipped_at ? ` (${formatDate(o.shipped_at)})` : ''}</span>
+                        </div>
+                      ) : (
+                        <p className="font-body text-xs" style={{ color: COLORS.stone }}>수령 대기 중입니다. 학원(샵)에 방문하셔서 받아 가시면 됩니다.</p>
+                      )
+                    ) : isShipped || isDelivered ? (
                       <>
                         <div className="flex justify-between">
                           <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>상태</span>
@@ -5237,6 +5276,8 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
   const [shippingAddressDetail, setShippingAddressDetail] = useState(user?.ship_addr_detail || '');
   const [shippingMemo, setShippingMemo] = useState(user?.ship_memo || '');
   const [saveDefaultShip, setSaveDefaultShip] = useState(true);
+  const [fulfillment, setFulfillment] = useState('delivery');
+  const isPickup = fulfillment === 'pickup';
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const postcodeContainerRef = useRef(null);
 
@@ -5305,11 +5346,11 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
     if (validItems.length === 0) { toast('결제할 상품이 없어요.'); return; }
     if (!shippingRecipientName?.trim()) { toast('받는 사람 이름을 입력해주세요.'); return; }
     if (!shippingRecipientPhone?.trim()) { toast('받는 사람 연락처를 입력해주세요.'); return; }
-    if (!shippingPostalCode || !shippingAddress) { toast('"주소 검색" 버튼을 눌러 주소를 입력해주세요.'); return; }
-    if (!shippingAddressDetail?.trim()) { toast('상세 주소를 입력해주세요. (동/호수 등)'); return; }
+    if (!isPickup && (!shippingPostalCode || !shippingAddress)) { toast('"주소 검색" 버튼을 눌러 주소를 입력해주세요.'); return; }
+    if (!isPickup && !shippingAddressDetail?.trim()) { toast('상세 주소를 입력해주세요. (동/호수 등)'); return; }
 
     // 기본 배송지 저장 (선택)
-    if (saveDefaultShip) {
+    if (!isPickup && saveDefaultShip) {
       supabase.from('profiles').update({
         ship_name: shippingRecipientName.trim(),
         ship_phone: shippingRecipientPhone.trim(),
@@ -5374,11 +5415,12 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
         buyer_name: user.name,
         buyer_phone: user.phone,
         buyer_email: user.email,
+        fulfillment,
         shipping_recipient_name: shippingRecipientName.trim(),
         shipping_recipient_phone: shippingRecipientPhone.trim(),
-        shipping_postal_code: shippingPostalCode,
-        shipping_address: shippingAddress,
-        shipping_address_detail: shippingAddressDetail.trim(),
+        shipping_postal_code: isPickup ? null : shippingPostalCode,
+        shipping_address: isPickup ? null : shippingAddress,
+        shipping_address_detail: isPickup ? null : shippingAddressDetail.trim(),
         shipping_memo: shippingMemo?.trim() || null,
         shipping_status: 'pending',
       };
@@ -5479,13 +5521,17 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
 
         {/* 배송 정보 */}
         <div className="rounded-2xl p-4 space-y-3" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 배송 정보</p>
+          <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ 받는 방법</p>
+          <FulfillmentPicker value={fulfillment} onChange={setFulfillment} />
           <input type="text" placeholder="받는 사람 이름" value={shippingRecipientName} onChange={(e) => setShippingRecipientName(e.target.value)}
             className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
             style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
           <input type="tel" placeholder="받는 사람 연락처 (010-0000-0000)" value={shippingRecipientPhone} onChange={(e) => setShippingRecipientPhone(e.target.value)}
             className="w-full px-3 py-2.5 rounded-lg font-body text-sm outline-none"
             style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
+          {isPickup ? (
+            <p className="font-body text-xs leading-relaxed" style={{ color: COLORS.stone }}>{PICKUP_NOTE}</p>
+          ) : (<>
           <div className="flex gap-2">
             <input type="text" placeholder="우편번호" value={shippingPostalCode} readOnly onClick={openPostcode}
               className="flex-1 px-3 py-2.5 rounded-lg font-body text-sm outline-none cursor-pointer"
@@ -5510,6 +5556,7 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
               className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
             <span>이 배송지를 기본 배송지로 저장</span>
           </label>
+          </>)}
         </div>
 
         {/* 합계 */}
