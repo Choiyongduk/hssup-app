@@ -565,7 +565,9 @@ export default function HSSUPApp() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // 기본값(global)은 같은 계정의 모든 기기를 함께 로그아웃시킨다.
+    // 학원 컴퓨터에서 로그아웃하면 원장님 휴대폰 앱까지 풀리던 원인 → 이 기기만 로그아웃.
+    await supabase.auth.signOut({ scope: 'local' });
     setProfile(null); setSession(null); setDrawerOpen(false);
     // 🍊 로그아웃 시점 페이지(대부분 마이페이지)가 복원돼 다음 로그인이 거기서 시작되는 것 방지
     try { sessionStorage.removeItem('hssup_last_page'); } catch (e) { /* 무시 */ }
