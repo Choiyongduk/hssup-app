@@ -528,7 +528,8 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
             <p className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{stats.newStudents}</p>
             <p className="font-mono text-[9px] font-bold tracking-widest uppercase mt-1" style={{ color: COLORS.stone }}>신규</p>
           </button>
-          <button onClick={() => setCurrentPage('admin-orders')}
+          {/* 매출(결제 내역)은 원장님만. 운영진은 같은 주문을 주문 관리에서 본다 */}
+          <button onClick={() => setCurrentPage(canViewRevenue ? 'admin-orders' : 'admin-shipments')}
             className="rounded-2xl p-3 text-center transition-transform active:scale-95"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(255,92,31,0.12)' }}>
@@ -1627,6 +1628,43 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
   );
 }
 
+// 장바구니 주문은 orders 엔 "OO 외 N건" 만 있고 실제 품목은 order_items 에 있다.
+// 목록에 보이는 주문들의 품목을 한 번에 불러와 order_id 별로 묶는다.
+function useOrderLines(orders) {
+  const [lines, setLines] = useState({});
+  const ids = orders.filter(o => o.item_type === 'product').map(o => o.order_id).filter(Boolean);
+  const key = ids.join(',');
+  useEffect(() => {
+    if (!key) { setLines({}); return; }
+    supabase.from('order_items').select('order_id, product_name, unit_price, quantity').in('order_id', key.split(','))
+      .then(({ data, error }) => {
+        if (error) { console.error('order_items load error:', error); return; }
+        const map = {};
+        (data || []).forEach(l => { (map[l.order_id] ||= []).push(l); });
+        setLines(map);
+      });
+  }, [key]);
+  return lines;
+}
+
+function OrderLines({ lines }) {
+  if (!lines?.length) return null;
+  return (
+    <div className="mt-2 space-y-1">
+      {lines.map((l, i) => (
+        <div key={i} className="flex items-baseline justify-between gap-2">
+          <p className="font-body text-xs min-w-0 flex-1" style={{ color: COLORS.ink }}>
+            {l.product_name || '삭제된 상품'} <span style={{ color: COLORS.stone }}>× {l.quantity}</span>
+          </p>
+          <p className="font-mono text-[10px] shrink-0" style={{ color: COLORS.stone }}>
+            {(Number(l.unit_price || 0) * Number(l.quantity || 0)).toLocaleString('ko-KR')}원
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1701,6 +1739,7 @@ export function AdminOrders() {
                   : monthCancelledOrders;
 
   const formatPrice = (n) => Number(n || 0).toLocaleString('ko-KR') + '원';
+  const orderLines = useOrderLines(orders);
 
   return (
     <>
@@ -1824,6 +1863,7 @@ export function AdminOrders() {
                   {o.item_type === 'product' ? '재료샵' : '클래스'}
                 </span>
               </div>
+              <OrderLines lines={orderLines[o.order_id]} />
             </div>
 
             {/* 결제 정보 */}
@@ -1879,6 +1919,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
   const [cancelProcessing, setCancelProcessing] = useState(null);  // order_id 저장
 
   const isRealAdmin = user?.role === 'admin';
+  const orderLines = useOrderLines(orders);
 
   useEffect(() => { setPage(1); }, [filter]);
   useEffect(() => { loadOrders(); }, [filter, page]);
@@ -2106,6 +2147,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
               {/* 상품명 + 주문번호 */}
               <div className="mb-3">
                 <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{o.course_title || '-'}</p>
+                <OrderLines lines={orderLines[o.order_id]} />
                 <p className="font-mono text-[10px] mt-1 truncate" style={{ color: COLORS.muted }}>
                   주문 {o.order_id?.substring(0, 20)}...
                 </p>
@@ -2308,6 +2350,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
           <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
             <div className="rounded-lg p-3 mb-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
               <p className="font-body text-xs" style={{ color: COLORS.ink }}>{shippingModal.course_title}</p>
+              <OrderLines lines={orderLines[shippingModal.order_id]} />
               <p className="font-mono text-[10px] mt-1" style={{ color: COLORS.stone }}>
                 받는분: {shippingModal.shipping_recipient_name || '-'} · {shippingModal.shipping_recipient_phone || '-'}
               </p>
