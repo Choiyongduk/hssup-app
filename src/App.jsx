@@ -107,6 +107,7 @@ export default function HSSUPApp() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   // 🔑 비밀번호 찾기로 들어온 상태 (메일 링크 ?reset=true 또는 인증번호 확인) → 새 비밀번호 화면을 먼저 띄움
   const [recovering, setRecovering] = useState(() => new URLSearchParams(window.location.search).get('reset') === 'true');
   // 🔗 페이지 상태를 URL과 연결 (뒤로가기·새로고침·딥링크는 react-router가 처리)
@@ -457,7 +458,18 @@ export default function HSSUPApp() {
 
   const loadProfile = async (userId) => {
     setLoading(true);
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    // 아이폰 홈 화면 앱은 알림을 눌러 다시 켜질 때 인터넷이 막 붙는 중이라 첫 조회가 실패하곤 한다.
+    // 실패를 "프로필 없음"으로 보면 로그인 화면이 떠서 로그아웃된 것처럼 보이므로 몇 번 다시 묻는다.
+    let data = null;
+    let failed = false;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await supabase.from('profiles').select('*').eq('id', userId).single();
+      data = res.data;
+      failed = !!res.error && res.error.code !== 'PGRST116';  // PGRST116 = 정말 행이 없음
+      if (!failed) break;
+      await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+    }
+    setProfileLoadFailed(failed && !data);
     if (data) {
       setProfile(data);
       const defaultPage = (data.role === 'admin' || data.role === 'staff') ? 'dashboard' : 'home';
@@ -825,6 +837,7 @@ export default function HSSUPApp() {
                <MedicalWastePage guest onLogin={() => setCurrentPage('home')} />
              </main>
            ) :
+           session && !profile && profileLoadFailed ? <ProfileRetryScreen onRetry={() => loadProfile(session.user.id)} /> :
            !session || !profile ? <AuthScreen /> :
            profile.status === 'pending' && profile.role !== 'admin' ? <PendingApprovalScreen user={profile} handleLogout={handleLogout} /> :
            profile.status === 'rejected' && profile.role !== 'admin' ? <RejectedScreen user={profile} handleLogout={handleLogout} /> :
@@ -2214,6 +2227,22 @@ function DebugQnaTest() {
 // =============================================================
 // 🚫 SuspendedScreen - 정지/탈퇴된 계정 화면
 // =============================================================
+// 로그인은 살아 있는데 내 정보를 못 불러왔을 때 — 로그인 화면 대신 다시 시도만 하게 한다
+function ProfileRetryScreen({ onRetry }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
+      <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>연결이 불안정합니다</h2>
+      <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>
+        로그인은 그대로 유지되어 있습니다.<br />인터넷 연결을 확인한 뒤 다시 시도해 주세요.
+      </p>
+      <button onClick={onRetry} className="mt-6 font-heading text-sm px-6 py-3 rounded-full"
+        style={{ background: COLORS.primary, color: COLORS.white }}>
+        다시 시도
+      </button>
+    </div>
+  );
+}
+
 function SuspendedScreen({ profile, handleLogout }) {
   const isDeleted = profile?.status === 'deleted';
   return (
