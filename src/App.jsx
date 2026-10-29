@@ -1485,19 +1485,16 @@ function AuthScreen() {
  
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* 랜딩페이지와 같은 주황 유리 배경 + 굵은 제목 */}
-      <div className="relative h-[45%] flex flex-col justify-between p-7 pt-8 overflow-hidden"
-        style={{ backgroundColor: COLORS.primary, backgroundImage: 'url(/brand/bg-main.jpg)', backgroundSize: 'cover', backgroundPosition: 'center 20%', color: COLORS.white }}>
-        <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '20px', width: 'auto', alignSelf: 'flex-start' }} />
-        <div className="relative pb-6">
-          <p className="font-body text-[14px] font-bold" style={{ color: 'rgba(255,255,255,0.92)', letterSpacing: '-0.02em' }}>히썹 아카데미</p>
-          <h1 className="font-body text-[32px] leading-[1.2] mt-3" style={{ fontWeight: 800, letterSpacing: '-0.055em' }}>
-            배움부터 현장까지,<br />히썹이 함께합니다
-          </h1>
+      {/* 배경은 랜딩페이지와 같은 주황 유리 이미지 */}
+      <div className="relative h-[45%] flex flex-col justify-end p-7 overflow-hidden"
+        style={{ backgroundColor: COLORS.primary, backgroundImage: 'url(/brand/bg-main.jpg)', backgroundSize: 'cover', backgroundPosition: 'center 20%' }}>
+        <div className="relative" style={{ color: COLORS.white }}>
+          <p className="font-body text-[10px] font-semibold tracking-[0.3em] uppercase" style={{ color: 'rgba(255,255,255,0.92)' }}>Beauty Academy</p>
+          <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '60px', marginTop: '12px' }} />
         </div>
       </div>
 
-      <div className="flex-1 px-7 pt-7 pb-6 overflow-y-auto scrollbar-hide relative -mt-6 rounded-t-[28px]" style={{ background: COLORS.white }}>
+      <div className="flex-1 px-7 py-6 overflow-y-auto scrollbar-hide">
         {showFindPw ? (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -1569,10 +1566,10 @@ function AuthScreen() {
         ) : (
           <>
             <div className="flex gap-6 mb-6">
-              <button onClick={() => { setMode('login'); setError(''); setInfo(''); }} className="font-body text-[20px]"
-                style={{ fontWeight: 800, letterSpacing: '-0.05em', color: mode === 'login' ? COLORS.ink : COLORS.stone, opacity: mode === 'login' ? 1 : 0.4 }}>로그인</button>
-              <button onClick={() => { setMode('signup'); setError(''); setInfo(''); }} className="font-body text-[20px]"
-                style={{ fontWeight: 800, letterSpacing: '-0.05em', color: mode === 'signup' ? COLORS.ink : COLORS.stone, opacity: mode === 'signup' ? 1 : 0.4 }}>회원가입</button>
+              <button onClick={() => { setMode('login'); setError(''); setInfo(''); }} className="font-heading text-base"
+                style={{ color: mode === 'login' ? COLORS.ink : COLORS.stone, opacity: mode === 'login' ? 1 : 0.4 }}>로그인</button>
+              <button onClick={() => { setMode('signup'); setError(''); setInfo(''); }} className="font-heading text-base"
+                style={{ color: mode === 'signup' ? COLORS.ink : COLORS.stone, opacity: mode === 'signup' ? 1 : 0.4 }}>회원가입</button>
             </div>
      
             {mode === 'login' ? (

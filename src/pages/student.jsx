@@ -191,27 +191,35 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice, setSelectedP
         </div>
       ) : (
       <>
-      {/* 환영 + 온라인 강의 — 랜딩페이지(주황 유리 배경, 굵은 제목)와 같은 느낌 */}
-      <section className="px-5 pt-5 pb-6">
-        <div className="relative rounded-3xl overflow-hidden p-5" style={{ backgroundColor: c.primary, backgroundImage: 'url(/brand/bg-main.jpg)', backgroundSize: 'cover', backgroundPosition: 'center 30%', boxShadow: '0 12px 32px rgba(255, 69, 0, 0.28)' }}>
-          <div className="relative" style={{ color: COLORS.white }}>
-            <p className="font-body text-[13px] font-bold" style={{ color: 'rgba(255,255,255,0.92)', letterSpacing: '-0.02em' }}>히썹 아카데미</p>
-            <h2 className="font-body text-[28px] leading-[1.2] mt-2" style={{ fontWeight: 800, letterSpacing: '-0.055em' }}>
-              {user.name?.length > 1 ? user.name.slice(1) : user.name}님,<br />오늘도 반갑습니다
+      {/* 환영 메시지 + 온라인 강의(축소 카드) */}
+      <section className="px-5 pt-5 pb-5 relative overflow-hidden">
+        <div className="absolute -top-12 -right-16 w-52 h-52 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,69,0,0.22), rgba(255,69,0,0.06) 35%, transparent 70%)' }}></div>
+        <div className="relative flex items-stretch gap-3">
+          {/* 인사말 */}
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: c.primary }}>━━ Today</p>
+            <h2 className="font-display text-[34px] leading-[1] mt-2 tracking-tighter" style={{ color: c.ink }}>
+              Hello,<br />
+              <span style={{ color: c.primary }}>{user.name?.length > 1 ? user.name.slice(1) : user.name}님</span>
             </h2>
           </div>
-          {/* 온라인 강의: 랜딩의 흰 알약 버튼 */}
+          {/* 온라인 강의 (축소) */}
           <button onClick={() => setCurrentPage('online')}
-            className="relative w-full mt-6 rounded-full py-3.5 px-5 flex items-center gap-3 text-left transition-transform active:scale-[0.98]"
-            style={{ background: COLORS.white, boxShadow: '0 10px 24px rgba(0,0,0,0.12)' }}>
-            <span className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: c.primary }}>
-              <Play size={12} fill={COLORS.white} style={{ color: COLORS.white }} className="ml-0.5" />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block font-body text-[15px]" style={{ color: c.primary, fontWeight: 800, letterSpacing: '-0.04em' }}>{heroLecture.isNew ? '새 강의가 올라왔습니다' : '온라인 강의 보기'}</span>
-              {heroLecture.latest && <span className="block font-body text-[11px] truncate" style={{ color: c.stone }}>{heroLecture.latest.title}</span>}
-            </span>
-            <ArrowRight size={16} style={{ color: c.primary }} />
+            className="shrink-0 w-[60%] rounded-2xl p-3.5 text-left relative overflow-hidden flex flex-col justify-between"
+            style={{ background: 'linear-gradient(135deg, #FF4500 0%, #FF9A55 100%)', boxShadow: '0 8px 24px rgba(255, 69, 0, 0.25)' }}>
+            <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
+            <div className="relative" style={{ color: COLORS.white }}>
+              <p className="font-mono text-[8px] font-bold tracking-widest uppercase opacity-80">ONLINE{heroLecture.isNew && ' · NEW'}</p>
+              <h3 className="font-display text-base mt-1 leading-tight tracking-tight">{heroLecture.isNew ? <>새 강의<br />업데이트</> : <>온라인<br />강의</>}</h3>
+              {heroLecture.latest && (
+                <p className="font-body text-[10px] mt-1 opacity-90 truncate">{heroLecture.latest.title}</p>
+              )}
+            </div>
+            <div className="relative flex justify-end mt-2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
+                <Play size={12} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
+              </div>
+            </div>
           </button>
         </div>
       </section>
