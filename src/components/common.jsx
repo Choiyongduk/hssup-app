@@ -92,7 +92,7 @@ export function ConfirmHost() {
           <button onClick={() => close(true)} style={{
             flex: 1, padding: 12, borderRadius: 999, border: 'none',
             background: COLORS.primary, color: COLORS.white, fontFamily: 'Pretendard', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-            boxShadow: '0 0 20px rgba(255,92,31,0.4)',
+            boxShadow: '0 0 20px rgba(255,69,0,0.4)',
           }}>{req.confirmText}</button>
         </div>
       </div>
@@ -596,7 +596,7 @@ export function LevelCard({ userId, setCurrentPage }) {
             <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.light}` }}>
               <div className="h-2 rounded-full overflow-hidden" style={{ background: COLORS.cream }}>
                 <div className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${scorePct}%`, background: COLORS.primary, boxShadow: '0 0 12px rgba(255,92,31,0.4)' }}></div>
+                  style={{ width: `${scorePct}%`, background: COLORS.primary, boxShadow: '0 0 12px rgba(255,69,0,0.4)' }}></div>
               </div>
               <p className="font-mono text-[10px] mt-2" style={{ color: COLORS.stone }}>
                 다음 등급 <span style={{ color: TIERS.master.color, fontWeight: 'bold' }}>MASTER</span>까지 누적 점수 <span style={{ color: COLORS.ink, fontWeight: 'bold' }}>{lv.score}</span> / {MASTER_SCORE}점
@@ -807,7 +807,7 @@ export function Pagination({ page, total, perPage, onChange }) {
     background: active ? COLORS.primary : COLORS.card,
     color: active ? COLORS.white : COLORS.ink,
     border: `1px solid ${active ? COLORS.primary : COLORS.light}`,
-    boxShadow: active ? '0 0 16px rgba(255, 92, 31, 0.35)' : 'none',
+    boxShadow: active ? '0 0 16px rgba(255, 69, 0, 0.35)' : 'none',
   });
 
   return (
@@ -989,7 +989,7 @@ export function CommentSection({ targetType, targetId, user, authorId }) {
         <div className="flex items-center gap-2 flex-wrap">
           <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{maskAuthor(c.profile, user).name}</p>
           {c.profile.role === 'admin' && (
-            <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
+            <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>ADMIN</span>
           )}
           <p className="font-mono text-[10px]" style={{ color: COLORS.stone }}>
             {new Date(c.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -1034,7 +1034,7 @@ export function CommentSection({ targetType, targetId, user, authorId }) {
             style={{ borderColor: COLORS.light, color: COLORS.ink }} />
           <button onClick={submit} disabled={posting || !newComment.trim()}
             className="px-3 rounded-full flex items-center disabled:opacity-40"
-            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
             {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
           </button>
         </div>
@@ -1066,7 +1066,7 @@ export function CommentSection({ targetType, targetId, user, authorId }) {
                     style={{ borderColor: COLORS.light, color: COLORS.ink }} />
                   <button onClick={() => submitReply(c)} disabled={posting || !replyText.trim()}
                     className="px-3 rounded-full flex items-center disabled:opacity-40"
-                    style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+                    style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
                     {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
                   </button>
                 </div>

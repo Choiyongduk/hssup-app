@@ -191,35 +191,27 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice, setSelectedP
         </div>
       ) : (
       <>
-      {/* 환영 메시지 + 온라인 강의(축소 카드) */}
-      <section className="px-5 pt-5 pb-5 relative overflow-hidden">
-        <div className="absolute -top-12 -right-16 w-52 h-52 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,92,31,0.22), rgba(255,92,31,0.06) 35%, transparent 70%)' }}></div>
-        <div className="relative flex items-stretch gap-3">
-          {/* 인사말 */}
-          <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: c.primary }}>━━ Today</p>
-            <h2 className="font-display text-[34px] leading-[1] mt-2 tracking-tighter" style={{ color: c.ink }}>
-              Hello,<br />
-              <span style={{ color: c.primary }}>{user.name?.length > 1 ? user.name.slice(1) : user.name}님</span>
+      {/* 환영 + 온라인 강의 — 랜딩페이지(주황 유리 배경, 굵은 제목)와 같은 느낌 */}
+      <section className="px-5 pt-5 pb-6">
+        <div className="relative rounded-3xl overflow-hidden p-5" style={{ backgroundColor: c.primary, backgroundImage: 'url(/brand/bg-main.jpg)', backgroundSize: 'cover', backgroundPosition: 'center 30%', boxShadow: '0 12px 32px rgba(255, 69, 0, 0.28)' }}>
+          <div className="relative" style={{ color: COLORS.white }}>
+            <p className="font-body text-[13px] font-bold" style={{ color: 'rgba(255,255,255,0.92)', letterSpacing: '-0.02em' }}>히썹 아카데미</p>
+            <h2 className="font-body text-[28px] leading-[1.2] mt-2" style={{ fontWeight: 800, letterSpacing: '-0.055em' }}>
+              {user.name?.length > 1 ? user.name.slice(1) : user.name}님,<br />오늘도 반갑습니다
             </h2>
           </div>
-          {/* 온라인 강의 (축소) */}
+          {/* 온라인 강의: 랜딩의 흰 알약 버튼 */}
           <button onClick={() => setCurrentPage('online')}
-            className="shrink-0 w-[60%] rounded-2xl p-3.5 text-left relative overflow-hidden flex flex-col justify-between"
-            style={{ background: 'linear-gradient(135deg, #FF5C1F 0%, #FF9A55 100%)', boxShadow: '0 8px 24px rgba(255, 92, 31, 0.25)' }}>
-            <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}></div>
-            <div className="relative" style={{ color: COLORS.white }}>
-              <p className="font-mono text-[8px] font-bold tracking-widest uppercase opacity-80">ONLINE{heroLecture.isNew && ' · NEW'}</p>
-              <h3 className="font-display text-base mt-1 leading-tight tracking-tight">{heroLecture.isNew ? <>새 강의<br />업데이트</> : <>온라인<br />강의</>}</h3>
-              {heroLecture.latest && (
-                <p className="font-body text-[10px] mt-1 opacity-90 truncate">{heroLecture.latest.title}</p>
-              )}
-            </div>
-            <div className="relative flex justify-end mt-2">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: COLORS.white }}>
-                <Play size={12} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
-              </div>
-            </div>
+            className="relative w-full mt-6 rounded-full py-3.5 px-5 flex items-center gap-3 text-left transition-transform active:scale-[0.98]"
+            style={{ background: COLORS.white, boxShadow: '0 10px 24px rgba(0,0,0,0.12)' }}>
+            <span className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: c.primary }}>
+              <Play size={12} fill={COLORS.white} style={{ color: COLORS.white }} className="ml-0.5" />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-body text-[15px]" style={{ color: c.primary, fontWeight: 800, letterSpacing: '-0.04em' }}>{heroLecture.isNew ? '새 강의가 올라왔습니다' : '온라인 강의 보기'}</span>
+              {heroLecture.latest && <span className="block font-body text-[11px] truncate" style={{ color: c.stone }}>{heroLecture.latest.title}</span>}
+            </span>
+            <ArrowRight size={16} style={{ color: c.primary }} />
           </button>
         </div>
       </section>
@@ -233,7 +225,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice, setSelectedP
               <button key={item.id} onClick={() => setCurrentPage(item.id)}
                 className="rounded-2xl py-3 px-1 flex flex-col items-center gap-2 transition-transform active:scale-95"
                 style={{ background: c.card, border: `1px solid ${c.light}` }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,69,0,0.1)' }}>
                   <Icon size={18} strokeWidth={1.8} style={{ color: c.primary }} />
                 </div>
                 <p className="font-body text-[10px] font-semibold text-center leading-tight" style={{ color: c.ink }}>{item.ko}</p>
@@ -248,7 +240,7 @@ export function HomePage({ user, setCurrentPage, setSelectedNotice, setSelectedP
         <button onClick={() => setCurrentPage('medical-waste')}
           className="w-full rounded-2xl p-4 text-left relative overflow-hidden flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: c.ink }}>
-          <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full" style={{ background: 'rgba(255, 92, 31, 0.35)', filter: 'blur(18px)' }}></div>
+          <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full" style={{ background: 'rgba(255, 69, 0, 0.35)', filter: 'blur(18px)' }}></div>
           <div className="relative w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}>
             <Biohazard size={20} strokeWidth={1.8} style={{ color: c.primary }} />
           </div>
@@ -522,7 +514,7 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
                 background: courseCategory === cat ? COLORS.primary : COLORS.card,
                 color: courseCategory === cat ? COLORS.white : COLORS.ink,
                 border: `1px solid ${courseCategory === cat ? COLORS.primary : COLORS.light}`,
-                boxShadow: courseCategory === cat ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none',
+                boxShadow: courseCategory === cat ? '0 0 16px rgba(255, 69, 0, 0.3)' : 'none',
               }}>
               {cat}
             </button>
@@ -558,7 +550,7 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
               {searchQuery ? `"${searchQuery}" 검색 결과가 없습니다` : '아직 등록된 클래스가 없습니다'}
             </p>
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="mt-3 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+              <button onClick={() => setSearchQuery('')} className="mt-3 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.35)' }}>
                 검색 초기화
               </button>
             )}
@@ -572,15 +564,15 @@ export function CoursePage({ user, setCurrentPage, setSelectedCourse, setSelecte
               className="w-full text-left rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
               style={{
                 background: c.is_featured ? COLORS.cardElev : COLORS.card,
-                border: `1px solid ${c.is_featured ? 'rgba(255, 92, 31, 0.4)' : COLORS.light}`,
-                boxShadow: c.is_featured ? '0 0 24px rgba(255, 92, 31, 0.2)' : 'none',
+                border: `1px solid ${c.is_featured ? 'rgba(255, 69, 0, 0.4)' : COLORS.light}`,
+                boxShadow: c.is_featured ? '0 0 24px rgba(255, 69, 0, 0.2)' : 'none',
               }}>
               {getRowImages(c).length > 0 ? (
                 <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden" style={{ border: `1px solid ${COLORS.light}` }}>
                   <img src={getRowImages(c)[0]} alt="" className="w-full h-full object-cover" />
                 </div>
               ) : (
-                <div className="w-16 h-16 shrink-0 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+                <div className="w-16 h-16 shrink-0 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,69,0,0.1)', border: `1px solid rgba(255,69,0,0.25)` }}>
                   <BookOpen size={22} style={{ color: COLORS.primary }} />
                 </div>
               )}
@@ -679,7 +671,7 @@ export function CourseDetailPage({ course: propCourse, user, setCurrentPage, set
           <div className="rounded-2xl p-4 space-y-2.5" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
             {features.map((f, i) => (
               <div key={i} className="flex items-start gap-2">
-                <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: COLORS.primary, boxShadow: '0 0 8px rgba(255,92,31,0.4)' }}>
+                <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: COLORS.primary, boxShadow: '0 0 8px rgba(255,69,0,0.4)' }}>
                   <Check size={10} strokeWidth={3} style={{ color: COLORS.white }} />
                 </div>
                 <p className="font-body text-sm leading-relaxed" style={{ color: COLORS.ink }}>{f}</p>
@@ -715,7 +707,7 @@ export function CourseDetailPage({ course: propCourse, user, setCurrentPage, set
         bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)',
       }}>
         <button onClick={apply} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2"
-          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,69,0,0.5)' }}>
           {c.show_price ? `₩${(c.price / 10000).toFixed(0)}만원 신청하기` : '문의하기'} <ArrowUpRight size={16} />
         </button>
       </div>
@@ -780,7 +772,7 @@ export function BestCasePage() {
       {/* 베스트 케이스 선정 혜택 안내 */}
       <div className="px-5 mb-4">
         <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
-          <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+          <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 69, 0, 0.35)' }}>
             <Gift size={16} style={{ color: COLORS.white }} />
           </div>
           <div>
@@ -802,7 +794,7 @@ export function BestCasePage() {
                 background: filter === cat ? COLORS.primary : COLORS.card,
                 color: filter === cat ? COLORS.white : COLORS.ink,
                 border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
-                boxShadow: filter === cat ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
+                boxShadow: filter === cat ? '0 0 16px rgba(255, 69, 0, 0.3)' : 'none'
               }}>
               {cat}
             </button>
@@ -838,7 +830,7 @@ export function BestCasePage() {
                     </div>
                   )}
                   <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>{c.category}</span>
-                  <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+                  <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
                     ★ BEST
                   </span>
                 </div>
@@ -981,7 +973,7 @@ export function MyCasePage({ user }) {
 
         {/* 새 케이스 추가 버튼 */}
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
             <Plus size={16} strokeWidth={2.5} />새 케이스 추가
           </button>
         )}
@@ -1096,7 +1088,7 @@ export function MyCasePage({ user }) {
                   )}
                   <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>{c.category}</span>
                   {c.is_best && (
-                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>★ BEST</span>
+                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>★ BEST</span>
                   )}
                 </div>
               )}
@@ -1265,7 +1257,7 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
               </button>
               <button onClick={handleUpdate} disabled={actionLoading}
                 className="flex-1 font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2"
-                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.4)' }}>
                 {actionLoading && <Loader2 size={14} className="animate-spin" />}
                 저장
               </button>
@@ -1358,7 +1350,7 @@ export function QnaDetailPage({ qna: propQna, user, setCurrentPage, routeId }) {
         <div className="px-5 mt-3">
           <div className="rounded-2xl p-5" style={{ background: COLORS.peach }}>
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+              <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
                 <Shield size={10} strokeWidth={2.5} />관리자 답변
               </span>
               {qna.answered_at && (
@@ -1417,7 +1409,7 @@ export function TrendsPage({ user, setCurrentPage, setSelectedTrend }) {
                 background: filter === cat ? COLORS.primary : COLORS.card,
                 color: filter === cat ? COLORS.white : COLORS.ink,
                 border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
-                boxShadow: filter === cat ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
+                boxShadow: filter === cat ? '0 0 16px rgba(255, 69, 0, 0.3)' : 'none'
               }}>
               {cat}
             </button>
@@ -1715,7 +1707,7 @@ export function QnaPage({ user, setCurrentPage, setSelectedQna }) {
             질문은 익명으로 표시됩니다.
           </p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+        <button onClick={() => setShowForm(!showForm)} className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
           <Plus size={16} strokeWidth={2.5} />질문하기
         </button>
         {showForm && (
@@ -1831,7 +1823,7 @@ export function LibraryPage({ setCurrentPage, setSelectedLibrary }) {
                     )}
                   </div>
                 ) : (
-                  <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+                  <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl glow-soft" style={{ background: 'rgba(255,69,0,0.1)', border: `1px solid rgba(255,69,0,0.25)` }}>
                     <FolderOpen size={20} style={{ color: COLORS.primary }} />
                   </div>
                 )}
@@ -1942,7 +1934,7 @@ export function LibraryDetailPage({ file: propFile, setCurrentPage, routeId }) {
             )}
             <a href={downloadUrl}
               className={`${(isImage || isPdf) ? 'flex-1' : 'w-full'} rounded-2xl py-3 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]`}
-              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.4)' }}>
               <Download size={14} />
               <span className="font-heading text-xs">다운로드</span>
             </a>
@@ -2102,7 +2094,7 @@ export function MarketPage({ setCurrentPage, setSelectedProduct }) {
               {searchQuery ? `"${searchQuery}" 검색 결과가 없습니다` : filter === '전체' ? '아직 등록된 상품이 없습니다' : `${filter} 카테고리 상품이 없습니다`}
             </p>
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="mt-3 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+              <button onClick={() => setSearchQuery('')} className="mt-3 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.35)' }}>
                 검색 초기화
               </button>
             )}
@@ -2125,7 +2117,7 @@ export function MarketPage({ setCurrentPage, setSelectedProduct }) {
                     <span className="absolute top-2 left-2 font-mono text-[8px] font-bold tracking-widest px-1.5 py-0.5 rounded" style={{
                       background: p.badge === 'BEST' ? COLORS.ink : p.badge === 'NEW' ? COLORS.primary : COLORS.peach,
                       color: p.badge === 'BEST' ? COLORS.primary : p.badge === 'SALE' ? COLORS.deep : COLORS.white,
-                      boxShadow: p.badge === 'NEW' ? '0 0 12px rgba(255, 92, 31, 0.5)' : 'none'
+                      boxShadow: p.badge === 'NEW' ? '0 0 12px rgba(255, 69, 0, 0.5)' : 'none'
                     }}>{p.badge}</span>
                   )}
                   {/* 재고 부족 알림 */}
@@ -2260,7 +2252,7 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
       {/* 오픈 예정 안내 배너 (관리자 → 강의 관리 에서 문구 수정 가능) */}
       <div className="px-5 mb-4">
         <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
-          <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+          <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 69, 0, 0.35)' }}>
             <PlayCircle size={16} style={{ color: COLORS.white }} />
           </div>
           <div>
@@ -2333,7 +2325,7 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
               {searchQuery ? `"${searchQuery}" 검색 결과가 없습니다` : filter === '전체' ? '아직 등록된 강의가 없습니다' : `${filter} 카테고리 강의가 없습니다`}
             </p>
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="mt-3 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+              <button onClick={() => setSearchQuery('')} className="mt-3 font-heading text-xs px-4 py-2 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.35)' }}>
                 검색 초기화
               </button>
             )}
@@ -2624,7 +2616,7 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
               </button>
               <button onClick={handleUpdate} disabled={actionLoading}
                 className="flex-1 font-heading text-sm py-3 rounded-full flex items-center justify-center gap-2"
-                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.4)' }}>
                 {actionLoading && <Loader2 size={14} className="animate-spin" />}
                 저장
               </button>
@@ -2663,7 +2655,7 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{maskAuthor(author, user)?.name || '익명'}</p>
                 {author?.role === 'admin' && (
-                  <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
+                  <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>ADMIN</span>
                 )}
               </div>
               <p className="font-mono text-[10px] flex items-center gap-1.5" style={{ color: COLORS.stone }}>
@@ -2826,7 +2818,7 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
           <span className="absolute top-4 left-4 font-mono text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded" style={{
             background: product.badge === 'BEST' ? COLORS.ink : product.badge === 'NEW' ? COLORS.primary : COLORS.peach,
             color: product.badge === 'BEST' ? COLORS.primary : product.badge === 'SALE' ? COLORS.deep : COLORS.white,
-            boxShadow: product.badge === 'NEW' ? '0 0 20px rgba(255, 92, 31, 0.5)' : 'none'
+            boxShadow: product.badge === 'NEW' ? '0 0 20px rgba(255, 69, 0, 0.5)' : 'none'
           }}>{product.badge}</span>
         )}
         {product.stock === 0 && (
@@ -2859,7 +2851,7 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
               <p className="font-mono text-sm line-through" style={{ color: COLORS.stone }}>
                 {product.original_price.toLocaleString()}원
               </p>
-              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255, 92, 31, 0.4)' }}>
+              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255, 69, 0, 0.4)' }}>
                 {discount}% OFF
               </span>
             </div>
@@ -2927,7 +2919,7 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
             style={{
               background: product.stock === 0 ? COLORS.cardElev : COLORS.primary,
               color: COLORS.white,
-              boxShadow: product.stock === 0 ? 'none' : '0 0 24px rgba(255, 92, 31, 0.5)'
+              boxShadow: product.stock === 0 ? 'none' : '0 0 24px rgba(255, 69, 0, 0.5)'
             }}>
             <ShoppingCart size={16} strokeWidth={2.5} />
             {product.stock === 0 ? '품절' : '바로 구매'}
@@ -3358,7 +3350,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
         {/* 결제 버튼 */}
         <button onClick={handlePayment} disabled={loading || !allAgreed}
           className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-60"
-          style={{ background: allAgreed ? COLORS.primary : COLORS.cardElev, color: allAgreed ? COLORS.white : COLORS.ink, boxShadow: allAgreed ? '0 0 24px rgba(255, 92, 31, 0.5)' : 'none' }}>
+          style={{ background: allAgreed ? COLORS.primary : COLORS.cardElev, color: allAgreed ? COLORS.white : COLORS.ink, boxShadow: allAgreed ? '0 0 24px rgba(255, 69, 0, 0.5)' : 'none' }}>
           {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} strokeWidth={2.5} />}
           {loading ? '결제창 호출 중...' : !allAgreed ? '약관 동의 후 결제 가능' : `${itemPrice.toLocaleString()}원 결제하기`}
         </button>
@@ -3503,7 +3495,7 @@ export function PaymentSuccessPage({ user, setCurrentPage }) {
   return (
     <div className="pb-6">
       <div className="px-5 pt-10 pb-6 text-center">
-        <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4" style={{ background: 'rgba(255,92,31,0.1)', border: `2px solid ${COLORS.primary}` }}>
+        <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4" style={{ background: 'rgba(255,69,0,0.1)', border: `2px solid ${COLORS.primary}` }}>
           <Check size={36} style={{ color: COLORS.primary }} strokeWidth={3} />
         </div>
         <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>결제가 완료되었습니다</h2>
@@ -3559,7 +3551,7 @@ export function PaymentSuccessPage({ user, setCurrentPage }) {
           )}
         </div>
 
-        <button onClick={() => setCurrentPage('home')} className="w-full mt-3 font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+        <button onClick={() => setCurrentPage('home')} className="w-full mt-3 font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,69,0,0.5)' }}>
           홈으로 가기
         </button>
       </div>
@@ -3575,7 +3567,7 @@ export function PaymentFailPage({ setCurrentPage }) {
   return (
     <div className="pb-6">
       <div className="px-5 pt-10 pb-6 text-center">
-        <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4" style={{ background: 'rgba(255,92,31,0.1)', border: `2px solid ${COLORS.primary}` }}>
+        <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4" style={{ background: 'rgba(255,69,0,0.1)', border: `2px solid ${COLORS.primary}` }}>
           <X size={32} style={{ color: COLORS.primary }} strokeWidth={3} />
         </div>
         <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>결제가 취소되었습니다</h2>
@@ -3584,7 +3576,7 @@ export function PaymentFailPage({ setCurrentPage }) {
       </div>
 
       <div className="px-5">
-        <button onClick={() => setCurrentPage('course')} className="w-full font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+        <button onClick={() => setCurrentPage('course')} className="w-full font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,69,0,0.5)' }}>
           클래스 다시 보기
         </button>
       </div>
@@ -3838,7 +3830,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
         {fixedCategory === '인사' && !showComposer && (
           <button onClick={() => setShowComposer(true)}
             className="w-full font-heading text-sm py-3 rounded-full flex items-center justify-center gap-1.5"
-            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.35)' }}>
             <Edit3 size={14} /> 가입 인사 작성하기
           </button>
         )}
@@ -3862,7 +3854,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
             </div>
             <button onClick={() => setNewPost(GREETING_TEMPLATE)}
               className="w-full mt-3 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1.5"
-              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.35)' }}>
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.35)' }}>
               <Edit3 size={12} /> 양식 불러와서 작성하기
             </button>
           </div>
@@ -3919,7 +3911,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
                   목록 보기
                 </button>
               )}
-              <button onClick={submit} disabled={loading} className="font-heading text-[11px] px-4 py-2 rounded-full flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+              <button onClick={submit} disabled={loading} className="font-heading text-[11px] px-4 py-2 rounded-full flex items-center gap-1" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
                 {loading ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}Post
               </button>
             </div>
@@ -3943,7 +3935,7 @@ export function CommunityPage({ user, setCurrentPage, setSelectedPost, fixedCate
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <p className="font-heading text-xs" style={{ color: COLORS.ink }}>{maskAuthor(p.profile, user)?.name || '익명'}</p>
                   {p.profile?.role === 'admin' && (
-                    <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>
+                    <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>ADMIN</span>
                   )}
                 </div>
                 <p className="font-mono text-[9px] font-medium" style={{ color: COLORS.stone }}>{new Date(p.created_at).toLocaleString('ko-KR')}</p>
@@ -4089,7 +4081,7 @@ export function MyActivityPage({ user, setCurrentPage, setSelectedPost }) {
                 background: tab === t.id ? COLORS.primary : COLORS.card,
                 color: tab === t.id ? COLORS.white : COLORS.ink,
                 border: `1px solid ${tab === t.id ? COLORS.primary : COLORS.light}`,
-                boxShadow: tab === t.id ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
+                boxShadow: tab === t.id ? '0 0 16px rgba(255, 69, 0, 0.3)' : 'none'
               }}>
               {t.label} <span className="font-mono text-[10px]">({t.count})</span>
             </button>
@@ -4315,7 +4307,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{user.name}</h2>
-                {isAdmin && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>ADMIN</span>}
+                {isAdmin && <span className="font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>ADMIN</span>}
               </div>
               <p className="font-mono text-[10px] mt-1 truncate" style={{ color: COLORS.ink, opacity: 0.6 }}>{user.email}</p>
               <p className="font-body text-sm mt-2" style={{ color: COLORS.primary }}>{user.course}</p>
@@ -4384,7 +4376,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
         <button onClick={() => setCurrentPage('my-activity')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,69,0,0.1)', border: `1px solid rgba(255,69,0,0.25)` }}>
             <BookOpen size={18} style={{ color: COLORS.primary }} />
           </div>
           <div className="flex-1 text-left">
@@ -4398,7 +4390,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
         <button onClick={() => setCurrentPage('my-orders')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,69,0,0.1)', border: `1px solid rgba(255,69,0,0.25)` }}>
             <ShoppingBag size={18} style={{ color: COLORS.primary }} />
           </div>
           <div className="flex-1 text-left">
@@ -4412,7 +4404,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
         <button onClick={() => setCurrentPage('my-profile-edit')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,69,0,0.1)', border: `1px solid rgba(255,69,0,0.25)` }}>
             <Edit3 size={18} style={{ color: COLORS.primary }} />
           </div>
           <div className="flex-1 text-left">
@@ -4426,7 +4418,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
         <button onClick={() => setCurrentPage('cart')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,69,0,0.1)', border: `1px solid rgba(255,69,0,0.25)` }}>
             <ShoppingCart size={18} style={{ color: COLORS.primary }} />
           </div>
           <div className="flex-1 text-left">
@@ -4440,7 +4432,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
         <button onClick={() => setCurrentPage('my-bookings')}
           className="w-full rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[0.98]"
           style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,69,0,0.1)', border: `1px solid rgba(255,69,0,0.25)` }}>
             <Calendar size={18} style={{ color: COLORS.primary }} />
           </div>
           <div className="flex-1 text-left">
@@ -4472,7 +4464,7 @@ export function MyPage({ user, handleLogout, setCurrentPage, refreshUser }) {
               {(notifStatus === 'default' || notifStatus === 'unsubscribed') && (
                 <button onClick={handleEnableNotifications} disabled={notifLoading}
                   className="font-heading text-xs px-4 py-2 rounded-full flex items-center gap-1.5 disabled:opacity-60"
-                  style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+                  style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
                   {notifLoading ? <Loader2 size={12} className="animate-spin" /> : <Bell size={12} strokeWidth={2.5} />}
                   알림 켜기
                 </button>
@@ -4606,7 +4598,7 @@ export function MyProfileEditPage({ user, setCurrentPage, refreshUser }) {
           </button>
           <button onClick={handleSave} disabled={saving}
             className="flex-1 rounded-full py-3.5 font-heading text-sm flex items-center justify-center gap-2"
-            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)' }}>
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255, 69, 0, 0.5)' }}>
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}
             저장
           </button>
@@ -4927,7 +4919,7 @@ export function MyOrdersPage({ user }) {
             </button>
             <button onClick={requestCancel} disabled={cancelling}
               className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
-              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,69,0,0.35)' }}>
               {cancelling ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} strokeWidth={2.5} />}
               취소 요청
             </button>
@@ -5014,7 +5006,7 @@ export function MyPracticeBookingsPage({ user, setCurrentPage }) {
             </p>
             <button onClick={() => setCurrentPage('practice-booking')}
               className="font-heading text-[11px] px-3 py-1.5 rounded-full inline-flex items-center gap-1"
-              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,92,31,0.35)' }}>
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,69,0,0.35)' }}>
               <Plus size={11} strokeWidth={2.5} />새 예약
             </button>
           </div>
@@ -5170,7 +5162,7 @@ export function CartPage({ user, setCurrentPage }) {
           <p className="font-body text-sm mt-3" style={{ color: COLORS.stone }}>장바구니가 비어 있어요</p>
           <button onClick={() => setCurrentPage('market')}
             className="mt-4 font-heading text-xs px-5 py-2.5 rounded-full"
-            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255,92,31,0.35)' }}>
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255,69,0,0.35)' }}>
             재료샵 둘러보기
           </button>
         </div>
@@ -5251,7 +5243,7 @@ export function CartPage({ user, setCurrentPage }) {
           <button onClick={goCheckout}
             disabled={validItems.length === 0}
             className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,92,31,0.5)' }}>
+            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,69,0,0.5)' }}>
             <ShoppingCart size={16} strokeWidth={2.5} />
             ₩{formatPrice(total)} 전체 결제하기
           </button>
@@ -5583,7 +5575,7 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
         {/* 결제 버튼 */}
         <button onClick={handlePayment} disabled={loading}
           className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-60"
-          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)' }}>
+          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255, 69, 0, 0.5)' }}>
           {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} strokeWidth={2.5} />}
           {loading ? '결제창 호출 중...' : `₩${formatPrice(total)} 결제하기`}
         </button>
@@ -5679,7 +5671,7 @@ export function OnboardingScreen({ user, setCurrentPage }) {
               style={{
                 width: `${progress}%`,
                 background: COLORS.primary,
-                boxShadow: '0 0 12px rgba(255, 92, 31, 0.5)'
+                boxShadow: '0 0 12px rgba(255, 69, 0, 0.5)'
               }}></div>
           </div>
         </div>
@@ -5693,14 +5685,14 @@ export function OnboardingScreen({ user, setCurrentPage }) {
                 disabled={m.done}
                 className="w-full rounded-2xl p-4 text-left flex items-center gap-3 transition-transform active:scale-[0.98] disabled:active:scale-100"
                 style={{
-                  background: m.done ? 'rgba(255,92,31,0.08)' : COLORS.card,
+                  background: m.done ? 'rgba(255,69,0,0.08)' : COLORS.card,
                   border: `1px solid ${m.done ? COLORS.primary : COLORS.light}`,
                   opacity: m.done ? 0.7 : 1
                 }}>
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                   style={{
-                    background: m.done ? COLORS.primary : 'rgba(255,92,31,0.1)',
-                    border: m.done ? 'none' : `1px solid rgba(255,92,31,0.25)`
+                    background: m.done ? COLORS.primary : 'rgba(255,69,0,0.1)',
+                    border: m.done ? 'none' : `1px solid rgba(255,69,0,0.25)`
                   }}>
                   {m.done 
                     ? <Check size={20} style={{ color: COLORS.white }} strokeWidth={3} /> 
@@ -5739,7 +5731,7 @@ export function OnboardingScreen({ user, setCurrentPage }) {
             style={{ 
               background: COLORS.primary, 
               color: COLORS.white,
-              boxShadow: '0 0 24px rgba(255, 92, 31, 0.5)'
+              boxShadow: '0 0 24px rgba(255, 69, 0, 0.5)'
             }}>
             HSSUP 시작하기!
           </button>
@@ -5817,7 +5809,7 @@ export function ImprovementsPage({ user }) {
             <button onClick={() => setIsAnonymous(!isAnonymous)}
               className="w-full mt-3 rounded-xl p-3 flex items-center gap-2 transition-all"
               style={{ 
-                background: isAnonymous ? 'rgba(255,92,31,0.1)' : COLORS.cardElev,
+                background: isAnonymous ? 'rgba(255,69,0,0.1)' : COLORS.cardElev,
                 border: `1px solid ${isAnonymous ? COLORS.primary : COLORS.light}` 
               }}>
               <div className="w-5 h-5 rounded border-2 flex items-center justify-center"
@@ -5941,7 +5933,7 @@ export function TipsPage({ user, setCurrentPage, setSelectedTip }) {
                 background: filter === cat ? COLORS.primary : COLORS.card,
                 color: filter === cat ? COLORS.white : COLORS.ink,
                 border: `1px solid ${filter === cat ? COLORS.primary : COLORS.light}`,
-                boxShadow: filter === cat ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
+                boxShadow: filter === cat ? '0 0 16px rgba(255, 69, 0, 0.3)' : 'none'
               }}>
               {cat}
             </button>
@@ -6534,7 +6526,7 @@ export function PracticeBookingPage({ user, setCurrentPage }) {
                         ) : (
                           <button onClick={() => book(s)} disabled={actionLoading === s.id || isPast}
                             className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1 shrink-0 disabled:opacity-50"
-                            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,92,31,0.35)' }}>
+                            style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,69,0,0.35)' }}>
                             {actionLoading === s.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={2.5} />}
                             신청하기
                           </button>
@@ -6730,7 +6722,7 @@ function PersonalPracticeBooking({ user, reloadKey, onChanged, onCancel, actionL
                     ) : (
                       <button onClick={() => book(p)} disabled={!!booking}
                         className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1 shrink-0 disabled:opacity-50"
-                        style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,92,31,0.35)' }}>
+                        style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,69,0,0.35)' }}>
                         {booking === p.start ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={2.5} />}
                         신청하기
                       </button>
