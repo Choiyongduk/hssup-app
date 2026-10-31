@@ -1917,6 +1917,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
   const [trackingCompany, setTrackingCompany] = useState('');
   const [shipping, setShipping] = useState(false);
   const [cancelProcessing, setCancelProcessing] = useState(null);  // order_id 저장
+  const [switchOrder, setSwitchOrder] = useState(null);  // 샵 수령 → 배송으로 바꿀 주문
 
   const isRealAdmin = user?.role === 'admin';
   const orderLines = useOrderLines(orders);
@@ -2069,6 +2070,19 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
     if (!data || data.length === 0) { toast('수령 처리가 적용되지 않았어요. orders 테이블 권한을 확인해 주세요.'); return; }
     await loadOrders();
     toast('수령 완료로 처리했습니다');
+  };
+
+  // 결제 후 받는 방법 바꾸기 (구매자가 연락해 온 경우)
+  //   배송 → 샵 수령: 적어 둔 주소는 남겨 둔다 (다시 배송으로 바꿀 때 그대로 쓰도록)
+  //   샵 수령 → 배송: 주소를 받아야 해서 입력 화면을 띄운다
+  const switchToPickup = async (order) => {
+    if (!await confirmDialog(`이 주문을 샵에서 받아 가기로 바꿀까요?\n바꾸면 '샵 수령 대기'로 옮겨집니다.`)) return;
+    const { data, error } = await supabase.from('orders').update({ fulfillment: 'pickup' })
+      .eq('order_id', order.order_id).eq('shipping_status', 'pending').select();
+    if (error) { toast('바꾸지 못했습니다: ' + error.message); return; }
+    if (!data || data.length === 0) { toast('바꾸지 못했습니다. 이미 처리된 주문인지 확인해 주세요.'); return; }
+    await loadOrders();
+    toast('샵 수령으로 바꿨습니다');
   };
 
   const formatPrice = (n) => '₩' + Number(n || 0).toLocaleString('ko-KR');
@@ -2278,6 +2292,13 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                       <Package size={14} strokeWidth={2.5} />발송 처리하기
                     </button>
                   )}
+                  {o.shipping_status === 'pending' && (
+                    <button onClick={() => isPickup ? setSwitchOrder(o) : switchToPickup(o)}
+                      className="w-full mt-2 rounded-full py-2.5 font-heading text-xs flex items-center justify-center gap-2"
+                      style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>
+                      {isPickup ? <><Truck size={13} />배송으로 바꾸기</> : <><ShoppingBag size={13} />샵 수령으로 바꾸기</>}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -2396,7 +2417,172 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
         </div>,
         document.body
       )}
+
+      {switchOrder && (
+        <SwitchToDeliveryModal order={switchOrder} onClose={() => setSwitchOrder(null)}
+          onDone={async () => { setSwitchOrder(null); await loadOrders(); toast('배송으로 바꿨습니다. 배송 대기에서 발송 처리해 주세요.'); }} />
+      )}
     </>
+  );
+}
+
+// 샵 수령 → 배송: 주소를 받아서 바꾼다.
+//   주문에 남은 주소가 있으면 그걸, 없으면 구매자의 기본 배송지를 먼저 채워 둔다.
+function SwitchToDeliveryModal({ order, onClose, onDone }) {
+  const [form, setForm] = useState({
+    name: order.shipping_recipient_name || order.buyer_name || '',
+    phone: order.shipping_recipient_phone || order.buyer_phone || '',
+    postal: order.shipping_postal_code || '',
+    addr: order.shipping_address || '',
+    detail: order.shipping_address_detail || '',
+    memo: order.shipping_memo || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [postcodeOpen, setPostcodeOpen] = useState(false);
+  const postcodeRef = React.useRef(null);
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  useEffect(() => {
+    if (order.shipping_address || !order.user_id) return;
+    supabase.from('profiles').select('ship_name,ship_phone,ship_postal,ship_addr,ship_addr_detail')
+      .eq('id', order.user_id).maybeSingle()
+      .then(({ data }) => {
+        if (!data?.ship_addr) return;
+        setForm(f => f.addr ? f : {
+          ...f, name: data.ship_name || f.name, phone: data.ship_phone || f.phone,
+          postal: data.ship_postal || '', addr: data.ship_addr, detail: data.ship_addr_detail || '',
+        });
+      }, () => {});
+  }, [order]);
+
+  // 우편번호 검색은 결제 화면과 같은 방식 (embed, history 충돌 피하기)
+  const openPostcode = async () => {
+    try {
+      if (typeof window.daum === 'undefined' || !window.daum.Postcode) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('우편번호 API 로드 실패'));
+          document.head.appendChild(script);
+        });
+      }
+      setPostcodeOpen(true);
+    } catch {
+      toast('주소 검색을 열지 못했습니다. 다시 시도해 주세요.');
+    }
+  };
+  useEffect(() => {
+    if (!postcodeOpen) return;
+    let cancelled = false;
+    let tries = 0;
+    const tryEmbed = () => {
+      if (cancelled) return;
+      if (!postcodeRef.current || typeof window.daum === 'undefined' || !window.daum.Postcode) {
+        if (tries++ < 40) setTimeout(tryEmbed, 50);
+        return;
+      }
+      postcodeRef.current.innerHTML = '';
+      new window.daum.Postcode({
+        width: '100%', height: '100%',
+        oncomplete: (d) => {
+          setForm(f => ({ ...f, postal: d.zonecode, addr: d.roadAddress || d.jibunAddress }));
+          setPostcodeOpen(false);
+        },
+      }).embed(postcodeRef.current);
+    };
+    tryEmbed();
+    return () => { cancelled = true; };
+  }, [postcodeOpen]);
+
+  const save = async () => {
+    if (!form.name.trim() || !form.phone.trim()) { toast('받는 분 이름과 연락처를 입력해 주세요.'); return; }
+    if (!form.addr) { toast('주소 검색으로 주소를 넣어 주세요.'); return; }
+    if (!form.detail.trim()) { toast('상세 주소를 입력해 주세요. (동/호수 등)'); return; }
+    setSaving(true);
+    const { data, error } = await supabase.from('orders').update({
+      fulfillment: 'delivery',
+      shipping_recipient_name: form.name.trim(),
+      shipping_recipient_phone: form.phone.trim(),
+      shipping_postal_code: form.postal || null,
+      shipping_address: form.addr,
+      shipping_address_detail: form.detail.trim(),
+      shipping_memo: form.memo.trim() || null,
+    }).eq('order_id', order.order_id).eq('shipping_status', 'pending').select();
+    setSaving(false);
+    if (error) { toast('바꾸지 못했습니다: ' + error.message); return; }
+    if (!data || data.length === 0) { toast('바꾸지 못했습니다. 이미 처리된 주문인지 확인해 주세요.'); return; }
+    onDone();
+  };
+
+  const inputStyle = { background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` };
+  const label = (t) => <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>{t}</label>;
+
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, background: COLORS.cream, zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
+      <div style={{
+        flexShrink: 0, padding: '12px 16px', paddingTop: 'max(12px, env(safe-area-inset-top))',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        borderBottom: `1px solid ${COLORS.light}`, background: COLORS.card
+      }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: COLORS.ink, margin: 0, fontFamily: 'Pretendard, sans-serif' }}>배송으로 바꾸기</h3>
+        <button onClick={onClose}
+          style={{ width: 36, height: 36, border: 'none', background: 'transparent', color: COLORS.stone, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <X size={20} />
+        </button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        <div className="rounded-lg p-3 mb-4" style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.light}` }}>
+          <p className="font-body text-xs" style={{ color: COLORS.ink }}>{order.course_title}</p>
+          <p className="font-body text-[11px] mt-1" style={{ color: COLORS.stone }}>구매자에게 받은 배송지를 입력해 주세요. 저장하면 '배송 대기'로 옮겨집니다.</p>
+        </div>
+        <div className="space-y-3">
+          <div>{label('받는 분 *')}
+            <input value={form.name} onChange={set('name')} className="w-full font-body text-sm p-3 mt-1 outline-none rounded" style={inputStyle} /></div>
+          <div>{label('연락처 *')}
+            <input value={form.phone} onChange={set('phone')} inputMode="tel" className="w-full font-body text-sm p-3 mt-1 outline-none rounded" style={inputStyle} /></div>
+          <div>{label('주소 *')}
+            <div className="flex gap-2 mt-1">
+              <input value={form.addr ? `${form.postal ? `(${form.postal}) ` : ''}${form.addr}` : ''} readOnly onClick={openPostcode}
+                placeholder="주소 검색을 눌러 주세요" className="flex-1 min-w-0 font-body text-sm p-3 outline-none rounded" style={inputStyle} />
+              <button onClick={openPostcode} className="shrink-0 px-4 rounded font-heading text-xs"
+                style={{ background: COLORS.primary, color: COLORS.white }}>주소 검색</button>
+            </div></div>
+          <div>{label('상세 주소 *')}
+            <input value={form.detail} onChange={set('detail')} placeholder="동/호수 등" className="w-full font-body text-sm p-3 mt-1 outline-none rounded" style={inputStyle} /></div>
+          <div>{label('배송 메모 (선택)')}
+            <input value={form.memo} onChange={set('memo')} className="w-full font-body text-sm p-3 mt-1 outline-none rounded" style={inputStyle} /></div>
+        </div>
+      </div>
+
+      <div style={{
+        flexShrink: 0, padding: 16, paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+        borderTop: `1px solid ${COLORS.light}`, background: COLORS.card, display: 'flex', gap: 8
+      }}>
+        <button onClick={onClose} disabled={saving} className="flex-1 rounded-full py-3 font-heading text-sm"
+          style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>취소</button>
+        <button onClick={save} disabled={saving} className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
+          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}배송으로 바꾸기
+        </button>
+      </div>
+
+      {postcodeOpen && (
+        <div style={{ position: 'absolute', inset: 0, background: '#fff', display: 'flex', flexDirection: 'column' }}>
+          <div style={{
+            flexShrink: 0, padding: '12px 16px', paddingTop: 'max(12px, env(safe-area-inset-top))',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e5e5e5'
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>주소 검색</h3>
+            <button onClick={() => setPostcodeOpen(false)}
+              style={{ width: 36, height: 36, border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, color: '#000', cursor: 'pointer' }}>×</button>
+          </div>
+          <div ref={postcodeRef} style={{ flex: 1, width: '100%', overflow: 'auto' }} />
+        </div>
+      )}
+    </div>,
+    document.body
   );
 }
 

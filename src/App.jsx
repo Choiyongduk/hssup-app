@@ -107,6 +107,8 @@ export default function HSSUPApp() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const profileIdRef = useRef(null);  // 인증 이벤트 콜백(처음 한 번 등록)에서 지금 프로필을 알기 위해
+  profileIdRef.current = profile?.id ?? null;
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   // 🔑 비밀번호 찾기로 들어온 상태 (메일 링크 ?reset=true 또는 인증번호 확인) → 새 비밀번호 화면을 먼저 띄움
   const [recovering, setRecovering] = useState(() => new URLSearchParams(window.location.search).get('reset') === 'true');
@@ -261,6 +263,9 @@ export default function HSSUPApp() {
       if (event === 'PASSWORD_RECOVERY') setRecovering(true);
       if (event === 'SIGNED_OUT') setRecovering(false);
       setSession(session);
+      // 토큰 갱신(TOKEN_REFRESHED)은 앱을 다시 켤 때마다 온다. 같은 사람이면 프로필을 다시 읽지 않는다.
+      //   다시 읽으면 화면 전체가 로딩으로 바뀌어 쓰던 글이 날아가고, 그 순간 인터넷이 끊겨 있으면 다시 시도 화면이 뜬다.
+      if (event === 'TOKEN_REFRESHED' && session?.user?.id === profileIdRef.current) return;
       if (session) loadProfile(session.user.id);
       else { setProfile(null); setLoading(false); }
     });
