@@ -1957,8 +1957,12 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
   };
 
   // 취소 요청 승인 — nicepay-cancel Edge Function 호출
-  const approveCancel = async (order) => {
-    if (!await confirmDialog(`${order.course_title} 주문(₩${Number(order.amount).toLocaleString()})의 취소를 승인하시겠습니까?\n\n나이스페이 결제 취소 API가 호출되어 즉시 환불 처리됩니다.`)) return;
+  //   direct: 취소 요청 없이 원장님이 바로 취소 (테스트 주문, 전화로 받은 취소 등)
+  const approveCancel = async (order, { direct = false } = {}) => {
+    const question = direct
+      ? `${order.course_title} 주문(₩${Number(order.amount).toLocaleString()})의 결제를 취소하시겠습니까?\n\n구매자 카드로 바로 환불되고 되돌릴 수 없습니다.`
+      : `${order.course_title} 주문(₩${Number(order.amount).toLocaleString()})의 취소를 승인하시겠습니까?\n\n나이스페이 결제 취소 API가 호출되어 즉시 환불 처리됩니다.`;
+    if (!await confirmDialog(question, direct ? { confirmText: '결제 취소', cancelText: '닫기' } : undefined)) return;
     setCancelProcessing(order.order_id);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1976,7 +1980,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
         },
         body: JSON.stringify({
           orderId: order.order_id,
-          reason: order.cancel_reason_user || '고객 요청',
+          reason: direct ? '운영자 취소' : (order.cancel_reason_user || '고객 요청'),
         }),
       });
       const result = resp.ok ? await resp.json().catch(() => ({})) : await resp.json().catch(() => ({}));
@@ -2327,6 +2331,16 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {/* 원장님 직접 결제 취소 (취소 요청이 없는 주문) */}
+              {isRealAdmin && o.cancel_status !== 'requested' && (
+                <button onClick={() => approveCancel(o, { direct: true })} disabled={cancelProcessing === o.order_id}
+                  className="w-full mt-2 rounded-full py-2.5 font-heading text-xs flex items-center justify-center gap-1.5"
+                  style={{ background: 'transparent', color: COLORS.stone, border: `1px dashed ${COLORS.light}` }}>
+                  {cancelProcessing === o.order_id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                  결제 취소 (환불)
+                </button>
               )}
 
               {/* 취소 거절됨 표시 */}
