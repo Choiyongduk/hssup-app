@@ -802,11 +802,11 @@ export default function HSSUPApp() {
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s ease-out; }
-        .glow-text { text-shadow: 0 0 12px rgba(255, 92, 31, 0.75), 0 0 28px rgba(255, 92, 31, 0.3); }
-        .glow-primary { box-shadow: 0 0 24px rgba(255, 92, 31, 0.4), 0 0 6px rgba(255, 92, 31, 0.6); }
-        .glow-soft { box-shadow: 0 0 32px rgba(255, 92, 31, 0.2); }
-        .glow-dot { box-shadow: 0 0 14px rgba(255, 92, 31, 0.9), 0 0 6px rgba(255, 92, 31, 1); }
-        .glow-ring { box-shadow: 0 0 0 1px rgba(255, 92, 31, 0.4), 0 0 30px rgba(255, 92, 31, 0.25); }
+        .glow-text { text-shadow: 0 0 12px rgba(255, 69, 0, 0.75), 0 0 28px rgba(255, 69, 0, 0.3); }
+        .glow-primary { box-shadow: 0 0 24px rgba(255, 69, 0, 0.4), 0 0 6px rgba(255, 69, 0, 0.6); }
+        .glow-soft { box-shadow: 0 0 32px rgba(255, 69, 0, 0.2); }
+        .glow-dot { box-shadow: 0 0 14px rgba(255, 69, 0, 0.9), 0 0 6px rgba(255, 69, 0, 1); }
+        .glow-ring { box-shadow: 0 0 0 1px rgba(255, 69, 0, 0.4), 0 0 30px rgba(255, 69, 0, 0.25); }
         @keyframes pulseGlow { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
         .pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -870,7 +870,7 @@ export default function HSSUPApp() {
                       top: `${Math.max(10, pullDistance - 40)}px`,
                       opacity: Math.min(1, pullDistance / 60),
                     }}>
-                    <div className="rounded-full p-3" style={{ background: COLORS.cardElev, boxShadow: '0 4px 16px rgba(0,0,0,0.4), 0 0 16px rgba(255, 92, 31, 0.3)' }}>
+                    <div className="rounded-full p-3" style={{ background: COLORS.cardElev, boxShadow: '0 4px 16px rgba(0,0,0,0.4), 0 0 16px rgba(255, 69, 0, 0.3)' }}>
                       <Loader2 size={20} 
                         className={refreshing ? 'animate-spin' : ''} 
                         style={{ 
@@ -996,7 +996,7 @@ function UpdateBanner({ onUpdate, onDismiss }) {
     <div className="fixed top-4 left-4 right-4 z-[200] max-w-[450px] mx-auto rounded-2xl p-4 animate-slide-down"
       style={{
         background: COLORS.primary,
-        boxShadow: '0 0 40px rgba(255, 92, 31, 0.5), 0 8px 24px rgba(0,0,0,0.3)'
+        boxShadow: '0 0 40px rgba(255, 69, 0, 0.5), 0 8px 24px rgba(0,0,0,0.3)'
       }}>
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>
@@ -1026,7 +1026,7 @@ function PendingApprovalScreen({ user, handleLogout }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center overflow-y-auto" style={{ background: COLORS.cream }}>
       <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 pulse-glow"
-        style={{ background: 'rgba(255,92,31,0.15)', border: `2px solid ${COLORS.primary}` }}>
+        style={{ background: 'rgba(255,69,0,0.15)', border: `2px solid ${COLORS.primary}` }}>
         <Clock size={32} style={{ color: COLORS.primary }} />
       </div>
       
@@ -1248,7 +1248,7 @@ function IOSInstallGuide({ onClose }) {
 function LoadingScreen() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center" style={{ background: COLORS.cream }}>
-      <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '40px', filter: 'invert(1) drop-shadow(0 0 16px rgba(255, 92, 31, 0.35))' }} />
+      <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '40px', filter: 'invert(1) drop-shadow(0 0 16px rgba(255, 69, 0, 0.35))' }} />
       <Loader2 size={20} className="animate-spin mt-8" style={{ color: COLORS.primary }} />
     </div>
   );
@@ -1297,7 +1297,7 @@ function ResetPasswordScreen({ onFinish }) {
         {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
         <button onClick={handleSave} disabled={saving}
           className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-          style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5)' }}>
+          style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 69, 0, 0.5)' }}>
           <span className="flex items-center gap-2">{saving && <Loader2 size={14} className="animate-spin" />}비밀번호 변경하기</span>
           <Lock size={18} />
         </button>
@@ -1490,30 +1490,15 @@ function AuthScreen() {
  
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="relative h-[45%] flex flex-col justify-end p-7 overflow-hidden" style={{ background: COLORS.cream }}>
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div className="w-[120%] h-[120%] rounded-full"
-            style={{
-              background: `radial-gradient(circle at 70% 50%, rgba(255,92,31,0.45) 0%, rgba(255,92,31,0.12) 30%, transparent 60%)`,
-              filter: 'blur(20px)'
-            }}></div>
-        </div>
-        <div className="absolute top-12 right-0 opacity-30">
-          <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
-            <circle cx="100" cy="100" r="98" stroke={COLORS.primary} strokeWidth="0.5" />
-            <circle cx="100" cy="100" r="70" stroke={COLORS.primary} strokeWidth="0.5" />
-            <circle cx="100" cy="100" r="42" stroke={COLORS.primary} strokeWidth="0.5" />
-          </svg>
-        </div>
-        <div className="absolute top-1/3 left-0 right-0 h-px opacity-40"
-          style={{ background: `linear-gradient(90deg, transparent 0%, ${COLORS.primary} 50%, transparent 100%)` }}></div>
-
-        <div className="relative" style={{ color: COLORS.ink }}>
-          <p className="font-body text-[10px] font-semibold tracking-[0.3em] uppercase" style={{ color: COLORS.primary }}>Beauty Academy</p>
-          <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '60px', marginTop: '12px', filter: 'invert(1) drop-shadow(0 0 24px rgba(255, 92, 31, 0.4))' }} />
+      {/* 배경은 랜딩페이지와 같은 주황 유리 이미지 */}
+      <div className="relative h-[45%] flex flex-col justify-end p-7 overflow-hidden"
+        style={{ backgroundColor: COLORS.primary, backgroundImage: 'url(/brand/bg-main.jpg)', backgroundSize: 'cover', backgroundPosition: 'center 20%' }}>
+        <div className="relative" style={{ color: COLORS.white }}>
+          <p className="font-body text-[10px] font-semibold tracking-[0.3em] uppercase" style={{ color: 'rgba(255,255,255,0.92)' }}>Beauty Academy</p>
+          <img src="/logo-white.png" alt="HSSUP Academy" style={{ height: '60px', marginTop: '12px' }} />
         </div>
       </div>
- 
+
       <div className="flex-1 px-7 py-6 overflow-y-auto scrollbar-hide">
         {showFindPw ? (
           <div className="space-y-4">
@@ -1540,7 +1525,7 @@ function AuthScreen() {
                 {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
                 <button onClick={handleFindPassword} disabled={loading}
                   className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5)' }}>
+                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 69, 0, 0.5)' }}>
                   <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}인증번호 받기</span>
                   <Mail size={18} />
                 </button>
@@ -1561,7 +1546,7 @@ function AuthScreen() {
                 {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
                 <button onClick={handleVerifyCode} disabled={loading}
                   className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5)' }}>
+                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 69, 0, 0.5)' }}>
                   <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}확인</span>
                   <Check size={18} />
                 </button>
@@ -1614,7 +1599,7 @@ function AuthScreen() {
                 </div>
                 {error && <p className="font-body text-xs" style={{ color: COLORS.deep }}>{error}</p>}
                 <button onClick={handleLogin} disabled={loading} className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5), 0 0 8px rgba(255, 92, 31, 0.3)' }}>
+                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 69, 0, 0.5), 0 0 8px rgba(255, 69, 0, 0.3)' }}>
                   <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Enter HSSUP</span>
                   <ArrowUpRight size={18} />
                 </button>
@@ -1687,9 +1672,9 @@ function AuthScreen() {
                     <button type="button" onClick={() => setSignupForm({ ...signupForm, is_graduate: false })}
                       className="rounded-xl p-3 transition-all text-center"
                       style={{ 
-                        background: !signupForm.is_graduate ? 'rgba(255,92,31,0.1)' : COLORS.card,
+                        background: !signupForm.is_graduate ? 'rgba(255,69,0,0.1)' : COLORS.card,
                         border: `1px solid ${!signupForm.is_graduate ? COLORS.primary : COLORS.light}`,
-                        boxShadow: !signupForm.is_graduate ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
+                        boxShadow: !signupForm.is_graduate ? '0 0 16px rgba(255, 69, 0, 0.2)' : 'none'
                       }}>
                       <p className="font-body text-xs font-semibold" style={{ color: !signupForm.is_graduate ? COLORS.primary : COLORS.ink }}>
                         신입생
@@ -1698,9 +1683,9 @@ function AuthScreen() {
                     <button type="button" onClick={() => setSignupForm({ ...signupForm, is_graduate: true })}
                       className="rounded-xl p-3 transition-all text-center"
                       style={{ 
-                        background: signupForm.is_graduate ? 'rgba(255,92,31,0.1)' : COLORS.card,
+                        background: signupForm.is_graduate ? 'rgba(255,69,0,0.1)' : COLORS.card,
                         border: `1px solid ${signupForm.is_graduate ? COLORS.primary : COLORS.light}`,
-                        boxShadow: signupForm.is_graduate ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
+                        boxShadow: signupForm.is_graduate ? '0 0 16px rgba(255, 69, 0, 0.2)' : 'none'
                       }}>
                       <p className="font-body text-xs font-semibold" style={{ color: signupForm.is_graduate ? COLORS.primary : COLORS.ink }}>
                         졸업생
@@ -1730,7 +1715,7 @@ function AuthScreen() {
                           style={{
                             background: c.gradient,
                             border: signupForm.avatar_color === key ? `2px solid ${COLORS.ink}` : '2px solid transparent',
-                            boxShadow: signupForm.avatar_color === key ? '0 0 0 2px rgba(255,92,31,0.3)' : 'none',
+                            boxShadow: signupForm.avatar_color === key ? '0 0 0 2px rgba(255,69,0,0.3)' : 'none',
                             transform: signupForm.avatar_color === key ? 'scale(0.92)' : 'scale(1)',
                             transition: 'all 0.15s ease',
                           }}
@@ -1782,7 +1767,7 @@ function AuthScreen() {
                 </div>
 
                 <button onClick={handleSignup} disabled={loading} className="w-full font-heading text-sm py-4 mt-4 flex items-center justify-between px-5 disabled:opacity-60"
-                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 92, 31, 0.5), 0 0 8px rgba(255, 92, 31, 0.3)' }}>
+                  style={{ background: COLORS.primary, color: COLORS.white, borderRadius: '999px', boxShadow: '0 0 32px rgba(255, 69, 0, 0.5), 0 0 8px rgba(255, 69, 0, 0.3)' }}>
                   <span className="flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Join HSSUP</span>
                   <ArrowUpRight size={18} />
                 </button>
@@ -1850,11 +1835,11 @@ function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, sh
         <button onClick={onLogoClick} className="flex items-center justify-self-center transition-transform active:scale-95">
           <img src="/logo-white.png" alt="HSSUP" style={{
             height: '24px',
-            filter: 'invert(1) drop-shadow(0 0 6px rgba(255, 92, 31, 0.25))',
+            filter: 'invert(1) drop-shadow(0 0 6px rgba(255, 69, 0, 0.25))',
           }} />
           {isAdmin && (
             <span className="ml-2 font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded"
-              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,69,0,0.5)' }}>
               ADMIN
             </span>
           )}
@@ -1921,7 +1906,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
         <div className="relative p-5 pt-12 overflow-hidden" style={{ borderBottom: `1px solid ${COLORS.light}` }}>
           {/* 오렌지 라디얼 글로우 (배경 액센트) */}
           <div className="absolute top-0 left-0 right-0 h-40 pointer-events-none"
-            style={{ background: `radial-gradient(ellipse at 25% 0%, rgba(255,92,31,0.3) 0%, transparent 60%)` }}></div>
+            style={{ background: `radial-gradient(ellipse at 25% 0%, rgba(255,69,0,0.3) 0%, transparent 60%)` }}></div>
           {/* 미세한 가로선 (액센트) */}
           <div className="absolute top-8 left-5 w-8 h-px" style={{ background: COLORS.primary, opacity: 0.6 }}></div>
 
@@ -1930,7 +1915,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="font-heading text-sm">{user.name}</p>
-                {isAdmin && <span className="font-body text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>ADMIN</span>}
+                {isAdmin && <span className="font-body text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,69,0,0.5)' }}>ADMIN</span>}
               </div>
               <p className="font-body text-xs opacity-70 mt-0.5" style={{ color: COLORS.stone }}>{user.course}</p>
             </div>
@@ -1952,7 +1937,7 @@ function Drawer({ fullMenu, user, isAdmin, currentPage, setCurrentPage, onClose,
                 const isActive = currentPage === item.id;
                 return (
                   <button key={item.id} ref={isActive ? activeRef : null} onClick={() => setCurrentPage(item.id)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-body text-sm font-medium transition-transform active:scale-[0.98]"
-                    style={{ background: isActive ? COLORS.primary : 'transparent', color: isActive ? COLORS.white : COLORS.ink, boxShadow: isActive ? '0 0 12px rgba(255, 92, 31, 0.3)' : 'none' }}>
+                    style={{ background: isActive ? COLORS.primary : 'transparent', color: isActive ? COLORS.white : COLORS.ink, boxShadow: isActive ? '0 0 12px rgba(255, 69, 0, 0.3)' : 'none' }}>
                     <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
                     {item.label}
                     {newPages.includes(item.id) && (
@@ -2298,7 +2283,7 @@ function NoPermissionScreen({ setCurrentPage }) {
       </p>
       <button onClick={() => setCurrentPage('dashboard')}
         className="mt-6 font-heading text-sm px-6 py-3 rounded-full"
-        style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.4)' }}>
+        style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.4)' }}>
         대시보드로 가기
       </button>
     </div>

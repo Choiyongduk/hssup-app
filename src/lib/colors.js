@@ -2,7 +2,7 @@
 
 // 아바타 그라데이션 컬러 (반영구 시술 무드)
 export const AVATAR_COLORS = {
-  orange:  { name: '시그니처 오렌지', gradient: 'linear-gradient(135deg, #FF5C1F 0%, #FF9580 100%)' },
+  orange:  { name: '시그니처 오렌지', gradient: 'linear-gradient(135deg, #FF4500 0%, #FF9580 100%)' },
   brown:   { name: '딥 브라운',        gradient: 'linear-gradient(135deg, #5C463A 0%, #8B6F5C 100%)' },
   coral:   { name: '코랄',              gradient: 'linear-gradient(135deg, #FF7556 0%, #FFB39E 100%)' },
   mocha:   { name: '모카',              gradient: 'linear-gradient(135deg, #8B6F5C 0%, #C9B89C 100%)' },
@@ -32,10 +32,10 @@ export const maskAuthor = (author, viewer) => {
 
 export const COLORS = {
   // 시그니처 컬러
-  primary: '#FF5C1F',                        // 메인 오렌지
+  primary: '#FF4500',                        // 메인 오렌지
   deep: '#FF7A47',                           // 밝은 오렌지 (강조)
-  primaryGlow: 'rgba(255, 92, 31, 0.35)',   // 글로우 효과용
-  peach: 'rgba(255, 92, 31, 0.1)',          // 오렌지 배경
+  primaryGlow: 'rgba(255, 69, 0, 0.35)',   // 글로우 효과용
+  peach: 'rgba(255, 69, 0, 0.1)',          // 오렌지 배경
 
   // 화이트 캠페인 테마 베이스
   cream: '#FAF8F5',                          // 메인 배경

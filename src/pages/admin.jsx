@@ -419,7 +419,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </button>
 
         <button onClick={() => setCurrentPage('admin-ai')} className="rounded-3xl p-5 text-left relative overflow-hidden" style={{ background: COLORS.ink }}>
-          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full" style={{ background: 'rgba(255,92,31,0.18)' }}></div>
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full" style={{ background: 'rgba(255,69,0,0.18)' }}></div>
           <div className="relative flex flex-col h-full" style={{ color: COLORS.white }}>
             <p className="font-mono text-[9px] font-bold tracking-[0.2em] uppercase" style={{ color: COLORS.primary }}>━━ AI Office</p>
             <p className="font-display text-3xl mt-2 leading-none tracking-tighter">
@@ -458,8 +458,8 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
                         </p>
                         <div className="w-full rounded-t-lg" style={{ 
                           height: `${Math.max(heightPercent, 2)}%`,
-                          background: isCurrentMonth ? COLORS.primary : 'rgba(255, 92, 31, 0.35)',
-                          boxShadow: isCurrentMonth ? '0 0 16px rgba(255, 92, 31, 0.5)' : 'none',
+                          background: isCurrentMonth ? COLORS.primary : 'rgba(255, 69, 0, 0.35)',
+                          boxShadow: isCurrentMonth ? '0 0 16px rgba(255, 69, 0, 0.5)' : 'none',
                           transition: 'height 0.6s ease',
                           minHeight: '4px',
                         }}></div>
@@ -522,7 +522,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
           <button onClick={() => setCurrentPage('admin-approvals')} 
             className="rounded-2xl p-3 text-center transition-transform active:scale-95"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(255,92,31,0.12)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(255,69,0,0.12)' }}>
               <UserPlus size={18} style={{ color: COLORS.primary }} strokeWidth={2} />
             </div>
             <p className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{stats.newStudents}</p>
@@ -532,7 +532,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
           <button onClick={() => setCurrentPage(canViewRevenue ? 'admin-orders' : 'admin-shipments')}
             className="rounded-2xl p-3 text-center transition-transform active:scale-95"
             style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(255,92,31,0.12)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(255,69,0,0.12)' }}>
               <CreditCard size={18} style={{ color: COLORS.primary }} strokeWidth={2} />
             </div>
             <p className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>{stats.monthOrders}</p>
@@ -541,7 +541,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
           <button onClick={() => setCurrentPage('admin-qna')}
             className="rounded-2xl p-3 text-center transition-transform active:scale-95"
             style={{ background: stats.pendingQna > 0 ? COLORS.peach : COLORS.card, border: `1px solid ${stats.pendingQna > 0 ? COLORS.primary : COLORS.light}` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: stats.pendingQna > 0 ? 'rgba(255,92,31,0.2)' : 'rgba(255,92,31,0.12)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2" style={{ background: stats.pendingQna > 0 ? 'rgba(255,69,0,0.2)' : 'rgba(255,69,0,0.12)' }}>
               <MessageCircle size={18} style={{ color: COLORS.primary }} strokeWidth={2} />
             </div>
             <p className="font-display text-2xl tracking-tight" style={{ color: stats.pendingQna > 0 ? COLORS.primary : COLORS.ink }}>{stats.pendingQna}</p>
@@ -560,7 +560,7 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
               <button key={item.id} onClick={() => setCurrentPage(item.id)}
                 className="rounded-2xl p-3 flex flex-col items-center text-center transition-transform active:scale-95"
                 style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2 glow-soft" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid rgba(255,92,31,0.25)` }}>
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2 glow-soft" style={{ background: 'rgba(255,69,0,0.1)', border: `1px solid rgba(255,69,0,0.25)` }}>
                   <Icon size={19} strokeWidth={1.8} style={{ color: COLORS.primary }} />
                 </div>
                 <p className="font-heading text-xs leading-tight" style={{ color: COLORS.ink }}>{item.ko}</p>
@@ -726,7 +726,7 @@ export function AdminTrends({ user }) {
         </div>
 
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
             <Plus size={14} strokeWidth={2.5} />새 트렌드 속보
           </button>
         )}
@@ -1054,7 +1054,7 @@ export function AdminTips({ user }) {
         </div>
 
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
             <Plus size={14} strokeWidth={2.5} />새 꿀팁 공유
           </button>
         )}
@@ -1475,7 +1475,7 @@ export function AdminNotice({ user, setCurrentPage, setSelectedNotice }) {
       <PageIntro ko="학원공지 관리" en="Notice Admin" />
       <div className="px-5 space-y-3">
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
             <Plus size={14} strokeWidth={2.5} />새 공지
           </button>
         )}
@@ -1806,7 +1806,7 @@ export function AdminOrders() {
                 background: filter === f.id ? COLORS.primary : COLORS.card,
                 color: filter === f.id ? COLORS.white : COLORS.stone,
                 border: filter === f.id ? 'none' : `1px solid ${COLORS.light}`,
-                boxShadow: filter === f.id ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
+                boxShadow: filter === f.id ? '0 0 16px rgba(255, 69, 0, 0.3)' : 'none'
               }}>{f.label}</button>
           ))}
         </div>
@@ -2281,14 +2281,14 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                   {isPickup && o.shipping_status === 'pending' && (
                     <button onClick={() => handlePickedUp(o)}
                       className="w-full mt-2 rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
-                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,69,0,0.35)' }}>
                       <Check size={14} strokeWidth={2.5} />수령 완료 처리
                     </button>
                   )}
                   {!isPickup && o.shipping_status === 'pending' && (
                     <button onClick={() => openShippingModal(o)}
                       className="w-full mt-2 rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
-                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,69,0,0.35)' }}>
                       <Package size={14} strokeWidth={2.5} />발송 처리하기
                     </button>
                   )}
@@ -2321,7 +2321,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                     </button>
                     <button onClick={() => approveCancel(o)} disabled={cancelProcessing === o.order_id}
                       className="flex-1 rounded-full py-2.5 font-heading text-xs flex items-center justify-center gap-1.5"
-                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,92,31,0.4)' }}>
+                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 12px rgba(255,69,0,0.4)' }}>
                       {cancelProcessing === o.order_id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={2.5} />}
                       승인 (환불)
                     </button>
@@ -2409,7 +2409,7 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
             </button>
             <button onClick={handleShip} disabled={shipping}
               className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
-              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,69,0,0.35)' }}>
               {shipping ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}
               발송 확정
             </button>
@@ -2901,7 +2901,7 @@ function TeachingPracticeAdmin({ user }) {
               </div>
               <button onClick={() => { setSelectedPresets([]); setShowAddModal(true); }}
                 className="font-heading text-xs px-4 py-2 rounded-full inline-flex items-center gap-1.5"
-                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+                style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,69,0,0.35)' }}>
                 <Plus size={12} strokeWidth={2.5} />연습 시간 추가
               </button>
             </div>
@@ -3048,7 +3048,7 @@ function TeachingPracticeAdmin({ user }) {
             </button>
             <button onClick={addPresetSlots} disabled={adding || selectedPresets.length === 0}
               className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-40"
-              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+              style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,69,0,0.35)' }}>
               {adding && selectedPresets.length > 0 ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} strokeWidth={2.5} />}
               선택한 시간대 추가{selectedPresets.length > 0 ? ` (${selectedPresets.length})` : ''}
             </button>
@@ -3570,7 +3570,7 @@ export function AdminApprovals({ user }) {
                 <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>{selected.size}명 선택</span>
                 <button onClick={bulkApprove} disabled={bulkLoading}
                   className="font-heading text-xs px-3 py-2 rounded-full flex items-center gap-1"
-                  style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+                  style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.4)' }}>
                   {bulkLoading ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={3} />}
                   일괄 승인
                 </button>
@@ -3619,7 +3619,7 @@ export function AdminApprovals({ user }) {
                 
                 {/* 졸업생 신청 표시 */}
                 {u.is_graduate && u.status === 'pending' && (
-                  <div className="mt-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(255,92,31,0.1)', border: `1px solid ${COLORS.primary}` }}>
+                  <div className="mt-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(255,69,0,0.1)', border: `1px solid ${COLORS.primary}` }}>
                     <span className="text-base"></span>
                     <p className="font-body text-xs font-semibold" style={{ color: COLORS.primary }}>
                       졸업생이라고 신청했어요!<br/>
@@ -3630,7 +3630,7 @@ export function AdminApprovals({ user }) {
                 
                 {/* 졸업생 표시 (승인 후) */}
                 {u.is_graduate && u.status === 'approved' && (
-                  <div className="mt-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(255,92,31,0.08)' }}>
+                  <div className="mt-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(255,69,0,0.08)' }}>
                     <span className="text-sm"></span>
                     <p className="font-mono text-[10px] font-bold" style={{ color: COLORS.primary }}>졸업생</p>
                   </div>
@@ -3673,7 +3673,7 @@ export function AdminApprovals({ user }) {
                   <div className="flex gap-2">
                     <button onClick={() => approve(u.id, false)}
                       className="flex-1 font-heading text-xs py-2.5 rounded-full flex items-center justify-center gap-1"
-                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 92, 31, 0.4)' }}>
+                      style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255, 69, 0, 0.4)' }}>
                       <Check size={12} strokeWidth={3} />일반 승인
                     </button>
                     <button onClick={() => { setRejectingId(u.id); setRejectReason(''); }}
@@ -3880,7 +3880,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
           <div className="rounded-2xl p-4" style={{ 
             background: COLORS.card, 
             border: `1px solid ${student.role === 'staff' ? COLORS.primary : COLORS.light}`,
-            boxShadow: student.role === 'staff' ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
+            boxShadow: student.role === 'staff' ? '0 0 16px rgba(255, 69, 0, 0.2)' : 'none'
           }}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -3906,7 +3906,7 @@ export function AdminStudentDetail({ student, setCurrentPage, canViewRevenue }) 
                   background: student.role === 'staff' ? COLORS.cream : COLORS.primary,
                   color: student.role === 'staff' ? COLORS.deep : COLORS.white,
                   border: student.role === 'staff' ? `1px solid ${COLORS.light}` : 'none',
-                  boxShadow: student.role === 'staff' ? 'none' : '0 0 16px rgba(255, 92, 31, 0.4)'
+                  boxShadow: student.role === 'staff' ? 'none' : '0 0 16px rgba(255, 69, 0, 0.4)'
                 }}>
                 {updating ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} strokeWidth={2.5} />}
                 {student.role === 'staff' ? '해제' : '임명'}
@@ -4162,14 +4162,14 @@ export function AdminStudents({ setCurrentPage, setSelectedStudent }) {
             style={{ 
               background: COLORS.card, 
               border: `1px solid ${s.role === 'staff' ? COLORS.primary : COLORS.light}`,
-              boxShadow: s.role === 'staff' ? '0 0 16px rgba(255, 92, 31, 0.2)' : 'none'
+              boxShadow: s.role === 'staff' ? '0 0 16px rgba(255, 69, 0, 0.2)' : 'none'
             }}>
             <Avatar user={s} size="md" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{s.name}</p>
                 {s.role === 'staff' && (
-                  <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded flex items-center gap-0.5" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,92,31,0.5)' }}>
+                  <span className="font-mono text-[8px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded flex items-center gap-0.5" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 8px rgba(255,69,0,0.5)' }}>
                     <Shield size={8} strokeWidth={3} />STAFF
                   </span>
                 )}
@@ -4234,7 +4234,7 @@ export function AdminCases() {
                 background: filter === f ? COLORS.primary : COLORS.card,
                 color: filter === f ? COLORS.white : COLORS.ink,
                 border: `1px solid ${filter === f ? COLORS.primary : COLORS.light}`,
-                boxShadow: filter === f ? '0 0 16px rgba(255, 92, 31, 0.3)' : 'none'
+                boxShadow: filter === f ? '0 0 16px rgba(255, 69, 0, 0.3)' : 'none'
               }}>
               {f}
             </button>
@@ -4262,7 +4262,7 @@ export function AdminCases() {
                   <SkeletonImage src={c.image_urls[0]} alt={c.title} className="w-full h-full" />
                   <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>{c.category}</span>
                   {c.is_best && (
-                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>★ BEST</span>
+                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>★ BEST</span>
                   )}
                 </div>
               )}
@@ -4489,7 +4489,7 @@ export function AdminLectures({ user }) {
 
         {/* + 새 강의 등록 버튼 */}
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
             <Plus size={14} strokeWidth={2.5} />새 강의 등록
           </button>
         )}
@@ -4572,7 +4572,7 @@ export function AdminLectures({ user }) {
                 <div className="relative aspect-video">
                   <img src={`https://i.ytimg.com/vi/${previewId}/hqdefault.jpg`} alt="썸네일" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
-                    <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 20px rgba(255, 92, 31, 0.6)' }}>
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 20px rgba(255, 69, 0, 0.6)' }}>
                       <Play size={20} fill={COLORS.white} style={{ color: COLORS.white }} className="ml-1" />
                     </div>
                   </div>
@@ -4597,7 +4597,7 @@ export function AdminLectures({ user }) {
             </label>
 
             {/* 오리엔테이션 영상 지정 */}
-            <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: 'rgba(255,92,31,0.08)' }}>
+            <label className="flex items-center gap-2 font-body text-xs cursor-pointer p-2 rounded" style={{ color: COLORS.ink, background: 'rgba(255,69,0,0.08)' }}>
               <input type="checkbox" checked={form.is_orientation} onChange={e => setForm({...form, is_orientation: e.target.checked})}
                 className="w-4 h-4 cursor-pointer" style={{ accentColor: COLORS.primary }} />
               <span>오리엔테이션 영상으로 지정 (신규 학생 필수 시청)</span>
@@ -4854,7 +4854,7 @@ export function AdminProducts({ user }) {
 
         {/* + 새 상품 등록 버튼 */}
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
             <Plus size={14} strokeWidth={2.5} />새 상품 등록
           </button>
         )}
@@ -5198,7 +5198,7 @@ export function AdminCourses({ user }) {
         </div>
 
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
             <Plus size={14} strokeWidth={2.5} />새 클래스 등록
           </button>
         )}
@@ -5609,7 +5609,7 @@ export function AdminLibrary({ user }) {
 
         {/* 새 자료 업로드 버튼 */}
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 92, 31, 0.35)' }}>
+          <button onClick={() => setShowForm(true)} className="w-full rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 20px rgba(255, 69, 0, 0.35)' }}>
             <Plus size={14} strokeWidth={2.5} />새 자료 업로드
           </button>
         )}
@@ -5650,7 +5650,7 @@ export function AdminLibrary({ user }) {
                   onDrop={handleDrop}
                   className="mt-2 rounded-xl flex flex-col items-center justify-center cursor-pointer py-10 transition-all"
                   style={{
-                    background: dragOver ? 'rgba(255,92,31,0.1)' : COLORS.cream,
+                    background: dragOver ? 'rgba(255,69,0,0.1)' : COLORS.cream,
                     border: `2px dashed ${dragOver ? COLORS.primary : COLORS.light}`,
                     transform: dragOver ? 'scale(1.02)' : 'scale(1)',
                   }}>
@@ -6550,7 +6550,7 @@ function ApprovalCard({ row, onDecide, onSaveBody, onRevised, defaultOpen = fals
       <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
         {/* 접힌 상태에서도 시안이 보여야 한다. 아이콘만 있으면 열어보기 전엔 뭔지 모른다. */}
         <div className="w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center shrink-0 relative"
-          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+          style={{ background: COLORS.peach, border: `1px solid rgba(255,69,0,0.25)` }}>
           {media.length === 0 ? (
             <Camera size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
           ) : isVideoUrl(media[0]) ? (
@@ -6868,7 +6868,7 @@ function StaffRoster({ data, onPick, now }) {
     <div>
       <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+          style={{ background: COLORS.peach, border: `1px solid rgba(255,69,0,0.25)` }}>
           <Users size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
         </div>
         <div className="flex-1 min-w-0">
@@ -7065,7 +7065,7 @@ async function copyChatGptPrompt(channel) {
 - 한글은 맞춤법 그대로, 글자가 깨지거나 뭉개지지 않게
 
 [히썹 브랜드]
-- 메인 색은 주황 #FF5C1F, 나머지는 검정과 흰색, 베이지 위주
+- 메인 색은 주황 #FF4500, 나머지는 검정과 흰색, 베이지 위주
 - 굵고 깔끔한 고딕체
 - 로고 자리에 "HSSUP ACADEMY" 문구
 - 깔끔하고 고급스럽게, 과한 장식 없이
@@ -7556,7 +7556,7 @@ function MediaUpload({ userId, approvals = [], row = false, bare = false, onOpen
       {!bare && (
         <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+            style={{ background: COLORS.peach, border: `1px solid rgba(255,69,0,0.25)` }}>
             <Upload size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
           </div>
           <div className="flex-1 min-w-0">
@@ -7833,7 +7833,7 @@ function ContentRequest({ userId, row = false, bare = false }) {
       {!bare && (
         <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+            style={{ background: COLORS.peach, border: `1px solid rgba(255,69,0,0.25)` }}>
             <Plus size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
           </div>
           <div className="flex-1 min-w-0">
@@ -7965,7 +7965,7 @@ function BusinessContext({ userId, row = false, bare = false }) {
       {!bare && (
         <button onClick={() => setOpen(v => !v)} className="w-full p-4 flex items-center gap-3 text-left">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+            style={{ background: COLORS.peach, border: `1px solid rgba(255,69,0,0.25)` }}>
             <FileText size={16} strokeWidth={1.8} style={{ color: COLORS.primary }} />
           </div>
           <div className="flex-1 min-w-0">
@@ -8502,7 +8502,7 @@ export function AdminAIOffice({ user }) {
                   <button onClick={() => toggleReport(r.id)}
                     className="w-full p-4 flex items-center gap-3 text-left">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: COLORS.peach, border: `1px solid rgba(255,92,31,0.25)` }}>
+                      style={{ background: COLORS.peach, border: `1px solid rgba(255,69,0,0.25)` }}>
                       <Icon size={17} strokeWidth={1.8} style={{ color: COLORS.primary }} />
                     </div>
                     <div className="flex-1 min-w-0">

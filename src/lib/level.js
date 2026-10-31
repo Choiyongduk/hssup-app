@@ -28,7 +28,7 @@ export const TIERS = {
     benefits: ['전체 기능 이용 가능', '공지사항 · 트렌드 · 수업 꿀팁 · Q&A · 자료실 · 연습베드 예약 · 온라인 강의 · 재료샵 · 게시판'],
   },
   crew: {
-    key: 'crew', label: 'CREW', color: '#FF5C1F',
+    key: 'crew', label: 'CREW', color: '#FF4500',
     tagline: '수강 후기 인증 회원',
     conditions: ['가입 인사 작성', '수강 후기 작성 1회'],
     benefits: ['활동 인증 배지 (이용 가능한 기능은 모든 등급이 동일해요)'],
