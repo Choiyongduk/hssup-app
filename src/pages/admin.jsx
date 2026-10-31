@@ -2563,7 +2563,7 @@ function SwitchToDeliveryModal({ order, onClose, onDone }) {
         <button onClick={onClose} disabled={saving} className="flex-1 rounded-full py-3 font-heading text-sm"
           style={{ background: COLORS.cardElev, color: COLORS.stone, border: `1px solid ${COLORS.light}` }}>취소</button>
         <button onClick={save} disabled={saving} className="flex-1 rounded-full py-3 font-heading text-sm flex items-center justify-center gap-2"
-          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,92,31,0.35)' }}>
+          style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,69,0,0.35)' }}>
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}배송으로 바꾸기
         </button>
       </div>
