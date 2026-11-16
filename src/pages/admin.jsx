@@ -6460,10 +6460,24 @@ const staffOf = (key) => CHAT_STAFF[key] || CHAT_STAFF.editor;
 // 게시용 원본과 섞이지 않게 content-media 버킷의 chat/ 아래에 둔다.
 const CHAT_PHOTO_MAX = 5;
 const CHAT_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const CHAT_VIDEO_MAX_MB = 50;
 
 async function uploadChatPhotos(files) {
   const urls = [];
   for (const picked of files) {
+    // 참고 영상(콘텐츠 요청) — 압축하지 않고 그대로 올린다. 담당자가 장면 사진을 뽑아서 본다.
+    if (picked.type.startsWith('video/')) {
+      if (picked.size > CHAT_VIDEO_MAX_MB * 1024 * 1024) {
+        throw new Error(`영상은 ${CHAT_VIDEO_MAX_MB}MB까지 올릴 수 있습니다. 앞부분 30초 정도로 잘라서 보내주세요`);
+      }
+      const vext = (picked.name.split('.').pop() || 'mp4').toLowerCase();
+      const vpath = `chat/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${vext}`;
+      const { error: vErr } = await supabase.storage.from(UPLOAD_BUCKET)
+        .upload(vpath, picked, { contentType: picked.type, upsert: false });
+      if (vErr) throw vErr;
+      urls.push(supabase.storage.from(UPLOAD_BUCKET).getPublicUrl(vpath).data.publicUrl);
+      continue;
+    }
     let file = picked;
     try {
       file = await compressImage(picked, 1440, 0.85);
@@ -6508,12 +6522,13 @@ function useChatPhotos() {
   return { files, previews, add, remove, clear };
 }
 
-function AttachButton({ photos, disabled }) {
+// allowVideo: 콘텐츠 요청처럼 참고 영상(따라 하고 싶은 릴스)을 받을 수 있는 곳
+function AttachButton({ photos, disabled, allowVideo = false }) {
   return (
-    <label aria-label="사진 붙이기"
+    <label aria-label={allowVideo ? '사진, 영상 붙이기' : '사진 붙이기'}
       className={`px-3 rounded-xl shrink-0 flex items-center justify-center cursor-pointer ${disabled ? 'opacity-40 pointer-events-none' : ''}`}
       style={{ background: COLORS.card, color: COLORS.stone, border: `1px solid ${COLORS.light}`, minHeight: 44 }}>
-      <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" multiple className="hidden"
+      <input type="file" accept={allowVideo ? 'image/*,video/*,.heic,.heif,.HEIC,.HEIF' : 'image/*,.heic,.heif,.HEIC,.HEIF'} multiple className="hidden"
         onChange={e => {
           photos.add([...(e.target.files || [])]);
           e.target.value = '';  // 같은 사진을 다시 골라도 반응하게
@@ -6530,7 +6545,9 @@ function AttachPreview({ photos }) {
     <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1">
       {photos.previews.map((src, i) => (
         <div key={src} className="relative shrink-0">
-          <img src={src} alt="" className="w-14 h-14 rounded-lg object-cover" />
+          {photos.files[i]?.type?.startsWith('video/')
+            ? <video src={src} muted playsInline className="w-14 h-14 rounded-lg object-cover" style={{ background: COLORS.ink }} />
+            : <img src={src} alt="" className="w-14 h-14 rounded-lg object-cover" />}
           <button onClick={() => photos.remove(i)} aria-label={`${i + 1}번째 사진 빼기`}
             className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
             style={{ background: COLORS.ink, color: COLORS.card }}>
@@ -8081,7 +8098,7 @@ function ContentRequest({ userId, row = false, bare = false }) {
 
           <AttachPreview photos={photos} />
           <div className="flex gap-2 mt-2">
-            <AttachButton photos={photos} disabled={busy} />
+            <AttachButton photos={photos} disabled={busy} allowVideo />
             {[['now', '지금 만들기'], ['weekly', '월요일 기획에']].map(([key, label]) => (
               <button key={key} onClick={() => setUrgency(key)}
                 className="px-3 rounded-xl font-heading text-xs"
@@ -8100,7 +8117,7 @@ function ContentRequest({ userId, row = false, bare = false }) {
 
           <p className="font-body text-[11px] mt-3" style={{ color: COLORS.muted }}>
             지금 만들기는 몇 분 안에 기획안이 올라옵니다. 월요일 기획에는 주간 기획안에 함께 반영됩니다.
-            📎 로 "이런 느낌으로" 참고 사진을 붙일 수 있어요.
+            📎 로 "이런 느낌으로" 참고 사진이나 따라 하고 싶은 릴스 영상을 붙일 수 있어요. 영상을 붙이면 장면별 촬영 순서를 짜 드려요.
           </p>
         </div>
       )}
