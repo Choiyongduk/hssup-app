@@ -65,11 +65,45 @@ import {
   MultiImageField, ImageCarousel, LegalPage, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, ToastHost, ConfirmHost,
 } from './components/common';
 import { useLevel } from './lib/level';
-import {
-  HomePage, NoticeDetailPage, NoticePage, CoursePage, CourseDetailPage, BestCasePage, MyCasePage, QnaDetailPage, TrendsPage, TrendDetailPage, QnaPage, LibraryPage, LibraryDetailPage, MarketPage, OnlineLecturePage, LectureDetailPage, PostDetailPage, ProductDetailPage, PaymentPage, PaymentSuccessPage, PaymentFailPage, CommunityPage, MyActivityPage, MyPage, MyProfileEditPage, MyOrdersPage, MyPracticeBookingsPage, CartPage, CartCheckoutPage, OnboardingScreen, ImprovementsPage, TipsPage, TipDetailPage, PracticeBookingPage,
-} from './pages/student';
-import { MedicalWastePage, AdminWasteShops } from './pages/medicalWaste';
-import { NotificationsPage } from './pages/notifications';
+import { HomePage } from './pages/home';
+// 🚀 홈을 뺀 수강생 화면은 따로 받는다 — 앱을 열면 홈만 먼저 그리고, 나머지 화면 파일은 그 사이 뒤에서 받아 둔다
+const lazyStudent = (name) => lazy(() => import('./pages/student').then(m => ({ default: m[name] })));
+const NoticeDetailPage = lazyStudent('NoticeDetailPage');
+const NoticePage = lazyStudent('NoticePage');
+const CoursePage = lazyStudent('CoursePage');
+const CourseDetailPage = lazyStudent('CourseDetailPage');
+const BestCasePage = lazyStudent('BestCasePage');
+const MyCasePage = lazyStudent('MyCasePage');
+const QnaDetailPage = lazyStudent('QnaDetailPage');
+const TrendsPage = lazyStudent('TrendsPage');
+const TrendDetailPage = lazyStudent('TrendDetailPage');
+const QnaPage = lazyStudent('QnaPage');
+const LibraryPage = lazyStudent('LibraryPage');
+const LibraryDetailPage = lazyStudent('LibraryDetailPage');
+const MarketPage = lazyStudent('MarketPage');
+const OnlineLecturePage = lazyStudent('OnlineLecturePage');
+const LectureDetailPage = lazyStudent('LectureDetailPage');
+const PostDetailPage = lazyStudent('PostDetailPage');
+const ProductDetailPage = lazyStudent('ProductDetailPage');
+const PaymentPage = lazyStudent('PaymentPage');
+const PaymentSuccessPage = lazyStudent('PaymentSuccessPage');
+const PaymentFailPage = lazyStudent('PaymentFailPage');
+const CommunityPage = lazyStudent('CommunityPage');
+const MyActivityPage = lazyStudent('MyActivityPage');
+const MyPage = lazyStudent('MyPage');
+const MyProfileEditPage = lazyStudent('MyProfileEditPage');
+const MyOrdersPage = lazyStudent('MyOrdersPage');
+const MyPracticeBookingsPage = lazyStudent('MyPracticeBookingsPage');
+const CartPage = lazyStudent('CartPage');
+const CartCheckoutPage = lazyStudent('CartCheckoutPage');
+const OnboardingScreen = lazyStudent('OnboardingScreen');
+const ImprovementsPage = lazyStudent('ImprovementsPage');
+const TipsPage = lazyStudent('TipsPage');
+const TipDetailPage = lazyStudent('TipDetailPage');
+const PracticeBookingPage = lazyStudent('PracticeBookingPage');
+const MedicalWastePage = lazy(() => import('./pages/medicalWaste').then(m => ({ default: m.MedicalWastePage })));
+const AdminWasteShops = lazy(() => import('./pages/medicalWaste').then(m => ({ default: m.AdminWasteShops })));
+const NotificationsPage = lazy(() => import('./pages/notifications').then(m => ({ default: m.NotificationsPage })));
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useUnreadCount, useCartCount, resolveAppUrl } from './lib/inbox';
 // 🚀 admin 페이지는 코드 스플리팅 — 운영진이 admin 화면에 진입할 때만 별도 청크를 로드합니다.
@@ -606,6 +640,16 @@ export default function HSSUPApp() {
   const studentId = isAdmin ? null : profile?.id;
   const level = useLevel(studentId, { mark: true });
 
+  // 🚀 로그인되면 홈을 그린 뒤 다른 화면 파일을 미리 받아 둔다 (메뉴를 눌렀을 때 기다리지 않게)
+  useEffect(() => {
+    if (!profile?.id) return;
+    const t = setTimeout(() => {
+      import('./pages/student').catch(() => {});
+      if (isAdmin) import('./pages/admin').catch(() => {});
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [profile?.id, isAdmin]);
+
   // 🔔🛒 윗줄 아이콘 숫자 — 안 읽은 알림, 장바구니에 담긴 상품 (화면을 옮길 때마다 다시 센다)
   const inbox = useUnreadCount(profile?.id, currentPage);
   const cartCount = useCartCount(profile?.id, currentPage);
@@ -851,7 +895,9 @@ export default function HSSUPApp() {
            recovering && session ? <ResetPasswordScreen onFinish={finishRecovery} /> :
            !session && currentPage === 'medical-waste' ? (
              <main className="flex-1 overflow-y-auto scrollbar-hide" style={{ background: COLORS.cream }}>
-               <MedicalWastePage guest onLogin={() => setCurrentPage('home')} />
+               <Suspense fallback={<LoadingScreen />}>
+                 <MedicalWastePage guest onLogin={() => setCurrentPage('home')} />
+               </Suspense>
              </main>
            ) :
            session && !profile && profileLoadFailed ? <ProfileRetryScreen onRetry={() => loadProfile(session.user.id)} /> :
