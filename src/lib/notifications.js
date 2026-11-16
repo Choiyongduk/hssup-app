@@ -149,6 +149,25 @@ export const notifyUsers = async ({ title, body, url = '/', userIds }) => {
   }
 };
 
+// 🛎 운영진(원장님 + 운영진)에게 알림 — 회원이 한 일을 알릴 때 (주문 취소 요청 등)
+//    send-push 의 targetRole:'admin' 은 admin + staff 를 모두 포함한다.
+export const notifyOperators = async ({ title, body, url = '/', excludeUserId }) => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title, body, url, targetRole: 'admin', excludeUserId }),
+    });
+  } catch (e) {
+    console.error('운영진 알림 실패:', e);
+  }
+};
+
 // 현재 알림 상태 확인
 export const checkNotificationStatus = async () => {
   if (!('Notification' in window)) return 'unsupported';

@@ -9,6 +9,7 @@ import { notifyAdminsOfStaffActivity, notifyEveryone, notifyUsers } from '../lib
 import { useDraft } from '../hooks';
 import { PRACTICE_PRESETS, DEFAULT_PRACTICE_SETTINGS, isClosedDay, loadPracticeCalendar } from '../lib/practice';
 import { PROMPT_GROUPS } from '../lib/chatgptPrompts';
+import { CARRIER_PRESETS } from '../lib/shipping';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
@@ -66,14 +67,15 @@ export function AdminImprovements({ user }) {
     } else {
       // 알림은 실패해도 답변 자체는 완료되도록 try/catch로 격리
       try {
-        await supabase.from('notifications').insert({
-          user_id: item.user_id,
-          type: 'improvement_reply',
-          title: '개선 제안에 답변이 등록되었어요',
-          message: reply.substring(0, 50) + (reply.length > 50 ? '...' : ''),
-          link_type: 'improvements',
-          is_read: false
-        });
+        // 제안한 회원에게 알림 (예전에는 아무도 읽지 않는 표에만 적혀서 본인에게 가지 않았다)
+        if (item.user_id && item.user_id !== user.id) {
+          notifyUsers({
+            title: '개선 제안에 답변이 등록되었습니다',
+            body: reply.trim().substring(0, 80),
+            url: '/improvements',
+            userIds: item.user_id,
+          });
+        }
         await notifyAdminsOfStaffActivity(user, `개선 제안 답변`, reply.substring(0, 60));
       } catch (e) { console.error('알림 발송 실패:', e); }
 
@@ -317,6 +319,48 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
     load();
   }, []);
 
+  // ✅ 오늘 할 일 — 메뉴를 하나씩 열어 보지 않아도 기다리는 일이 한눈에 보이게
+  const [todo, setTodo] = useState(null);
+  useEffect(() => {
+    const loadTodo = async () => {
+      const head = { count: 'exact', head: true };
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const paidProduct = () => supabase.from('orders').select('id', head).eq('status', 'paid').eq('item_type', 'product').eq('shipping_status', 'pending');
+      const results = await Promise.all([
+        supabase.from('profiles').select('id', head).eq('status', 'pending'),
+        paidProduct().eq('fulfillment', 'delivery'),
+        paidProduct().eq('fulfillment', 'pickup'),
+        supabase.from('orders').select('id', head).eq('status', 'paid').eq('cancel_status', 'requested'),
+        supabase.from('questions').select('id', head).eq('status', 'pending'),
+        supabase.from('improvements').select('id', head).eq('status', 'pending'),
+        supabase.from('practice_bookings').select('id, slot:slot_id!inner(slot_date)', head).eq('status', 'booked').eq('slot.slot_date', today),
+        supabase.from('practice_personal_bookings').select('id', head).eq('status', 'booked').eq('practice_date', today),
+        supabase.from('waste_shops').select('id', head).eq('status', 'pending'),
+      ]);
+      // 권한이 없거나 표가 없는 항목은 0으로 (그 줄만 안 보인다)
+      const [approvals, shipping, pickup, cancels, qna, improvements, teaching, personal, waste] = results.map(r => (r.error ? 0 : r.count || 0));
+      setTodo({ approvals, shipping, pickup, cancels, qna, improvements, practice: teaching + personal, waste });
+    };
+    loadTodo();
+  }, []);
+
+  // 주문 관리는 들어갈 때 볼 탭을 미리 정해 준다 (샵 수령 대기, 취소 요청)
+  const goOrders = (filter) => {
+    try { sessionStorage.setItem('hssup_orders_filter', filter); } catch (e) { /* 무시 */ }
+    setCurrentPage('admin-shipments');
+  };
+  const todoItems = !todo ? [] : [
+    { key: 'approvals', label: '가입 승인 기다리는 회원', count: todo.approvals, unit: '명', icon: UserPlus, go: () => setCurrentPage('admin-approvals') },
+    { key: 'shipping', label: '보내야 할 재료 주문', count: todo.shipping, unit: '건', icon: Truck, go: () => goOrders('product-pending') },
+    { key: 'pickup', label: '샵에서 받아 갈 주문', count: todo.pickup, unit: '건', icon: ShoppingBag, go: () => goOrders('pickup-pending') },
+    ...(canViewRevenue ? [{ key: 'cancels', label: '주문 취소 요청', count: todo.cancels, unit: '건', icon: AlertCircle, go: () => goOrders('cancel-requested') }] : []),
+    { key: 'qna', label: '답변 기다리는 질문', count: todo.qna, unit: '건', icon: MessageCircle, go: () => setCurrentPage('admin-qna') },
+    { key: 'improvements', label: '답변 기다리는 개선 제안', count: todo.improvements, unit: '건', icon: Edit3, go: () => setCurrentPage('admin-improvements') },
+    { key: 'practice', label: '오늘 연습 예약', count: todo.practice, unit: '명', icon: Clock, go: () => setCurrentPage('practice-admin') },
+    { key: 'waste', label: '새 의료폐기물 수거 신청', count: todo.waste, unit: '건', icon: FileText, go: () => setCurrentPage('admin-waste') },
+  ].filter(item => item.count > 0);
+
   useEffect(() => {
     const loadUpdates = async () => {
       const since = new Date(Date.now() - newDays * 24 * 60 * 60 * 1000).toISOString();
@@ -476,20 +520,34 @@ export function AdminDashboard({ setCurrentPage, canViewRevenue }) {
         </section>
       )}
 
-      {/* 답변 대기 Q&A 알림 */}
-      {stats.pendingQna > 0 && (
+      {/* 오늘 할 일 — 기다리는 일만 모아서 보여 준다 (가입 승인, 배송, 샵 수령, 취소 요청, 질문, 개선 제안, 오늘 예약, 폐기물 신청) */}
+      {todo && (
         <section className="px-5 mb-3">
-          <button onClick={() => setCurrentPage('admin-qna')} className="w-full rounded-2xl p-4 text-left flex items-center gap-3 transition-transform active:scale-[0.98]" 
-            style={{ background: COLORS.cardElev, border: `1px solid ${COLORS.primary}` }}>
-            <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 glow-primary" style={{ background: COLORS.primary }}>
-              <MessageCircle size={20} style={{ color: COLORS.white }} strokeWidth={2.5} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>━━ Today's Mission</p>
-              <p className="font-heading text-base mt-0.5" style={{ color: COLORS.ink }}>답변 기다리는 질문 {stats.pendingQna}건</p>
-            </div>
-            <ChevronRight size={20} style={{ color: COLORS.primary }} />
-          </button>
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="font-mono text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: COLORS.primary }}>━━ 오늘 할 일</p>
+            {todoItems.length > 0 && <span className="font-mono text-[9px]" style={{ color: COLORS.stone }}>누르면 바로 이동</span>}
+          </div>
+          <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${todoItems.length > 0 ? COLORS.primary : COLORS.light}` }}>
+            {todoItems.length === 0 ? (
+              <p className="font-body text-xs text-center py-5" style={{ color: COLORS.stone }}>지금 기다리는 일이 없습니다</p>
+            ) : todoItems.map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <button key={item.key} onClick={item.go}
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 transition-transform active:scale-[0.98]"
+                  style={{ borderTop: i !== 0 ? `1px solid ${COLORS.light}` : 'none' }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,69,0,0.1)' }}>
+                    <Icon size={16} style={{ color: COLORS.primary }} strokeWidth={2} />
+                  </div>
+                  <p className="font-body text-sm flex-1 min-w-0 truncate" style={{ color: COLORS.ink }}>{item.label}</p>
+                  <p className="font-display text-lg tracking-tight shrink-0" style={{ color: COLORS.primary }}>
+                    {item.count}<span className="font-body text-[11px] font-medium ml-0.5" style={{ color: COLORS.stone }}>{item.unit}</span>
+                  </p>
+                  <ChevronRight size={14} className="shrink-0" style={{ color: COLORS.stone }} />
+                </button>
+              );
+            })}
+          </div>
         </section>
       )}
 
@@ -1910,7 +1968,14 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('product-pending');
+  // 대시보드 '오늘 할 일'에서 들어오면 그 탭(샵 수령 대기, 취소 요청)으로 바로 연다
+  const [filter, setFilter] = useState(() => {
+    let wanted = null;
+    try { wanted = sessionStorage.getItem('hssup_orders_filter'); } catch (e) { /* 무시 */ }
+    const allowed = ['product-pending', 'pickup-pending', 'product-shipped', 'all', ...(user?.role === 'admin' ? ['course', 'cancel-requested'] : [])];
+    return allowed.includes(wanted) ? wanted : 'product-pending';
+  });
+  useEffect(() => { try { sessionStorage.removeItem('hssup_orders_filter'); } catch (e) { /* 무시 */ } }, []);
 
   const [shippingModal, setShippingModal] = useState(null);
   const [trackingNumber, setTrackingNumber] = useState('');
@@ -1989,6 +2054,15 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
         setCancelProcessing(null);
         return;
       }
+      // 구매자에게 알림 (본인이 자기 주문을 취소한 경우는 빼고)
+      if (order.user_id && order.user_id !== user.id) {
+        notifyUsers({
+          title: '주문이 취소되었습니다',
+          body: `${order.course_title}\n결제하신 카드로 ₩${Number(order.amount).toLocaleString()}이 환불됩니다.`,
+          url: '/my-orders',
+          userIds: order.user_id,
+        });
+      }
       toast('취소가 처리되었습니다');
     } catch (e) {
       toast('취소 승인 에러: ' + e.message);
@@ -2013,14 +2087,31 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
       toast('거절이 적용되지 않았어요. RLS 권한 확인 필요.');
       return;
     }
+    if (order.user_id && order.user_id !== user.id) {
+      notifyUsers({
+        title: '취소 요청이 받아들여지지 않았습니다',
+        body: `${order.course_title}\n자세한 내용은 학원으로 문의해 주세요.`,
+        url: '/my-orders',
+        userIds: order.user_id,
+      });
+    }
     toast('취소 요청을 거절했습니다');
     await loadOrders();
+  };
+
+  // 취소 요청이 걸린 주문은 한 번 더 묻는다 (요청을 못 보고 보내 버리는 일을 막는다)
+  const confirmIfCancelRequested = async (order, action) => {
+    if (order.cancel_status !== 'requested') return true;
+    return confirmDialog(`구매자가 취소를 요청한 주문입니다.\n그래도 ${action}할까요?`, { confirmText: '계속', cancelText: '멈춤' });
   };
 
   const openShippingModal = (order) => {
     setShippingModal(order);
     setTrackingNumber('');
-    setTrackingCompany('');
+    // 지난번에 쓴 택배사를 미리 골라 둔다 (대부분 한 곳만 쓴다)
+    let lastCarrier = '';
+    try { lastCarrier = localStorage.getItem('hssup_last_carrier') || ''; } catch (e) { /* 무시 */ }
+    setTrackingCompany(lastCarrier);
   };
 
   const closeShippingModal = () => {
@@ -2054,6 +2145,19 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
     if (!data || data.length === 0) {
       toast('발송 처리가 적용되지 않았어요.\n\norders 테이블의 RLS 권한(admin/staff UPDATE)을 확인해 주세요.\n(원장님께 orders-update-rls.sql 적용 요청)');
       return;
+    }
+
+    try { localStorage.setItem('hssup_last_carrier', trackingCompany.trim()); } catch (e) { /* 무시 */ }
+
+    // 구매자에게 발송 알림 (운송장 번호를 함께 보낸다. 주문 내역에서 배송 조회로 이어진다)
+    if (shippingModal.user_id && shippingModal.user_id !== user.id) {
+      const carrier = trackingCompany.trim();
+      notifyUsers({
+        title: '주문하신 재료를 보냈습니다',
+        body: `${shippingModal.course_title}\n${carrier ? carrier + ' ' : '운송장 '}${trackingNumber.trim()}`,
+        url: '/my-orders',
+        userIds: shippingModal.user_id,
+      });
     }
 
     closeShippingModal();
@@ -2281,16 +2385,23 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
                     </div>
                   )}
 
+                  {/* 취소 요청이 들어온 주문 — 취소 처리는 원장님만 하지만, 발송하는 운영진도 알아야 보내지 않는다 */}
+                  {o.cancel_status === 'requested' && o.shipping_status === 'pending' && (
+                    <p className="font-body text-xs mt-2 rounded-lg p-2.5 leading-relaxed" style={{ background: COLORS.peach, color: COLORS.ink, border: `1px solid ${COLORS.primary}` }}>
+                      구매자가 취소를 요청한 주문입니다. 원장님이 처리하기 전에는 보내지 마세요.
+                    </p>
+                  )}
+
                   {/* 발송 처리 버튼 (pending) */}
                   {isPickup && o.shipping_status === 'pending' && (
-                    <button onClick={() => handlePickedUp(o)}
+                    <button onClick={async () => { if (await confirmIfCancelRequested(o, '수령 완료로 처리')) handlePickedUp(o); }}
                       className="w-full mt-2 rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
                       style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,69,0,0.35)' }}>
                       <Check size={14} strokeWidth={2.5} />수령 완료 처리
                     </button>
                   )}
                   {!isPickup && o.shipping_status === 'pending' && (
-                    <button onClick={() => openShippingModal(o)}
+                    <button onClick={async () => { if (await confirmIfCancelRequested(o, '발송 처리')) openShippingModal(o); }}
                       className="w-full mt-2 rounded-full py-3 font-heading text-xs flex items-center justify-center gap-2"
                       style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 16px rgba(255,69,0,0.35)' }}>
                       <Package size={14} strokeWidth={2.5} />발송 처리하기
@@ -2394,9 +2505,22 @@ export function AdminOrdersPage({ user, setCurrentPage }) {
             <div className="space-y-3">
               <div>
                 <label className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>택배사 (선택)</label>
+                {/* 자주 쓰는 택배사는 눌러서 고른다. 이름이 통일돼야 구매자 화면의 '배송 조회'가 그 택배사로 바로 열린다 */}
+                <div className="flex gap-1.5 flex-wrap mt-1.5">
+                  {CARRIER_PRESETS.map(name => {
+                    const on = trackingCompany.trim() === name;
+                    return (
+                      <button key={name} type="button" onClick={() => setTrackingCompany(on ? '' : name)}
+                        className="px-3 py-1.5 rounded-full font-body text-xs font-semibold"
+                        style={{ background: on ? COLORS.primary : COLORS.card, color: on ? COLORS.white : COLORS.ink, border: `1px solid ${on ? COLORS.primary : COLORS.light}` }}>
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
                 <input type="text" value={trackingCompany} onChange={(e) => setTrackingCompany(e.target.value)}
-                  placeholder="예: CJ대한통운 / 롯데택배 / 한진택배"
-                  className="w-full font-body text-sm p-3 mt-1 outline-none rounded"
+                  placeholder="목록에 없으면 직접 입력"
+                  className="w-full font-body text-sm p-3 mt-1.5 outline-none rounded"
                   style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }} />
               </div>
               <div>
@@ -4229,6 +4353,15 @@ export function AdminCases() {
       .update({ is_best: newValue, best_badge: newValue ? 'TOP PICK' : null })
       .eq('id', caseItem.id);
     if (error) { toast('변경 실패: ' + error.message); return; }
+    // 베스트로 뽑힌 회원에게 알림 (해제할 때는 보내지 않는다)
+    if (newValue && caseItem.user_id) {
+      notifyUsers({
+        title: '베스트 케이스로 선정되었습니다',
+        body: `${caseItem.title || '올리신 연습 사진'}\n베스트 케이스 게시판에서 확인해 보세요.`,
+        url: '/best',
+        userIds: caseItem.user_id,
+      });
+    }
     await load();
   };
 
@@ -4327,11 +4460,35 @@ export function AdminLectures({ user }) {
   const [showBannerForm, setShowBannerForm] = useState(false);
   const [bannerSaving, setBannerSaving] = useState(false);
 
+  // 🍊 오픈 여부 — '오픈'이면 수강생 화면에서 안내 배너와 '영상 준비중' 표시가 사라지고 재생 버튼이 보인다
+  const [lectureOpen, setLectureOpen] = useState(false);
+  const [openSaving, setOpenSaving] = useState(false);
+
   useEffect(() => {
     load();
-    supabase.from('site_content').select('title, body').eq('key', 'online_lecture_banner').maybeSingle()
-      .then(({ data }) => { if (data) setBanner(data); });
+    supabase.from('site_content').select('key, title, body').in('key', ['online_lecture_banner', 'online_lecture_status'])
+      .then(({ data }) => {
+        const bannerRow = (data || []).find(r => r.key === 'online_lecture_banner');
+        const statusRow = (data || []).find(r => r.key === 'online_lecture_status');
+        if (bannerRow) setBanner({ title: bannerRow.title, body: bannerRow.body });
+        setLectureOpen(statusRow?.title === 'open');
+      });
   }, []);
+
+  const saveLectureOpen = async (open) => {
+    if (open === lectureOpen) return;
+    const question = open
+      ? '온라인 강의를 오픈할까요?\n\n수강생 화면에서 안내 배너와 \'영상 준비중\' 표시가 사라지고, 공개한 강의에 재생 버튼이 보입니다.'
+      : '다시 준비 중으로 바꿀까요?\n\n수강생 화면에 안내 배너와 \'영상 준비중\' 표시가 다시 보입니다.';
+    if (!await confirmDialog(question)) return;
+    setOpenSaving(true);
+    const { error } = await supabase.from('site_content')
+      .upsert({ key: 'online_lecture_status', title: open ? 'open' : 'preparing', updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
+    setOpenSaving(false);
+    if (error) { toast('바꾸지 못했습니다: ' + error.message); return; }
+    setLectureOpen(open);
+    toast(open ? '온라인 강의를 오픈했습니다' : '준비 중으로 바꿨습니다');
+  };
 
   const saveBanner = async () => {
     setBannerSaving(true);
@@ -4448,6 +4605,31 @@ export function AdminLectures({ user }) {
     <>
       <PageIntro ko="강의 관리" en="Lectures Admin" />
       <div className="px-5 space-y-3">
+
+        {/* 오픈 여부 — 준비 중이면 수강생 화면에 안내 배너와 '영상 준비중' 표시가 나온다 */}
+        <div className="rounded-2xl p-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-mono text-[10px] font-bold tracking-widest uppercase" style={{ color: COLORS.stone }}>수강생 화면 상태</p>
+            {openSaving && <Loader2 size={12} className="animate-spin" style={{ color: COLORS.primary }} />}
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {[[false, '준비 중'], [true, '오픈']].map(([value, label]) => {
+              const on = lectureOpen === value;
+              return (
+                <button key={label} onClick={() => saveLectureOpen(value)} disabled={openSaving}
+                  className="rounded-lg py-2.5 font-heading text-sm flex items-center justify-center gap-1.5 disabled:opacity-60"
+                  style={{ background: on ? COLORS.primary : COLORS.cardElev, color: on ? COLORS.white : COLORS.ink, border: `1px solid ${on ? COLORS.primary : COLORS.light}` }}>
+                  {on && <Check size={14} strokeWidth={2.5} />}{label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="font-body text-[11px] mt-2 leading-relaxed" style={{ color: COLORS.stone }}>
+            {lectureOpen
+              ? '오픈 상태입니다. 공개한 강의에 재생 버튼이 보이고 안내 배너는 숨겨집니다.'
+              : '준비 중 상태입니다. 강의마다 \'영상 준비중\'으로 보이고 아래 안내 배너가 함께 나옵니다.'}
+          </p>
+        </div>
 
         {/* 오픈 예정 안내 배너 문구 (학생 화면 상단에 노출) */}
         <div className="rounded-2xl p-4" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>

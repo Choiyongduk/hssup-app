@@ -7,8 +7,11 @@ import { toast } from '../lib/toast';
 import { updatePassword } from '../lib/password';
 import { confirmDialog } from '../lib/dialog';
 import { PRACTICE_PRESETS, DEFAULT_PRACTICE_SETTINGS, isClosedDay, loadPracticeCalendar } from '../lib/practice';
-import { subscribeToNotifications, unsubscribeFromNotifications, checkNotificationStatus, notifyEveryone } from '../lib/notifications';
+import { subscribeToNotifications, unsubscribeFromNotifications, checkNotificationStatus, notifyEveryone, notifyOperators } from '../lib/notifications';
 import { LEGAL_TERMS, LEGAL_PRIVACY, LEGAL_REFUND } from '../lib/legal';
+import { trackingUrl, cleanTrackingNumber } from '../lib/shipping';
+import { addItemsToCart } from '../lib/cart';
+import { cartChanged } from '../lib/inbox';
 import { useDraft, useLatestLecture, useRecentUpdates, useDetailItem, useViewCount } from '../hooks';
 import {
   ImageCarousel, SkeletonImage, Avatar, LevelCard, PageIntro, LikeButton, CommentSection, MultiImageField, CategoryMover, Pagination,
@@ -2177,9 +2180,16 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
   const [loading, setLoading] = useState(true);
   // 🍊 "오픈 예정" 안내 배너 — 관리자(강의 관리)에서 문구를 바꿀 수 있음. DB에 없으면 기본값 표시.
   const [banner, setBanner] = useState({ title: '온라인 강의 11월 오픈 예정', body: '현재 강의 영상을 정성껏 준비하고 있어요. 11월에 오픈되면 알려드릴게요!' });
+  // 🍊 오픈 여부 — 강의 관리에서 '오픈'으로 바꾸면 안내 배너와 '영상 준비중' 표시가 사라지고 재생 버튼이 보인다
+  const [opened, setOpened] = useState(false);
   useEffect(() => {
-    supabase.from('site_content').select('title, body').eq('key', 'online_lecture_banner').maybeSingle()
-      .then(({ data }) => { if (data) setBanner(data); });
+    supabase.from('site_content').select('key, title, body').in('key', ['online_lecture_banner', 'online_lecture_status'])
+      .then(({ data }) => {
+        const bannerRow = (data || []).find(r => r.key === 'online_lecture_banner');
+        const statusRow = (data || []).find(r => r.key === 'online_lecture_status');
+        if (bannerRow) setBanner({ title: bannerRow.title, body: bannerRow.body });
+        setOpened(statusRow?.title === 'open');
+      });
   }, []);
 
   useEffect(() => {
@@ -2257,7 +2267,8 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
     <>
       <PageIntro ko="온라인 강의" en="Lectures" desc="언제 어디서나 학습하세요" />
 
-      {/* 오픈 예정 안내 배너 (관리자 → 강의 관리 에서 문구 수정 가능) */}
+      {/* 오픈 예정 안내 배너 (관리자 → 강의 관리 에서 문구 수정 가능, 오픈하면 숨김) */}
+      {!opened && (
       <div className="px-5 mb-4">
         <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: COLORS.peach, border: `1px solid ${COLORS.primary}` }}>
           <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COLORS.primary, boxShadow: '0 0 16px rgba(255, 69, 0, 0.35)' }}>
@@ -2271,6 +2282,7 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
           </div>
         </div>
       </div>
+      )}
 
       {/* 검색바 */}
       <div className="px-5 mb-3">
@@ -2348,11 +2360,19 @@ export function OnlineLecturePage({ setCurrentPage, setSelectedLecture }) {
               ) : (
                 <div className="w-full h-full" style={{ background: COLORS.cardElev }}></div>
               )}
-              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
-                <span className="font-heading text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5" style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
-                  <Clock size={12} /> 영상 준비중
-                </span>
-              </div>
+              {opened ? (
+                <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.18)' }}>
+                  <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.92)' }}>
+                    <Play size={18} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
+                  </span>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
+                  <span className="font-heading text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5" style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                    <Clock size={12} /> 영상 준비중
+                  </span>
+                </div>
+              )}
               <span className="absolute top-3 left-3 font-mono text-[9px] font-bold tracking-widest uppercase px-2 py-1 rounded" style={{ background: COLORS.card, color: COLORS.ink }}>
                 {l.category || '기초'}
               </span>
@@ -2763,7 +2783,9 @@ export function PostDetailPage({ post: propPost, user, setCurrentPage, routeId }
 
 export function ProductDetailPage({ product: propProduct, user, setCurrentPage, setSelectedCourse, routeId }) {
   const [addingToCart, setAddingToCart] = useState(false);
+  const [inCartQty, setInCartQty] = useState(0);  // 방금 담은 뒤 장바구니에 든 수량 (0이면 '장바구니 보기' 줄을 숨김)
   const { item: product, fetching } = useDetailItem(propProduct, routeId, 'products');
+  useEffect(() => { setInCartQty(0); }, [routeId]);  // 다른 상품으로 넘어가면 안내 줄을 지운다
 
   if (!product) {
     return (
@@ -2795,7 +2817,7 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
         const newQty = (existing.quantity || 1) + 1;
         const { error } = await supabase.from('cart_items').update({ quantity: newQty }).eq('id', existing.id);
         if (error) throw error;
-        toast(`장바구니에 추가됐어요\n현재 수량: ${newQty}개`);
+        setInCartQty(newQty);
       } else {
         const { error } = await supabase.from('cart_items').insert({
           user_id: user.id,
@@ -2803,8 +2825,9 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
           quantity: 1,
         });
         if (error) throw error;
-        toast('장바구니에 담겼어요');
+        setInCartQty(1);
       }
+      cartChanged();  // 윗줄 장바구니 숫자 갱신
     } catch (err) {
       toast('장바구니 담기 실패: ' + err.message);
     }
@@ -2904,6 +2927,15 @@ export function ProductDetailPage({ product: propProduct, user, setCurrentPage, 
         margin: '0 auto',
         bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)'
       }}>
+        {/* 담은 뒤에는 장바구니로 바로 갈 수 있게 (예전에는 마이페이지까지 가야 장바구니가 보였다) */}
+        {inCartQty > 0 && (
+          <button onClick={() => setCurrentPage('cart')}
+            className="w-full mb-2 rounded-xl px-4 py-2.5 flex items-center justify-between animate-fade-in"
+            style={{ background: COLORS.ink, color: COLORS.white }}>
+            <span className="font-body text-xs">장바구니에 담았습니다 (수량 {inCartQty}개)</span>
+            <span className="font-heading text-xs flex items-center gap-1" style={{ color: COLORS.deep }}>장바구니 보기 <ChevronRight size={12} /></span>
+          </button>
+        )}
         <div className="flex gap-2">
           <button onClick={addToCart}
             disabled={product.stock === 0 || addingToCart}
@@ -4638,12 +4670,14 @@ export function MyProfileEditPage({ user, setCurrentPage, refreshUser }) {
   );
 }
 
-export function MyOrdersPage({ user }) {
+export function MyOrdersPage({ user, setCurrentPage }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cancelModalOrder, setCancelModalOrder] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [lines, setLines] = useState({});          // order_id → 주문 품목들 (장바구니로 산 주문)
+  const [reordering, setReordering] = useState(null);  // 다시 담는 중인 order_id
 
   useEffect(() => { load(); }, []);
 
@@ -4658,6 +4692,50 @@ export function MyOrdersPage({ user }) {
     if (error) console.error('주문 내역 로드 에러:', error);
     setOrders(data || []);
     setLoading(false);
+
+    // 장바구니로 산 주문은 orders 엔 "OO 외 N건" 만 있고 실제 품목은 order_items 에 있다
+    const ids = (data || []).filter(o => o.item_type === 'product').map(o => o.order_id).filter(Boolean);
+    if (ids.length === 0) { setLines({}); return; }
+    const { data: rows, error: linesError } = await supabase.from('order_items')
+      .select('order_id, product_id, product_name, unit_price, quantity').in('order_id', ids);
+    if (linesError) { console.error('주문 품목 로드 에러:', linesError); return; }
+    const map = {};
+    (rows || []).forEach(l => { (map[l.order_id] ||= []).push(l); });
+    setLines(map);
+  };
+
+  // 다시 담기 — 그 주문의 상품을 장바구니에 그대로 담는다 (색소, 니들처럼 다시 사는 재료용)
+  const reorder = async (o) => {
+    const items = (lines[o.order_id]?.length ? lines[o.order_id] : (o.product_id ? [{ product_id: o.product_id, quantity: 1 }] : []))
+      .filter(l => l.product_id != null);
+    if (items.length === 0) { toast('다시 담을 수 있는 상품이 없습니다.'); return; }
+    setReordering(o.order_id);
+    try {
+      const { added, skipped } = await addItemsToCart(user.id, items);
+      setReordering(null);
+      if (added === 0) { toast('지금은 판매하지 않거나 품절된 상품입니다.'); return; }
+      const note = skipped.length > 0 ? `\n(${skipped.length}가지는 품절이거나 판매가 끝나 빠졌습니다)` : '';
+      const go = await confirmDialog(`장바구니에 ${added}가지를 담았습니다.${note}\n장바구니로 이동할까요?`, { confirmText: '장바구니 보기', cancelText: '계속 보기' });
+      if (go) setCurrentPage('cart');
+    } catch (err) {
+      setReordering(null);
+      toast('장바구니에 담지 못했습니다: ' + (err.message || err));
+    }
+  };
+
+  const copyTracking = async (number) => {
+    const text = cleanTrackingNumber(number);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      // 클립보드 권한이 없는 브라우저용
+      const el = document.createElement('textarea');
+      el.value = text; el.style.position = 'fixed'; el.style.opacity = '0';
+      document.body.appendChild(el); el.select();
+      try { document.execCommand('copy'); } catch (e2) { /* 무시 */ }
+      document.body.removeChild(el);
+    }
+    toast('운송장 번호를 복사했습니다');
   };
 
   // 취소 요청 가능: 결제완료 + 취소 미요청 + (클래스 OR 배송대기 재료)
@@ -4695,6 +4773,13 @@ export function MyOrdersPage({ user }) {
       toast('취소 요청이 반영되지 않았어요. 잠시 후 다시 시도해주세요.');
       return;
     }
+    // 운영진에게 바로 알린다 (요청을 못 보고 재료를 보내 버리는 일을 막는다)
+    notifyOperators({
+      title: '주문 취소 요청',
+      body: `${user.name || '회원'}: ${cancelModalOrder.course_title}\n사유: ${cancelReason.trim().substring(0, 60)}`,
+      url: '/?page=admin-shipments',
+      excludeUserId: user.id,
+    });
     closeCancelModal();
     await load();
     toast('취소 요청이 접수되었습니다.\n원장님 확인 후 처리됩니다.');
@@ -4757,6 +4842,21 @@ export function MyOrdersPage({ user }) {
                   <p className="font-heading text-sm" style={{ color: COLORS.ink, textDecoration: isCancelled ? 'line-through' : 'none' }}>
                     {o.course_title || '-'}
                   </p>
+                  {/* 주문 품목 (장바구니로 여러 가지를 산 주문) */}
+                  {lines[o.order_id]?.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {lines[o.order_id].map((l, i) => (
+                        <div key={i} className="flex items-baseline justify-between gap-2">
+                          <p className="font-body text-xs min-w-0 flex-1" style={{ color: COLORS.ink }}>
+                            {l.product_name || '삭제된 상품'} <span style={{ color: COLORS.stone }}>× {l.quantity}</span>
+                          </p>
+                          <p className="font-mono text-[10px] shrink-0" style={{ color: COLORS.stone }}>
+                            {(Number(l.unit_price || 0) * Number(l.quantity || 0)).toLocaleString('ko-KR')}원
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <p className="font-display text-xl tracking-tight mt-1" style={{ color: isCancelled ? COLORS.stone : COLORS.primary, textDecoration: isCancelled ? 'line-through' : 'none' }}>
                     {formatPrice(o.amount)}
                   </p>
@@ -4821,6 +4921,21 @@ export function MyOrdersPage({ user }) {
                             <span className="font-mono text-[10px]" style={{ color: COLORS.ink }}>{formatDate(o.shipped_at)}</span>
                           </div>
                         )}
+                        {/* 배송 조회 — 택배사 조회 화면으로 바로 연다. 운송장 번호만 복사할 수도 있다 */}
+                        {o.tracking_number && (
+                          <div className="flex gap-2 mt-3">
+                            <a href={trackingUrl(o.tracking_company, o.tracking_number)} target="_blank" rel="noopener noreferrer"
+                              className="flex-1 font-heading text-[11px] py-2 rounded-full inline-flex items-center justify-center gap-1.5"
+                              style={{ background: COLORS.primary, color: COLORS.white }}>
+                              <Truck size={12} />배송 조회
+                            </a>
+                            <button onClick={() => copyTracking(o.tracking_number)}
+                              className="flex-1 font-heading text-[11px] py-2 rounded-full inline-flex items-center justify-center gap-1.5"
+                              style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                              운송장 복사
+                            </button>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <p className="font-body text-xs" style={{ color: COLORS.stone }}>배송 대기 중 — 결제 완료 후 1-3 영업일 내 발송</p>
@@ -4857,6 +4972,13 @@ export function MyOrdersPage({ user }) {
                       style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
                       <Download size={12} />영수증
                     </a>
+                  )}
+                  {isProduct && (
+                    <button onClick={() => reorder(o)} disabled={reordering === o.order_id}
+                      className="font-heading text-[11px] px-3 py-2 rounded-full inline-flex items-center gap-1.5 disabled:opacity-60"
+                      style={{ background: COLORS.cardElev, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
+                      {reordering === o.order_id ? <Loader2 size={12} className="animate-spin" /> : <ShoppingCart size={12} />}다시 담기
+                    </button>
                   )}
                   {canCancel(o) && (
                     <button onClick={() => openCancelModal(o)}
@@ -5132,6 +5254,7 @@ export function CartPage({ user, setCurrentPage }) {
       toast('삭제 실패: ' + error.message);
       return;
     }
+    cartChanged();  // 윗줄 장바구니 숫자 갱신
     await load();
   };
 
@@ -5432,7 +5555,8 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
       const { error: linesErr } = await supabase.from('order_items').insert(linesWithOrderId);
       if (linesErr) {
         // 라인 insert 실패 시 orders도 삭제 (best-effort)
-        await supabase.from('orders').delete().eq('order_id', orderId).catch(() => {});
+        // (supabase 요청에는 .catch 가 없어서 예전 코드는 여기서 다른 오류가 나 진짜 원인이 가려졌다)
+        try { await supabase.from('orders').delete().eq('order_id', orderId); } catch (e) { /* 무시 */ }
         throw linesErr;
       }
 

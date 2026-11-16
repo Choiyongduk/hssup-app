@@ -3,12 +3,20 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
+import { ErrorBoundary, reloadOnceForNewVersion } from './components/ErrorBoundary.jsx'
+
+// 새 버전이 올라간 뒤 예전 화면에서 다른 메뉴를 열면 예전 파일 조각을 못 찾는다 → 한 번 새로고침해서 새 버전을 받는다
+window.addEventListener('vite:preloadError', (event) => {
+  if (reloadOnceForNewVersion()) event.preventDefault();
+})
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <ErrorBoundary full>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </ErrorBoundary>
   </StrictMode>,
 )
 

@@ -69,6 +69,9 @@ import {
   HomePage, NoticeDetailPage, NoticePage, CoursePage, CourseDetailPage, BestCasePage, MyCasePage, QnaDetailPage, TrendsPage, TrendDetailPage, QnaPage, LibraryPage, LibraryDetailPage, MarketPage, OnlineLecturePage, LectureDetailPage, PostDetailPage, ProductDetailPage, PaymentPage, PaymentSuccessPage, PaymentFailPage, CommunityPage, MyActivityPage, MyPage, MyProfileEditPage, MyOrdersPage, MyPracticeBookingsPage, CartPage, CartCheckoutPage, OnboardingScreen, ImprovementsPage, TipsPage, TipDetailPage, PracticeBookingPage,
 } from './pages/student';
 import { MedicalWastePage, AdminWasteShops } from './pages/medicalWaste';
+import { NotificationsPage } from './pages/notifications';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { useUnreadCount, useCartCount, resolveAppUrl } from './lib/inbox';
 // 🚀 admin 페이지는 코드 스플리팅 — 운영진이 admin 화면에 진입할 때만 별도 청크를 로드합니다.
 //    (학생 사용자는 admin 코드를 다운로드하지 않음 → 초기 로딩 가벼워짐)
 const lazyAdmin = (name) => lazy(() => import('./pages/admin').then(m => ({ default: m[name] })));
@@ -118,6 +121,8 @@ export default function HSSUPApp() {
   const currentPage = pathToPage(location.pathname);
   const routeId = pathToId(location.pathname);  // 상세 페이지 딥링크용 id (/product/:id)
   const setCurrentPage = useCallback((p, id) => { navigate(pageToPath(p, id)); }, [navigate]);
+  // 알림에 적힌 주소('/qna/12', '/?page=admin-approvals' 등)를 앱 안 이동으로 연다
+  const openUrl = useCallback((url) => { navigate(resolveAppUrl(url)); }, [navigate]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -601,6 +606,11 @@ export default function HSSUPApp() {
   const studentId = isAdmin ? null : profile?.id;
   const level = useLevel(studentId, { mark: true });
 
+  // 🔔🛒 윗줄 아이콘 숫자 — 안 읽은 알림, 장바구니에 담긴 상품 (화면을 옮길 때마다 다시 센다)
+  const inbox = useUnreadCount(profile?.id, currentPage);
+  const cartCount = useCartCount(profile?.id, currentPage);
+  const showCart = cartCount > 0 || currentPage === 'market' || currentPage === 'product-detail';
+
   // 🔝 탑 레벨 페이지 (뒤로가기 버튼 안 보임, 햄버거만)
   const TOP_LEVEL_PAGES = isAdmin
     ? ['dashboard', 'admin-students', 'qna', 'notice', 'mypage']
@@ -621,7 +631,7 @@ export default function HSSUPApp() {
       'admin-approvals', 'admin-orders', 'admin-shipments', 'admin-students', 'admin-qna',
       'admin-notice', 'admin-cases', 'admin-lectures', 'admin-products',
       'admin-library', 'admin-courses', 'admin-improvements', 'admin-trends', 'admin-ai',
-      'trends', 'tips', 'admin-tips', 'medical-waste', 'admin-waste'
+      'trends', 'tips', 'admin-tips', 'medical-waste', 'admin-waste', 'notifications'
     ];
     if (SAVABLE_PAGES.includes(currentPage)) {
       sessionStorage.setItem('hssup_last_page', currentPage);
@@ -855,7 +865,11 @@ export default function HSSUPApp() {
                 onLogoClick={goHome}
                 onProfileClick={() => setCurrentPage('mypage')}
                 showBackButton={isSubPage}
-                onBackClick={() => window.history.back()} />
+                onBackClick={() => window.history.back()}
+                cartCount={showCart ? cartCount : null}
+                onCartClick={() => setCurrentPage('cart')}
+                unread={inbox.available ? inbox.unread : null}
+                onBellClick={() => setCurrentPage('notifications')} />
               <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-hide relative" style={{
                 background: COLORS.cream,
                 overscrollBehavior: 'contain',
@@ -882,8 +896,9 @@ export default function HSSUPApp() {
                   </div>
                 )}
                 <div className="animate-fade-in" style={{ background: COLORS.cream, minHeight: '100%' }}>
+                  <ErrorBoundary resetKey={location.pathname} onHome={goHome}>
                   <Suspense fallback={<LoadingScreen />}>
-                  <PageRouter currentPage={currentPage} setCurrentPage={setCurrentPage}
+                  <PageRouter currentPage={currentPage} setCurrentPage={setCurrentPage} openUrl={openUrl}
                     selectedNotice={selectedNotice} setSelectedNotice={setSelectedNotice}
                     selectedQna={selectedQna} setSelectedQna={setSelectedQna}
                     selectedPost={selectedPost} setSelectedPost={setSelectedPost}
@@ -897,6 +912,7 @@ export default function HSSUPApp() {
                     user={profile} handleLogout={handleLogout} isAdmin={isAdmin} canViewRevenue={canViewRevenue}
                     refreshUser={refreshUser} routeId={routeId} />
                   </Suspense>
+                  </ErrorBoundary>
                 </div>
               </main>
               <BottomTabBar tabs={tabs} currentPage={currentPage} setCurrentPage={(p) => p === 'home' ? goHome() : setCurrentPage(p)} setDrawerOpen={setDrawerOpen} />
@@ -1806,7 +1822,19 @@ function AuthScreen() {
   );
 }
 
-function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, showBackButton, onBackClick }) {
+// 윗줄 아이콘 위에 붙는 작은 숫자 (99 넘으면 99+)
+function HeaderBadge({ count }) {
+  if (!count) return null;
+  return (
+    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center font-mono text-[9px] font-bold"
+      style={{ background: COLORS.primary, color: COLORS.white, border: `1.5px solid ${COLORS.cream}` }}>
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
+// cartCount, unread 가 null 이면 그 아이콘을 숨긴다 (장바구니: 담은 게 없고 재료샵도 아닐 때 / 알림함: 표가 아직 없을 때)
+function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, showBackButton, onBackClick, cartCount = null, onCartClick, unread = null, onBellClick }) {
   return (
     <header className="shrink-0 relative z-10" style={{
       background: 'rgba(250, 248, 245, 0.88)',
@@ -1814,7 +1842,8 @@ function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, sh
       borderBottom: `1px solid ${COLORS.light}`,
       paddingTop: 'env(safe-area-inset-top, 0px)',
     }}>
-      <div className="grid grid-cols-3 items-center px-4 py-3">
+      {/* 가운데 로고는 자리가 넉넉하면 화면 한가운데, 양옆 아이콘이 많아 좁으면 줄어든다 */}
+      <div className="grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center px-4 py-3">
         {/* 왼쪽: 햄버거(항상 고정) + 서브페이지일 때만 별도 뒤로가기 버튼 */}
         <div className="flex items-center gap-2">
           <button onClick={onMenuClick}
@@ -1832,9 +1861,11 @@ function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, sh
         </div>
 
         {/* 가운데: 로고 (화이트 로고 원본을 흑백 반전해서 라이트 배경용으로) */}
-        <button onClick={onLogoClick} className="flex items-center justify-self-center transition-transform active:scale-95">
-          <img src="/logo-white.png" alt="HSSUP" style={{
+        <button onClick={onLogoClick} className="flex items-center justify-self-center min-w-0 px-1.5 transition-transform active:scale-95">
+          <img src="/logo-white.png" alt="HSSUP" className="min-w-0" style={{
             height: '24px',
+            maxWidth: '100%',
+            objectFit: 'contain',
             filter: 'invert(1) drop-shadow(0 0 6px rgba(255, 69, 0, 0.25))',
           }} />
           {isAdmin && (
@@ -1845,10 +1876,31 @@ function AppHeader({ user, isAdmin, onMenuClick, onLogoClick, onProfileClick, sh
           )}
         </button>
 
-        {/* 오른쪽: 프로필 아바타 */}
-        <button onClick={onProfileClick} className="justify-self-end transition-transform active:scale-90">
-          <Avatar user={user} size="sm" />
-        </button>
+        {/* 오른쪽: 장바구니(담은 게 있거나 재료샵일 때), 알림함, 프로필 아바타 */}
+        <div className="flex items-center justify-end gap-1.5">
+          {cartCount !== null && (
+            <button onClick={onCartClick} aria-label="장바구니"
+              className="relative w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <ShoppingCart size={16} style={{ color: COLORS.ink }} strokeWidth={2} />
+              <HeaderBadge count={cartCount} />
+            </button>
+          )}
+          {unread !== null && (
+            <button onClick={onBellClick} aria-label="알림함"
+              className="relative w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+              <Bell size={16} style={{ color: COLORS.ink }} strokeWidth={2} />
+              <HeaderBadge count={unread} />
+            </button>
+          )}
+          {/* 뒤로가기와 장바구니가 함께 뜨는 화면(상품 상세 등)은 자리가 좁아 아바타를 뺀다. 마이페이지는 아래 MY 탭으로 간다 */}
+          {!(showBackButton && cartCount !== null) && (
+            <button onClick={onProfileClick} className="transition-transform active:scale-90">
+              <Avatar user={user} size="sm" />
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
@@ -1992,11 +2044,11 @@ function PageRouter(props) {
   );
 }
 
-function PageContent({ currentPage, setCurrentPage, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser, routeId }) {
+function PageContent({ currentPage, setCurrentPage, openUrl, selectedNotice, setSelectedNotice, selectedQna, setSelectedQna, selectedPost, setSelectedPost, selectedLecture, setSelectedLecture, selectedCourse, setSelectedCourse, selectedProduct, setSelectedProduct, selectedStudent, setSelectedStudent, selectedTrend, setSelectedTrend, selectedTip, setSelectedTip, selectedLibrary, setSelectedLibrary, user, handleLogout, isAdmin, canViewRevenue, refreshUser, routeId }) {
   // Debug route removed
   // 🍊 온보딩 체크 - 가입 인사만 작성하면 전체 오픈 (신입생/졸업생 동일)
   const needsOnboarding = !isAdmin && user && !user.onb_greeting;
-  const ONBOARDING_ALLOWED = ['onboarding', 'greetings', 'reviews', 'community', 'freeboard', 'lecture-detail', 'mypage'];
+  const ONBOARDING_ALLOWED = ['onboarding', 'greetings', 'reviews', 'community', 'freeboard', 'lecture-detail', 'mypage', 'notifications'];
   
   if (needsOnboarding && !ONBOARDING_ALLOWED.includes(currentPage)) {
     return <OnboardingScreen user={user} setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
@@ -2004,6 +2056,8 @@ function PageContent({ currentPage, setCurrentPage, selectedNotice, setSelectedN
   if (currentPage === 'onboarding') {
     return <OnboardingScreen user={user} setCurrentPage={setCurrentPage} setSelectedLecture={setSelectedLecture} />;
   }
+
+  if (currentPage === 'notifications') return <NotificationsPage user={user} openUrl={openUrl} />;
 
   if (isAdmin) {
     if (currentPage === 'dashboard') return <AdminDashboard setCurrentPage={setCurrentPage} canViewRevenue={canViewRevenue} />;
@@ -2061,7 +2115,7 @@ function PageContent({ currentPage, setCurrentPage, selectedNotice, setSelectedN
   if (currentPage === 'refund') return <LegalPage ko="환불정책" en="Refund Policy" desc="수강료·상품 환불 안내" content={LEGAL_REFUND} />;
   if (currentPage === 'mypage') return <MyPage user={user} handleLogout={handleLogout} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
   if (currentPage === 'my-activity') return <MyActivityPage user={user} setCurrentPage={setCurrentPage} setSelectedPost={setSelectedPost} />;
-  if (currentPage === 'my-orders') return <MyOrdersPage user={user} />;
+  if (currentPage === 'my-orders') return <MyOrdersPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'my-profile-edit') return <MyProfileEditPage user={user} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
   if (currentPage === 'cart') return <CartPage user={user} setCurrentPage={setCurrentPage} />;
   if (currentPage === 'cart-checkout') return <CartCheckoutPage user={user} setCurrentPage={setCurrentPage} />;

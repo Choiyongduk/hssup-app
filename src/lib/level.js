@@ -132,12 +132,12 @@ export function useLevel(userId, { mark = false } = {}) {
       // CREW를 이번에 처음 달성했으면 영구 플래그 저장 + 본인 세션(mark)에서만 알림
       if (result.liveCrew && !stats.crewEarned) {
         supabase.from('profiles').update({ crew_earned: true }).eq('id', userId).then(() => {}, () => {});
-        if (mark) notifyUsers({ title: '축하해요! CREW 등급 달성', body: '연습베드 예약, 자료실, Q&A, 수업 꿀팁을 이용할 수 있어요', url: '/mypage', userIds: userId });
+        if (mark) notifyUsers({ title: '축하해요! CREW 등급 달성', body: '수강 후기 인증 회원이 되었습니다. 마이페이지에서 등급 카드를 확인해 보세요.', url: '/mypage', userIds: userId });
       }
       // MASTER를 이번에 처음 달성했으면 영구 플래그 저장 + 본인 세션(mark)에서만 알림
       if (result.tier === 'master' && !stats.masterEarned) {
         supabase.from('profiles').update({ master_earned: true }).eq('id', userId).then(() => {}, () => {});
-        if (mark) notifyUsers({ title: '축하해요! MASTER 등급 달성', body: '온라인 강의를 무료로 이용할 수 있어요', url: '/mypage', userIds: userId });
+        if (mark) notifyUsers({ title: '축하해요! MASTER 등급 달성', body: '커뮤니티 활동 우수 회원이 되었습니다. 마이페이지에서 등급 카드를 확인해 보세요.', url: '/mypage', userIds: userId });
       }
     })();
     return () => { alive = false; };
