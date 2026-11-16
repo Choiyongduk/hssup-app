@@ -3591,7 +3591,11 @@ export function PaymentSuccessPage({ user, setCurrentPage }) {
           )}
         </div>
 
-        <button onClick={() => setCurrentPage('home')} className="w-full mt-3 font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,69,0,0.5)' }}>
+        {/* 결제 뒤 가장 많이 찾는 곳: 주문 내역(배송 상태, 영수증) */}
+        <button onClick={() => setCurrentPage('my-orders')} className="w-full mt-3 font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.primary, color: COLORS.white, boxShadow: '0 0 24px rgba(255,69,0,0.5)' }}>
+          주문 내역 보기
+        </button>
+        <button onClick={() => setCurrentPage('home')} className="w-full mt-2 font-heading text-sm py-3.5 rounded-full" style={{ background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.light}` }}>
           홈으로 가기
         </button>
       </div>
