@@ -13,7 +13,7 @@ import { CARRIER_PRESETS } from '../lib/shipping';
 import {
   MultiImageField, SkeletonImage, Avatar, LevelCard, PageIntro, Pagination,
 } from '../components/common';
-import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck, Mic, Paperclip, Copy, Palette } from 'lucide-react';
+import { Bell, BookOpen, MessageCircle, FolderOpen, Sparkles, ShoppingBag, PlayCircle, Users, BarChart3, FileText, ChevronRight, Clock, Check, Plus, Edit3, Play, Upload, Trash2, ChevronLeft, Shield, UserCheck, UserPlus, CreditCard, AlertCircle, Camera, ArrowUpRight, Loader2, X, Search, Package, Truck, Mic, Paperclip, Copy, Palette, ChevronDown } from 'lucide-react';
 
 export function AdminImprovements({ user }) {
   const [items, setItems] = useState([]);
@@ -8275,6 +8275,216 @@ function DecidedCard({ row }) {
   );
 }
 
+// =============================================================
+// ⚡ QuickPost — AI 오피스 첫 화면의 "올리기" 한 칸
+//   사진이나 영상을 고르고 '만들어 주세요'만 누르면 된다.
+//   (캡션, 로고, 영상 자막은 자동화가 붙여서 '확인할 게시물'로 미리보기를 올린다)
+//   글만 적고 누르면 사진 없이 한 장을 만든다.
+//   디자인 고르기, 처리 시간 같은 세부 선택은 '더 보기 → 자세히 올리기'에만 둔다.
+// =============================================================
+const QUICK_CHANNELS = [['hssup-academy', '아카데미'], ['hssup-artmake', '아트메이크']];
+
+function QuickPost({ userId, onSubmitted }) {
+  const [files, setFiles] = useState([]);
+  const [note, setNote] = useState('');
+  const [channel, setChannel] = useState(() => {
+    try { return localStorage.getItem('hssup_quick_channel') || 'hssup-academy'; } catch { return 'hssup-academy'; }
+  });
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const inputRef = React.useRef(null);
+
+  const previews = React.useMemo(() => files.map(f => URL.createObjectURL(f)), [files]);
+  useEffect(() => () => previews.forEach(u => URL.revokeObjectURL(u)), [previews]);
+
+  const pickChannel = (key) => {
+    setChannel(key);
+    try { localStorage.setItem('hssup_quick_channel', key); } catch { /* 무시 */ }
+  };
+
+  const add = (picked) => {
+    const ok = picked.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(heic|heif)$/i.test(f.name));
+    if (ok.some(f => f.type.startsWith('video/') && f.size > 100 * 1024 * 1024)) {
+      toast('영상은 100MB까지 올릴 수 있습니다. 조금 잘라서 올려 주세요');
+      return;
+    }
+    setFiles(prev => [...prev, ...ok].slice(0, 10));
+  };
+
+  const photoCount = files.filter(f => !f.type.startsWith('video/')).length;
+  const videoCount = files.length - photoCount;
+  const willMake = files.length === 0
+    ? (note.trim() ? '사진 없이 한 장' : '')
+    : [photoCount ? (photoCount > 1 ? `사진 ${photoCount}장을 한 게시물` : '사진 게시물 1개') : '',
+       videoCount ? `영상 릴스 ${videoCount}개` : ''].filter(Boolean).join(', ');
+
+  const submit = async () => {
+    const text = note.trim();
+    if (!files.length && !text) return;
+    setBusy(true);
+    try {
+      if (!files.length) {
+        // 글만 → 사진 없이 한 장 만들기 (디자인 담당)
+        const { error } = await supabase.from('ai_media_queue').insert({
+          channel, media_type: 'design', urgency: 'now', user_caption: text, ref_urls: [],
+          group_key: `d${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, created_by: userId || null,
+        });
+        if (error) throw error;
+      } else {
+        const group = `g${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const rows = [];
+        for (let i = 0; i < files.length; i++) {
+          const picked = files[i];
+          const isVideo = picked.type.startsWith('video/');
+          let toUpload = picked;
+          if (!isVideo) {
+            try { toUpload = await compressImage(picked, 1440, 0.9); } catch { toUpload = picked; }
+          }
+          const ext = (toUpload.name.split('.').pop() || (isVideo ? 'mp4' : 'jpg')).toLowerCase();
+          const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+          const { error: upErr } = await supabase.storage.from(UPLOAD_BUCKET)
+            .upload(path, toUpload, { contentType: toUpload.type, upsert: false });
+          if (upErr) throw upErr;
+          rows.push({
+            channel,
+            media_url: supabase.storage.from(UPLOAD_BUCKET).getPublicUrl(path).data.publicUrl,
+            storage_path: path,
+            media_type: isVideo ? 'video' : 'image',
+            // 사진은 한 게시물(여러 장), 영상은 하나씩 따로
+            group_key: isVideo ? `${group}-v${i}` : group,
+            sort_order: i,
+            urgency: 'now',
+            user_caption: (i === 0 || isVideo) ? (text || null) : null,
+            created_by: userId || null,
+          });
+          setProgress(i + 1);
+        }
+        const { error } = await supabase.from('ai_media_queue').insert(rows);
+        if (error) throw error;
+      }
+      setFiles([]);
+      setNote('');
+      toast('맡겼습니다. 보통 5분 안팎이면 아래 확인할 게시물에 미리보기가 올라옵니다');
+      onSubmitted?.();
+    } catch (e) {
+      toast('올리지 못했습니다: ' + (e.message || e));
+    } finally {
+      setBusy(false);
+      setProgress(0);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl p-4 mb-4" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+      <input ref={inputRef} type="file" accept="image/*,video/*,.heic,.heif,.HEIC,.HEIF" multiple className="hidden"
+        onChange={e => { add([...(e.target.files || [])]); e.target.value = ''; }} />
+
+      {files.length === 0 ? (
+        <button onClick={() => inputRef.current?.click()} disabled={busy}
+          className="w-full rounded-2xl py-8 flex flex-col items-center justify-center gap-2 transition-transform active:scale-[0.98]"
+          style={{ background: COLORS.peach, border: `1.5px dashed ${COLORS.primary}` }}>
+          <Upload size={26} strokeWidth={1.8} style={{ color: COLORS.primary }} />
+          <p className="font-heading text-base" style={{ color: COLORS.ink }}>사진, 영상 올리기</p>
+          <p className="font-body text-[11px]" style={{ color: COLORS.stone }}>캡션, 로고, 영상 자막은 알아서 붙여 드립니다</p>
+        </button>
+      ) : (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {files.map((f, i) => (
+            <div key={previews[i]} className="relative shrink-0">
+              {f.type.startsWith('video/')
+                ? <video src={previews[i]} muted playsInline className="w-20 h-24 rounded-xl object-cover" style={{ background: COLORS.ink }} />
+                : <img src={previews[i]} alt="" className="w-20 h-24 rounded-xl object-cover" />}
+              {f.type.startsWith('video/') && (
+                <span className="absolute bottom-1 left-1 rounded px-1 font-mono text-[9px]" style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>영상</span>
+              )}
+              <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))} disabled={busy} aria-label="빼기"
+                className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                style={{ background: COLORS.ink, color: COLORS.card }}>
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+          <button onClick={() => inputRef.current?.click()} disabled={busy}
+            className="w-20 h-24 shrink-0 rounded-xl flex flex-col items-center justify-center gap-1"
+            style={{ background: COLORS.cardElev, color: COLORS.stone }}>
+            <Plus size={18} /><span className="font-body text-[10px]">더 고르기</span>
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-2 mt-3">
+        {QUICK_CHANNELS.map(([key, label]) => (
+          <button key={key} onClick={() => pickChannel(key)} disabled={busy}
+            className="flex-1 rounded-xl py-2 font-heading text-xs"
+            style={channel === key
+              ? { background: COLORS.ink, color: COLORS.white }
+              : { background: COLORS.cardElev, color: COLORS.stone }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} disabled={busy}
+        placeholder={files.length ? '어떤 내용인지 한 줄 (적지 않아도 됩니다)' : '사진 없이 만들 때는 내용을 적어 주세요. 예: 12월 정규반 모집'}
+        className="w-full mt-3 rounded-xl px-3 py-2.5 font-body text-sm outline-none resize-none"
+        style={{ background: COLORS.cardElev, color: COLORS.ink }} />
+
+      <button onClick={submit} disabled={busy || (!files.length && !note.trim())}
+        className="w-full mt-3 rounded-xl py-3.5 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-40"
+        style={{ background: COLORS.primary, color: COLORS.white }}>
+        {busy && <Loader2 size={14} className="animate-spin" />}
+        {busy ? (progress ? `올리는 중 ${progress}/${files.length}` : '맡기는 중') : '만들어 주세요'}
+      </button>
+      {willMake && !busy && (
+        <p className="font-body text-[11px] mt-2 text-center" style={{ color: COLORS.muted }}>{willMake}로 만듭니다</p>
+      )}
+    </div>
+  );
+}
+
+// 만드는 중인 것 — 맡긴 뒤 '어디까지 됐는지' 보이게. 15초마다 다시 본다.
+function MakingStrip({ refreshKey, onDone }) {
+  const [rows, setRows] = useState([]);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+      const { data } = await supabase.from('ai_media_queue')
+        .select('id, group_key, status, media_type, error, created_at')
+        .in('status', ['queued', 'working', 'failed']).gte('created_at', since);
+      if (alive) setRows(data || []);
+    })();
+    return () => { alive = false; };
+  }, [refreshKey, tick]);
+
+  const groups = [...new Map(rows.map(r => [r.group_key || `id${r.id}`, r])).values()];
+  const making = groups.filter(g => g.status !== 'failed');
+  const failed = groups.filter(g => g.status === 'failed');
+  const prevMaking = React.useRef(0);
+  useEffect(() => {
+    // 하나가 끝나면 확인할 게시물을 새로 읽는다
+    if (making.length < prevMaking.current) onDone?.();
+    prevMaking.current = making.length;
+  }, [making.length, onDone]);
+  useEffect(() => {
+    if (!making.length) return;
+    const t = setInterval(() => setTick(k => k + 1), 15000);
+    return () => clearInterval(t);
+  }, [making.length]);
+
+  if (!making.length && !failed.length) return null;
+  return (
+    <div className="rounded-2xl px-4 py-3 mb-4 flex items-center gap-3" style={{ background: COLORS.ink }}>
+      {making.length > 0 && <Loader2 size={16} className="animate-spin shrink-0" style={{ color: COLORS.primary }} />}
+      <p className="font-body text-xs flex-1" style={{ color: COLORS.white }}>
+        {making.length > 0 && `${making.length}건 만드는 중입니다. 다 되면 아래에 미리보기가 올라옵니다.`}
+        {failed.length > 0 && ` ${failed.length}건은 만들지 못했습니다. 더 보기의 자세히 올리기에서 확인해 주세요.`}
+      </p>
+    </div>
+  );
+}
+
 export function AdminAIOffice({ user }) {
   const [reports, setReports] = useState([]);
   const [approvals, setApprovals] = useState([]);
@@ -8307,6 +8517,8 @@ export function AdminAIOffice({ user }) {
   }, [sheet]);
 
   const [loadedAt, setLoadedAt] = useState(0);
+  const [makingKey, setMakingKey] = useState(0);   // 새로 맡기면 만드는 중 띠를 다시 읽는다
+  const [moreOpen, setMoreOpen] = useState(false);
   const cardRefs = React.useRef({});
 
   useEffect(() => {
@@ -8437,46 +8649,20 @@ export function AdminAIOffice({ user }) {
           <p className="font-body text-sm py-10 text-center" style={{ color: COLORS.muted }}>불러오는 중…</p>
         ) : (
           <>
-            {todayBrief && (
-              <button onClick={() => setSheet({ kind: 'brief' })}
-                className="w-full rounded-2xl p-4 mb-4 text-left flex items-start gap-3"
-                style={{ background: COLORS.ink }}>
-                <Bell size={16} strokeWidth={1.8} className="shrink-0 mt-0.5" style={{ color: COLORS.primary }} />
-                <div className="min-w-0 flex-1">
-                  <p className="font-heading text-xs" style={{ color: COLORS.white }}>오늘 아침 보고</p>
-                  <p className="font-body text-[11px] mt-1 line-clamp-2" style={{ color: 'rgba(255,255,255,0.65)' }}>
-                    {briefSummary}
-                  </p>
-                </div>
-                <ChevronRight size={15} style={{ color: 'rgba(255,255,255,0.5)' }} />
-              </button>
-            )}
+            {/* ① 올리기 — 사진, 영상을 고르고 '만들어 주세요'만 누르면 된다 */}
+            <QuickPost userId={user?.id} onSubmitted={() => setMakingKey(k => k + 1)} />
 
-            {todayIdeas && (
-              <button onClick={() => setSheet({ kind: 'ideas' })}
-                className="w-full rounded-2xl p-4 mb-4 text-left flex items-start gap-3"
-                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <Sparkles size={16} strokeWidth={1.8} className="shrink-0 mt-0.5" style={{ color: COLORS.primary }} />
-                <div className="min-w-0 flex-1">
-                  <p className="font-heading text-xs" style={{ color: COLORS.ink }}>
-                    오늘 아이디어 {parseIdeas(todayIdeas.body).length}개
-                  </p>
-                  <p className="font-body text-[11px] mt-1 line-clamp-2" style={{ color: COLORS.muted }}>
-                    {ideasGreeting(todayIdeas.body) || parseIdeas(todayIdeas.body).map(i => i.title).join(' / ')}
-                  </p>
-                </div>
-                <ChevronRight size={15} style={{ color: COLORS.muted }} />
-              </button>
-            )}
+            {/* ② 만드는 중 — 다 되면 아래 미리보기로 바뀐다 */}
+            <MakingStrip refreshKey={makingKey} onDone={refreshApprovals} />
 
-            {/* 기다리는 시안 — 목록이 아니라 그림으로 보여준다 */}
+            {/* ③ 확인할 게시물 — 미리보기를 보고 게시하거나, 고칠 점을 말로 적는다 */}
             {awaiting.length > 0 ? (
               <div className="mb-4">
                 <div className="flex items-baseline gap-2 mb-3">
                   <h2 className="font-display text-2xl tracking-tight" style={{ color: COLORS.ink }}>
-                    시안 {awaiting.length}건
+                    확인할 게시물 {awaiting.length}건
                   </h2>
-                  <p className="font-body text-xs" style={{ color: COLORS.muted }}>확인해 주세요</p>
+                  <p className="font-body text-xs" style={{ color: COLORS.muted }}>눌러서 미리보기</p>
                 </div>
                 <div className="flex gap-3 overflow-x-auto -mx-5 px-5 pb-2">
                   {awaiting.map(r => {
@@ -8492,6 +8678,13 @@ export function AdminAIOffice({ user }) {
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             : <img src={cover} alt="" loading="lazy"
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} />)}
+                          {cover && isVideoUrl(cover) && (
+                            <span className="absolute inset-0 flex items-center justify-center">
+                              <span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.9)' }}>
+                                <Play size={15} fill={COLORS.primary} style={{ color: COLORS.primary }} className="ml-0.5" />
+                              </span>
+                            </span>
+                          )}
                           {imgs.length > 1 && (
                             <span className="absolute top-2 right-2 rounded-full px-2 py-0.5 font-mono text-[10px]"
                               style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>{imgs.length}</span>
@@ -8507,73 +8700,64 @@ export function AdminAIOffice({ user }) {
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl p-5 mb-4 text-center"
-                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <p className="font-heading text-sm" style={{ color: COLORS.ink }}>확인할 시안이 없어요</p>
-                <p className="font-body text-xs mt-1.5" style={{ color: COLORS.muted }}>
-                  사진을 올리시면 게시물로 만들어 여기에 올려드립니다
-                </p>
-              </div>
+              <p className="font-body text-xs text-center mb-4" style={{ color: COLORS.muted }}>
+                확인할 게시물이 없습니다. 올리시면 여기에 미리보기가 생깁니다.
+              </p>
             )}
 
-            {/* 만들기 — 매일 누르는 두 가지만 크게 */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <button onClick={() => setSheet({ kind: 'upload' })}
-                className="rounded-2xl p-5 text-left relative overflow-hidden transition-transform active:scale-95"
-                style={{ background: COLORS.ink, minHeight: 148 }}>
-                <div className="absolute -top-14 -right-14 w-28 h-28 rounded-full"
-                  style={{ background: COLORS.primary }} />
-                <div className="relative flex flex-col h-full" style={{ color: COLORS.white }}>
-                  <Upload size={22} strokeWidth={1.8} style={{ color: COLORS.primary }} />
-                  <p className="font-heading text-base mt-auto">소재 올리기</p>
-                  <p className="font-body text-[11px] mt-1" style={{ opacity: 0.65 }}>사진·영상을 게시물로</p>
+            {/* ④ 오늘 아이디어 — 뭘 찍을지 모를 때 */}
+            {todayIdeas && (
+              <button onClick={() => setSheet({ kind: 'ideas' })}
+                className="w-full rounded-2xl p-4 mb-3 text-left flex items-start gap-3"
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                <Sparkles size={16} strokeWidth={1.8} className="shrink-0 mt-0.5" style={{ color: COLORS.primary }} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-heading text-xs" style={{ color: COLORS.ink }}>
+                    뭘 찍을지 모르겠다면: 오늘 아이디어 {parseIdeas(todayIdeas.body).length}개
+                  </p>
+                  <p className="font-body text-[11px] mt-1 line-clamp-2" style={{ color: COLORS.muted }}>
+                    {parseIdeas(todayIdeas.body).map(i => i.title).join(' / ')}
+                  </p>
                 </div>
+                <ChevronRight size={15} style={{ color: COLORS.muted }} />
               </button>
+            )}
 
-              <button onClick={() => setSheet({ kind: 'request' })}
-                className="rounded-2xl p-5 text-left relative overflow-hidden transition-transform active:scale-95"
-                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}`, minHeight: 148 }}>
-                <div className="flex flex-col h-full">
-                  <Sparkles size={22} strokeWidth={1.8} style={{ color: COLORS.primary }} />
-                  <p className="font-heading text-base mt-auto" style={{ color: COLORS.ink }}>콘텐츠 요청</p>
-                  <p className="font-body text-[11px] mt-1" style={{ color: COLORS.muted }}>아이디어만 있을 때</p>
-                </div>
-              </button>
-            </div>
-
-            {/* 나머지는 한 줄로 접어 둔다 */}
-            <div className="flex gap-2">
-              {/* 사업 상황 메모는 기획 담당이 매일 읽는다. 참고 안에 묻혀 있으면 적으러 가기 번거로워서 밖으로 꺼냈다. */}
-              <button onClick={() => setSheet({ kind: 'memo' })}
-                className="flex-1 rounded-xl px-3 py-3 flex items-center justify-between"
-                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <span className="font-heading text-xs" style={{ color: COLORS.ink }}>사업 메모</span>
-                <Edit3 size={13} style={{ color: COLORS.primary }} />
-              </button>
-              <button onClick={() => setSheet({ kind: 'prompts' })}
-                className="flex-1 rounded-xl px-3 py-3 flex items-center justify-between"
-                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <span className="font-heading text-xs" style={{ color: COLORS.ink }}>사진 보정</span>
-                <Copy size={13} style={{ color: COLORS.primary }} />
-              </button>
-              <button onClick={() => setSheet({ kind: 'log' })}
-                className="flex-1 rounded-xl px-3 py-3 flex items-center justify-between"
-                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <span className="font-heading text-xs" style={{ color: COLORS.ink }}>기록</span>
-                <span className="font-mono text-[10px]" style={{ color: COLORS.muted }}>{reports.length + decided.length}</span>
-              </button>
-              <button onClick={() => setSheet({ kind: 'ref' })}
-                className="flex-1 rounded-xl px-3 py-3 flex items-center justify-between"
-                style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
-                <span className="font-heading text-xs" style={{ color: COLORS.ink }}>참고</span>
-                <ChevronRight size={14} style={{ color: COLORS.muted }} />
-              </button>
-            </div>
+            {/* ⑤ 더 보기 — 자주 안 쓰는 것은 접어 둔다 */}
+            <button onClick={() => setMoreOpen(v => !v)}
+              className="w-full rounded-xl px-4 py-3 flex items-center justify-between"
+              style={{ background: COLORS.cardElev }}>
+              <span className="font-heading text-xs" style={{ color: COLORS.stone }}>더 보기</span>
+              <ChevronDown size={15} style={{ color: COLORS.stone, transform: moreOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+            {moreOpen && (
+              <div className="mt-2 rounded-2xl overflow-hidden" style={{ background: COLORS.card, border: `1px solid ${COLORS.light}` }}>
+                {[
+                  ...(todayBrief ? [{ kind: 'brief', label: '오늘 아침 보고', hint: briefSummary }] : []),
+                  { kind: 'request', label: '기획만 받기', hint: '찍기 전에 아이디어나 촬영 순서만 받고 싶을 때 (참고 릴스 영상도 붙일 수 있습니다)' },
+                  { kind: 'upload', label: '자세히 올리기', hint: '디자인 고르기, 완성본 그대로 올리기, 예약 처리, 맡긴 것 목록' },
+                  { kind: 'memo', label: '사업 메모', hint: '모집 시기, 이벤트처럼 기획 담당이 알아야 할 것' },
+                  { kind: 'prompts', label: '사진 보정 요청문', hint: 'ChatGPT에 붙여 넣을 보정 요청문 모음' },
+                  { kind: 'log', label: '기록', hint: `분석, 회의록, 지난 게시물 ${reports.length + decided.length}건` },
+                  { kind: 'ref', label: '담당자 안내', hint: 'AI 직원들이 하는 일' },
+                ].map((m, i) => (
+                  <button key={m.kind} onClick={() => setSheet({ kind: m.kind })}
+                    className="w-full text-left px-4 py-3 flex items-center gap-3"
+                    style={{ borderTop: i ? `1px solid ${COLORS.light}` : 'none' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-heading text-sm" style={{ color: COLORS.ink }}>{m.label}</p>
+                      <p className="font-body text-[11px] mt-0.5 line-clamp-1" style={{ color: COLORS.muted }}>{m.hint}</p>
+                    </div>
+                    <ChevronRight size={14} style={{ color: COLORS.muted }} />
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         )}
 
         {sheet?.kind === 'upload' && (
-          <Sheet title="소재 올리기" onClose={() => setSheet(null)}>
+          <Sheet title="자세히 올리기" onClose={() => setSheet(null)}>
             <MediaUpload userId={user?.id} approvals={approvals} bare prefill={sheet.prefill}
               onRefreshApprovals={refreshApprovals}
               onOpenDraft={(id) => setSheet({ kind: 'draft', id })} />
@@ -8581,13 +8765,13 @@ export function AdminAIOffice({ user }) {
         )}
 
         {sheet?.kind === 'request' && (
-          <Sheet title="콘텐츠 요청" onClose={() => setSheet(null)}>
+          <Sheet title="기획만 받기" onClose={() => setSheet(null)}>
             <ContentRequest userId={user?.id} bare />
           </Sheet>
         )}
 
         {sheet?.kind === 'draft' && (
-          <Sheet title="시안 확인" onClose={() => setSheet(null)}>
+          <Sheet title="게시물 확인" onClose={() => setSheet(null)}>
             <p className="font-body text-xs mb-3" style={{ color: COLORS.muted }}>
               고칠 게 있으면 말로 적어 주세요.
               <strong style={{ color: COLORS.stone }}> 게시</strong>를 누르셔야 인스타에 올라갑니다.
