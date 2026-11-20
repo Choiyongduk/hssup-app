@@ -1,5 +1,15 @@
 // 택배 배송 조회 — 운영진이 적은 택배사 이름으로 조회 주소를 만든다
 
+// 배송비 — 서버(supabase/functions/nicepay-return)에도 같은 숫자가 있으니 바꿀 때 둘 다 바꿔야 결제가 된다
+export const SHIPPING_FEE = 3000;
+export const FREE_SHIPPING_MIN = 30000;
+
+// 재료 주문 배송비: 샵 수령은 무료, 택배는 상품 합계가 FREE_SHIPPING_MIN 이상이면 무료
+export function shippingFeeFor(subtotal, fulfillment) {
+  if (fulfillment === 'pickup') return 0;
+  return Number(subtotal || 0) >= FREE_SHIPPING_MIN ? 0 : SHIPPING_FEE;
+}
+
 // 발송 처리 화면에서 한 번에 고르는 택배사 (이름을 통일해야 조회 링크가 정확히 걸린다)
 export const CARRIER_PRESETS = ['CJ대한통운', '한진택배', '롯데택배', '우체국택배', '로젠택배'];
 

@@ -9,7 +9,7 @@ import { confirmDialog } from '../lib/dialog';
 import { PRACTICE_PRESETS, DEFAULT_PRACTICE_SETTINGS, isClosedDay, loadPracticeCalendar } from '../lib/practice';
 import { subscribeToNotifications, unsubscribeFromNotifications, checkNotificationStatus, notifyEveryone, notifyOperators } from '../lib/notifications';
 import { LEGAL_TERMS, LEGAL_PRIVACY, LEGAL_REFUND } from '../lib/legal';
-import { trackingUrl, cleanTrackingNumber } from '../lib/shipping';
+import { trackingUrl, cleanTrackingNumber, shippingFeeFor, FREE_SHIPPING_MIN } from '../lib/shipping';
 import { addItemsToCart } from '../lib/cart';
 import { cartChanged } from '../lib/inbox';
 import { useDraft, useLatestLecture, useRecentUpdates, useDetailItem, useViewCount } from '../hooks';
@@ -2683,6 +2683,28 @@ function FulfillmentPicker({ value, onChange }) {
 
 const PICKUP_NOTE = '결제 후 학원(샵)에 방문하셔서 받아 가시면 됩니다. 상품이 준비되면 위 연락처로 안내드립니다.';
 
+// 결제 금액 상자의 배송비 줄 (+ 무료배송까지 남은 금액 안내)
+function ShippingFeeRow({ fee, subtotal, isPickup }) {
+  const left = FREE_SHIPPING_MIN - subtotal;
+  return (
+    <div className="mb-2">
+      <div className="flex justify-between items-center">
+        <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>배송비</span>
+        <span className="font-body text-sm" style={{ color: COLORS.ink }}>
+          {fee > 0 ? `${fee.toLocaleString()}원` : isPickup ? '무료 (샵 수령)' : '무료'}
+        </span>
+      </div>
+      {!isPickup && (
+        <p className="font-body text-[10px] mt-1 text-right" style={{ color: COLORS.muted }}>
+          {fee > 0
+            ? `${left.toLocaleString()}원 더 담으면 무료배송 (${FREE_SHIPPING_MIN.toLocaleString()}원 이상)`
+            : `${FREE_SHIPPING_MIN.toLocaleString()}원 이상 구매로 무료배송`}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function PaymentPage({ course, product, user, setCurrentPage }) {
   const [loading, setLoading] = useState(false);
   const [agreedPurchase, setAgreedPurchase] = useState(false);
@@ -2774,6 +2796,8 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
   const itemPrice = item.price;
   const itemOriginalPrice = item.original_price;
   const isPickup = fulfillment === 'pickup';
+  const shippingFee = isProduct ? shippingFeeFor(itemPrice, fulfillment) : 0;
+  const payTotal = itemPrice + shippingFee;
 
   const handlePayment = async () => {
     if (!allAgreed) {
@@ -2824,7 +2848,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
         product_id: isProduct ? product.id : null,
         course_title: itemName,
         item_type: isProduct ? 'product' : 'course',
-        amount: itemPrice,
+        amount: payTotal,
         status: 'pending',
         buyer_name: user.name,
         buyer_phone: user.phone,
@@ -2866,7 +2890,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
         clientId: import.meta.env.VITE_NICEPAY_CLIENT_KEY,
         method: 'card',
         orderId: orderId,
-        amount: itemPrice,
+        amount: payTotal,
         goodsName: itemName,
         returnUrl: returnUrl,
         buyerName: user.name || '고객',
@@ -3042,10 +3066,11 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
               <span className="font-body text-sm" style={{ color: COLORS.ink }}>{itemPrice.toLocaleString()}원</span>
             </div>
           </div>
+          {isProduct && <ShippingFeeRow fee={shippingFee} subtotal={itemPrice} isPickup={isPickup} />}
           <div className="flex justify-between items-baseline pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
             <span className="font-mono text-[12px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>TOTAL</span>
             <span className="font-display text-3xl tracking-tight" style={{ color: COLORS.ink }}>
-              ₩{itemPrice.toLocaleString()}
+              ₩{payTotal.toLocaleString()}
             </span>
           </div>
         </div>
@@ -3085,7 +3110,7 @@ export function PaymentPage({ course, product, user, setCurrentPage }) {
           className="w-full rounded-full py-4 font-heading text-sm flex items-center justify-center gap-2 disabled:opacity-60"
           style={{ background: allAgreed ? COLORS.primary : COLORS.cardElev, color: allAgreed ? COLORS.white : COLORS.ink, boxShadow: allAgreed ? '0 0 24px rgba(255, 69, 0, 0.5)' : 'none' }}>
           {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} strokeWidth={2.5} />}
-          {loading ? '결제창 호출 중...' : !allAgreed ? '약관 동의 후 결제 가능' : `${itemPrice.toLocaleString()}원 결제하기`}
+          {loading ? '결제창 호출 중...' : !allAgreed ? '약관 동의 후 결제 가능' : `${payTotal.toLocaleString()}원 결제하기`}
         </button>
 
         <p className="font-mono text-[10px] text-center mt-2" style={{ color: COLORS.stone }}>
@@ -5156,7 +5181,9 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
   }, [postcodeOpen]);
 
   const validItems = items.filter(it => it.product && (it.product.stock === null || it.product.stock === undefined || it.product.stock > 0));
-  const total = validItems.reduce((sum, it) => sum + (it.product?.price || 0) * (it.quantity || 1), 0);
+  const subtotal = validItems.reduce((sum, it) => sum + (it.product?.price || 0) * (it.quantity || 1), 0);
+  const shippingFee = shippingFeeFor(subtotal, fulfillment);
+  const total = subtotal + shippingFee;
   const allAgreed = agreedTerms && agreedRefund;
   const repName = validItems[0]?.product?.name || '재료';
   const goodsName = validItems.length > 1 ? `${repName} 외 ${validItems.length - 1}건` : repName;
@@ -5219,6 +5246,8 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
           quantity: it.quantity,
         });
       }
+
+      verifiedTotal += shippingFeeFor(verifiedTotal, fulfillment);
 
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
@@ -5382,7 +5411,12 @@ export function CartCheckoutPage({ user, setCurrentPage }) {
 
         {/* 합계 */}
         <div className="rounded-2xl p-4" style={{ background: COLORS.cardElev }}>
-          <div className="flex justify-between items-baseline pt-1">
+          <div className="flex justify-between items-center mb-2">
+            <span className="font-mono text-[10px]" style={{ color: COLORS.stone }}>상품 금액</span>
+            <span className="font-body text-sm" style={{ color: COLORS.ink }}>{formatPrice(subtotal)}원</span>
+          </div>
+          <ShippingFeeRow fee={shippingFee} subtotal={subtotal} isPickup={isPickup} />
+          <div className="flex justify-between items-baseline pt-3" style={{ borderTop: `1px solid ${COLORS.light}` }}>
             <span className="font-mono text-[12px] font-bold tracking-widest uppercase" style={{ color: COLORS.primary }}>TOTAL</span>
             <span className="font-display text-3xl tracking-tight" style={{ color: COLORS.ink }}>₩{formatPrice(total)}</span>
           </div>
